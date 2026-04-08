@@ -64,6 +64,10 @@ async function processDemo(job: Job<DemoParseJobData>) {
             tScore: r.tScore,
             ctEquipVal: r.ctEquipValue,
             tEquipVal: r.tEquipValue,
+            ctMoney: r.ctMoney,
+            tMoney: r.tMoney,
+            buyType_CT: mapBuyType(r.buyTypeCT),
+            buyType_T: mapBuyType(r.buyTypeT),
           })),
         },
         players: {
@@ -188,6 +192,18 @@ function mapWinReason(reason: string): "ELIMINATION" | "BOMB_EXPLODED" | "BOMB_D
     TARGET_SAVED: "TARGET_SAVED",
   };
   return map[reason] ?? "ELIMINATION";
+}
+
+function mapBuyType(type: string): "FULL_BUY" | "FORCE_BUY" | "ECO" | "HALF_BUY" | "PISTOL" | "UNKNOWN" {
+  const map: Record<string, "FULL_BUY" | "FORCE_BUY" | "ECO" | "HALF_BUY" | "PISTOL" | "UNKNOWN"> = {
+    FULL_BUY: "FULL_BUY",
+    FORCE_BUY: "FORCE_BUY",
+    ECO: "ECO",
+    HALF_BUY: "HALF_BUY",
+    PISTOL: "PISTOL",
+    UNKNOWN: "UNKNOWN",
+  };
+  return map[type] ?? "UNKNOWN";
 }
 
 function mapBombAction(type: string): "PLANT_BEGIN" | "PLANTED" | "DEFUSE_BEGIN" | "DEFUSED" | "EXPLODED" | "DROPPED" | "PICKED_UP" {

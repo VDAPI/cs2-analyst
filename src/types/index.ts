@@ -31,6 +31,10 @@ export interface ParsedRound {
   tScore: number;
   ctEquipValue: number;
   tEquipValue: number;
+  ctMoney: number;
+  tMoney: number;
+  buyTypeCT: string;
+  buyTypeT: string;
 }
 
 export interface ParsedPlayer {

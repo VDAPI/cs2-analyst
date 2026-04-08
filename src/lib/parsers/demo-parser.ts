@@ -179,7 +179,94 @@ export async function parseDemoFile(filePath: string): Promise<ParsedDemo> {
       tScore: teamBScore,
       ctEquipValue: 0,
       tEquipValue: 0,
+      ctMoney: 0,
+      tMoney: 0,
+      buyTypeCT: "UNKNOWN",
+      buyTypeT: "UNKNOWN",
     });
+  }
+
+  // ── Economy data from round_freeze_end + parseTicks ──
+  const freezeEndEvents = parser.parseEvent(filePath, "round_freeze_end") as Record<string, unknown>[] | null;
+  if (freezeEndEvents && freezeEndEvents.length > 0 && rounds.length > 0) {
+    const freezeTicks = freezeEndEvents
+      .filter((e) => num(e.tick) > matchStartTick)
+      .sort((a, b) => num(a.tick) - num(b.tick));
+
+    // Map each freeze tick to its round
+    const freezeTickToRound = new Map<number, ParsedRound>();
+    for (const fe of freezeTicks) {
+      const tick = num(fe.tick);
+      const roundNum = findRoundNumber(tick);
+      const round = rounds.find((r) => r.number === roundNum);
+      if (round) freezeTickToRound.set(tick, round);
+    }
+
+    if (freezeTickToRound.size > 0) {
+      const tickList = Array.from(freezeTickToRound.keys());
+      try {
+        const tickData = parser.parseTicks(
+          filePath,
+          ["team_num", "current_equip_value", "balance"],
+          tickList
+        ) as Array<Record<string, unknown>>;
+
+        // Group tick data by tick
+        const byTick = new Map<number, Array<Record<string, unknown>>>();
+        for (const td of tickData) {
+          const tick = num(td.tick);
+          const arr = byTick.get(tick);
+          if (arr) arr.push(td);
+          else byTick.set(tick, [td]);
+        }
+
+        for (const [tick, players] of byTick) {
+          const round = freezeTickToRound.get(tick);
+          if (!round) continue;
+
+          const isSecondHalf = tick > halftimeTick;
+
+          // team_num: 2=T(second half), 3=CT(second half) from parsePlayerInfo perspective
+          // In first half, sides are swapped: team_num=3 plays T, team_num=2 plays CT
+          let ctEquipTotal = 0;
+          let tEquipTotal = 0;
+          let ctMoneyTotal = 0;
+          let tMoneyTotal = 0;
+          let ctCount = 0;
+          let tCount = 0;
+
+          for (const p of players) {
+            const teamNum = num(p.team_num);
+            if (teamNum !== 2 && teamNum !== 3) continue;
+
+            const equip = num(p.current_equip_value);
+            const money = num(p.balance);
+
+            // Determine which side this player is on THIS round
+            const isCTSide = isSecondHalf ? teamNum === 3 : teamNum === 2;
+
+            if (isCTSide) {
+              ctEquipTotal += equip;
+              ctMoneyTotal += money;
+              ctCount++;
+            } else {
+              tEquipTotal += equip;
+              tMoneyTotal += money;
+              tCount++;
+            }
+          }
+
+          round.ctEquipValue = ctEquipTotal;
+          round.tEquipValue = tEquipTotal;
+          round.ctMoney = ctMoneyTotal;
+          round.tMoney = tMoneyTotal;
+          round.buyTypeCT = classifyBuyType(ctEquipTotal, ctCount, round.number);
+          round.buyTypeT = classifyBuyType(tEquipTotal, tCount, round.number);
+        }
+      } catch {
+        // parseTicks may fail on some demos — economy data is optional
+      }
+    }
   }
 
   // header.scoreCT = teamA score (team_number=3, CT in second half)
@@ -429,6 +516,26 @@ export async function parseDemoFile(filePath: string): Promise<ParsedDemo> {
     bombEvents,
     ticks: [],
   };
+}
+
+/**
+ * Classify buy type based on total team equipment value.
+ * SKILL.md thresholds:
+ * - Pistol round: rounds 1 and 13
+ * - Eco: avg equip < $1000 per player
+ * - Half buy: avg equip $1000-$2500
+ * - Force buy: avg equip $2500-$4000
+ * - Full buy: avg equip >= $4000
+ */
+function classifyBuyType(totalEquip: number, playerCount: number, roundNumber: number): string {
+  if (roundNumber === 1 || roundNumber === 13) return "PISTOL";
+  if (playerCount === 0) return "UNKNOWN";
+
+  const avgEquip = totalEquip / playerCount;
+  if (avgEquip < 1000) return "ECO";
+  if (avgEquip < 2500) return "HALF_BUY";
+  if (avgEquip < 4000) return "FORCE_BUY";
+  return "FULL_BUY";
 }
 
 /**

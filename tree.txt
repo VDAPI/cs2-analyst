@@ -1,0 +1,115 @@
+D:\Projekty\cs2-analyst
+├── AGENTS.md
+├── CLAUDE.md
+├── DESIGN.md
+├── docker-compose.yml
+├── next-env.d.ts
+├── next.config.ts
+├── package-lock.json
+├── package.json
+├── PLAN.md
+├── postcss.config.mjs
+├── prisma
+|  └── schema.prisma
+├── public
+|  ├── icons
+|  |  └── README.md
+|  ├── maps
+|  |  ├── de_ancient_radar.png
+|  |  ├── de_anubis_radar.png
+|  |  ├── de_dust2_radar.png
+|  |  ├── de_inferno_radar.png
+|  |  ├── de_mirage_radar.png
+|  |  ├── de_nuke_radar.png
+|  |  ├── de_overpass_radar.png
+|  |  ├── de_train_radar.png
+|  |  ├── de_vertigo_radar.png
+|  |  └── README.md
+|  └── weapons
+|     └── README.md
+├── README.md
+├── scripts
+|  ├── debug-economy.ts
+|  ├── debug-parse.ts
+|  └── test-parse.ts
+├── SKILL.md
+├── src
+|  ├── app
+|  |  ├── (dashboard)
+|  |  |  ├── compare
+|  |  |  ├── economy
+|  |  |  ├── grenades
+|  |  |  ├── heatmaps
+|  |  |  ├── layout.tsx
+|  |  |  ├── matches
+|  |  |  ├── players
+|  |  |  ├── replay
+|  |  |  └── settings
+|  |  ├── api
+|  |  |  ├── auth
+|  |  |  ├── heatmap
+|  |  |  ├── matches
+|  |  |  └── uploads
+|  |  ├── layout.tsx
+|  |  ├── login
+|  |  |  └── page.tsx
+|  |  ├── page.tsx
+|  |  ├── register
+|  |  |  └── page.tsx
+|  |  └── upload
+|  |     └── page.tsx
+|  ├── components
+|  |  ├── auth
+|  |  |  ├── credentials-form.tsx
+|  |  |  ├── dev-login.tsx
+|  |  |  └── steam-login.tsx
+|  |  ├── charts
+|  |  |  └── economy-chart.tsx
+|  |  ├── layout
+|  |  |  ├── sidebar.tsx
+|  |  |  └── topbar.tsx
+|  |  ├── maps
+|  |  |  └── heatmap-overlay.tsx
+|  |  ├── providers
+|  |  |  └── session-provider.tsx
+|  |  ├── replay
+|  |  |  └── replay-canvas.tsx
+|  |  └── ui
+|  |     └── index.tsx
+|  ├── hooks
+|  |  └── index.ts
+|  ├── lib
+|  |  ├── analysis
+|  |  |  └── heatmap.ts
+|  |  ├── auth.ts
+|  |  ├── db
+|  |  |  └── prisma.ts
+|  |  ├── parsers
+|  |  |  └── demo-parser.ts
+|  |  ├── queue.ts
+|  |  ├── steam
+|  |  |  └── api.ts
+|  |  └── utils
+|  |     ├── cn.ts
+|  |     ├── formatters.ts
+|  |     ├── index.ts
+|  |     ├── mapNames.ts
+|  |     └── maps.ts
+|  ├── middleware.ts
+|  ├── stores
+|  |  └── replay-store.ts
+|  ├── styles
+|  |  └── globals.css
+|  └── types
+|     ├── index.ts
+|     └── next-auth.d.ts
+├── tasks
+|  └── todo.md
+├── tsconfig.json
+├── tsconfig.tsbuildinfo
+└── workers
+   └── demo-parser.worker.ts
+
+directory: 1890 file: 9669
+
+ignored: directory (21)

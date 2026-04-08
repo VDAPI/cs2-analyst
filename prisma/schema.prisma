@@ -160,6 +160,8 @@ model Round {
   tScore      Int
   ctEquipVal  Int        @default(0)
   tEquipVal   Int        @default(0)
+  ctMoney     Int        @default(0)
+  tMoney      Int        @default(0)
   buyType_CT  BuyType    @default(UNKNOWN)
   buyType_T   BuyType    @default(UNKNOWN)
 

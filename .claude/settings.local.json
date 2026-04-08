@@ -60,7 +60,10 @@
       "Bash(curl -s \"https://api.github.com/search/repositories?q=cs2+radar+map+images+in:name,description&sort=stars&per_page=5\")",
       "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(r['full_name'], r['html_url']\\) for r in data.get\\('items',[]\\)]\")",
       "Bash(curl:*)",
-      "Bash(python3 -c \"import sys,json; [print\\(f['name']\\) for f in json.load\\(sys.stdin\\)]\")"
+      "Bash(python3 -c \"import sys,json; [print\\(f['name']\\) for f in json.load\\(sys.stdin\\)]\")",
+      "Bash(tasklist)",
+      "Bash(tasklist.exe)",
+      "Bash(findstr /i \"node\")"
     ]
   }
 }
