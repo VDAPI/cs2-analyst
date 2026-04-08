@@ -29,6 +29,7 @@ D:\Projekty\cs2-analyst
 |     └── README.md
 ├── README.md
 ├── scripts
+|  ├── debug-economy-full.ts
 |  ├── debug-economy.ts
 |  ├── debug-parse.ts
 |  └── test-parse.ts
@@ -105,11 +106,12 @@ D:\Projekty\cs2-analyst
 |     └── next-auth.d.ts
 ├── tasks
 |  └── todo.md
+├── tree.txt
 ├── tsconfig.json
 ├── tsconfig.tsbuildinfo
 └── workers
    └── demo-parser.worker.ts
 
-directory: 1890 file: 9669
+directory: 1890 file: 9670
 
 ignored: directory (21)

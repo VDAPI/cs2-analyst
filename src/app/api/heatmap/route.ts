@@ -43,7 +43,7 @@ export async function GET(req: Request) {
 
   const matchIdList = matches.map((m) => m.id);
 
-  // Get all kills across selected matches
+  // Get all kills across selected matches (include round number for team-side resolution)
   const kills = await prisma.kill.findMany({
     where: { round: { matchId: { in: matchIdList } } },
     select: {
@@ -57,6 +57,7 @@ export async function GET(req: Request) {
       victimPosY: true,
       weapon: true,
       headshot: true,
+      round: { select: { number: true } },
     },
   });
 
@@ -66,28 +67,42 @@ export async function GET(req: Request) {
     select: { steamId: true, name: true, team: true },
   });
 
-  // Build team lookup (use latest team assignment)
-  const teamBySteamId = new Map<string, string>();
+  // Build team lookup — matchPlayer.team is the END-OF-MATCH team (second-half side).
+  // In first half (rounds 1-12), sides are SWAPPED relative to the DB value.
+  const dbTeamBySteamId = new Map<string, string>();
   const playerNames = new Map<string, string>();
   for (const p of allPlayers) {
-    teamBySteamId.set(p.steamId, p.team);
+    dbTeamBySteamId.set(p.steamId, p.team);
     playerNames.set(p.steamId, p.name);
   }
 
-  // Deduplicated player list
+  /** Get a player's in-game team for a specific round, accounting for side swap at halftime. */
+  function getInGameTeam(steamId: string, roundNumber: number): string | undefined {
+    const dbTeam = dbTeamBySteamId.get(steamId);
+    if (!dbTeam) return undefined;
+    // First half (rounds 1-12): sides are opposite to DB value
+    if (roundNumber <= 12) return dbTeam === "CT" ? "T" : "CT";
+    // Second half (round 13+): sides match DB value
+    return dbTeam;
+  }
+
+  // Deduplicated player list (use DB team for display — represents "home" side)
   const uniquePlayers = Array.from(playerNames.entries()).map(([steamId, name]) => ({
     steamId,
     name,
-    team: teamBySteamId.get(steamId) ?? "CT",
+    team: dbTeamBySteamId.get(steamId) ?? "CT",
   }));
 
   // Build points
   const points: Array<{ x: number; y: number; name: string; weapon: string; headshot: boolean }> = [];
 
   for (const k of kills) {
+    const roundNum = k.round.number;
     if (type === "kills") {
-      const team = teamBySteamId.get(k.attackerSteamId);
-      if (side && team !== side) continue;
+      if (side) {
+        const team = getInGameTeam(k.attackerSteamId, roundNum);
+        if (team !== side) continue;
+      }
       if (playerSteamId && k.attackerSteamId !== playerSteamId) continue;
       points.push({
         x: k.attackerPosX,
@@ -97,8 +112,10 @@ export async function GET(req: Request) {
         headshot: k.headshot,
       });
     } else {
-      const team = teamBySteamId.get(k.victimSteamId);
-      if (side && team !== side) continue;
+      if (side) {
+        const team = getInGameTeam(k.victimSteamId, roundNum);
+        if (team !== side) continue;
+      }
       if (playerSteamId && k.victimSteamId !== playerSteamId) continue;
       points.push({
         x: k.victimPosX,
