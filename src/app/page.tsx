@@ -26,10 +26,10 @@ export default function HomePage() {
 
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
           <Link
-            href="/login"
+            href="/register"
             className="inline-flex h-12 items-center justify-center rounded-lg bg-[var(--accent)] px-8 text-sm font-medium text-white transition-all hover:bg-[var(--accent-hover)] hover:shadow-[0_0_20px_var(--accent-glow)]"
           >
-            Sign in with Steam
+            Get Started
           </Link>
           <Link
             href="#features"
