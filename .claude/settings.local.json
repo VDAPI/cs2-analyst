@@ -33,7 +33,8 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code} %{redirect_url}\" http://localhost:3000/matches)",
       "Bash(npx --yes kill-port 3000)",
       "Bash(curl -s -o /dev/null -w \"%{http_code} -> %{redirect_url}\" http://localhost:3000/matches)",
-      "Bash(curl -s http://localhost:3000/api/auth/providers)"
+      "Bash(curl -s http://localhost:3000/api/auth/providers)",
+      "Bash(curl -s http://localhost:3000/_next/static/chunks/_6ee348._.css)"
     ]
   }
 }
