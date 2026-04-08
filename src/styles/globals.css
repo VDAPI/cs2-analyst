@@ -1,0 +1,234 @@
+@import "tailwindcss";
+
+/* ─── CS2 Analyst Design System Tokens ─────────────────── */
+
+:root {
+  /* Surfaces */
+  --canvas: #09090b;
+  --surface-1: #0f0f12;
+  --surface-2: #16161a;
+  --surface-3: #1c1c22;
+  --surface-4: #24242e;
+
+  /* Text */
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #71717a;
+  --text-disabled: #3f3f46;
+
+  /* Brand */
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-active: #2563eb;
+  --accent-muted: rgba(59, 130, 246, 0.15);
+  --accent-glow: rgba(59, 130, 246, 0.25);
+
+  /* Game Colors */
+  --ct-blue: #60a5fa;
+  --ct-blue-muted: rgba(96, 165, 250, 0.15);
+  --t-gold: #fbbf24;
+  --t-gold-muted: rgba(251, 191, 36, 0.15);
+  --kill-red: #ef4444;
+  --kill-red-muted: rgba(239, 68, 68, 0.15);
+  --death-gray: #6b7280;
+  --headshot-gold: #f59e0b;
+  --flash-white: #e2e8f0;
+
+  /* Status */
+  --success: #22c55e;
+  --success-muted: rgba(34, 197, 94, 0.15);
+  --warning: #f59e0b;
+  --warning-muted: rgba(245, 158, 11, 0.15);
+  --error: #ef4444;
+  --error-muted: rgba(239, 68, 68, 0.15);
+  --info: #06b6d4;
+  --info-muted: rgba(6, 182, 212, 0.15);
+
+  /* Grenades */
+  --smoke: #94a3b8;
+  --molotov: #f97316;
+  --flash: #fde047;
+  --he: #ef4444;
+  --decoy: #a78bfa;
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(255, 255, 255, 0.10);
+  --border-active: rgba(59, 130, 246, 0.40);
+  --divider: rgba(255, 255, 255, 0.04);
+
+  /* Overlay */
+  --overlay: rgba(0, 0, 0, 0.80);
+  --glass-bg: rgba(15, 15, 18, 0.80);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.7);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 9999px;
+
+  /* Sidebar */
+  --sidebar-width: 240px;
+  --sidebar-collapsed: 64px;
+  --topbar-height: 56px;
+}
+
+/* ─── Base Resets ──────────────────────────────────────── */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: var(--radius-full);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--text-disabled);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--canvas);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: var(--accent-muted);
+  color: var(--accent-hover);
+}
+
+/* ─── Typography Utilities ─────────────────────────────── */
+
+.stat-number {
+  font-family: var(--font-geist-mono), "SF Mono", "Fira Code", monospace;
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-small {
+  font-family: var(--font-geist-mono), "SF Mono", "Fira Code", monospace;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-inline {
+  font-family: var(--font-geist-mono), "SF Mono", "Fira Code", monospace;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── Team Color Classes ───────────────────────────────── */
+
+.team-ct {
+  color: var(--ct-blue);
+}
+
+.team-ct-bg {
+  background-color: var(--ct-blue-muted);
+}
+
+.team-ct-border {
+  border-left: 3px solid var(--ct-blue);
+}
+
+.team-t {
+  color: var(--t-gold);
+}
+
+.team-t-bg {
+  background-color: var(--t-gold-muted);
+}
+
+.team-t-border {
+  border-left: 3px solid var(--t-gold);
+}
+
+/* ─── Status Classes ───────────────────────────────────── */
+
+.win-indicator {
+  border-left: 3px solid var(--success);
+}
+
+.loss-indicator {
+  border-left: 3px solid var(--error);
+}
+
+/* ─── Glow Effects ─────────────────────────────────────── */
+
+.glow-accent {
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+.glow-kill {
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.4);
+}
+
+/* ─── Animations ───────────────────────────────────────── */
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fade-in 200ms ease-out;
+}
+
+.animate-slide-in {
+  animation: slide-in-right 200ms ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 150ms ease-out;
+}
+
+/* ─── Glass Effect ─────────────────────────────────────── */
+
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}

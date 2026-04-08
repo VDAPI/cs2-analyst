@@ -1,0 +1,1 @@
+// Heatmap overlay component

@@ -1,0 +1,297 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth ────────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  steamId       String?   @unique
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  plan          Plan      @default(FREE)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts     Account[]
+  sessions     Session[]
+  matchPlayers MatchPlayer[]
+  teams        TeamMember[]
+  uploads      DemoUpload[]
+}
+
+enum Plan {
+  FREE
+  PRO
+  TEAM
+}
+
+// ─── Demo & Match ────────────────────────────────────────
+
+model DemoUpload {
+  id        String      @id @default(cuid())
+  userId    String
+  fileName  String
+  fileUrl   String
+  fileSize  Int
+  status    ParseStatus @default(QUEUED)
+  error     String?
+  matchId   String?     @unique
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  user  User   @relation(fields: [userId], references: [id])
+  match Match? @relation(fields: [matchId], references: [id])
+}
+
+enum ParseStatus {
+  QUEUED
+  PARSING
+  COMPLETED
+  FAILED
+}
+
+model Match {
+  id          String   @id @default(cuid())
+  map         String
+  date        DateTime
+  duration    Int // seconds
+  server      String?
+  shareCode   String?  @unique
+  scoreCT     Int
+  scoreT      Int
+  tickRate    Int      @default(64)
+  totalTicks  Int
+  createdAt   DateTime @default(now())
+
+  upload  DemoUpload?
+  rounds  Round[]
+  players MatchPlayer[]
+}
+
+model MatchPlayer {
+  id       String @id @default(cuid())
+  matchId  String
+  userId   String?
+  steamId  String
+  name     String
+  team     Team_Side
+  
+  // Aggregate stats
+  kills    Int @default(0)
+  deaths   Int @default(0)
+  assists  Int @default(0)
+  adr      Float @default(0)
+  hltvRating Float @default(0)
+  hsPercent  Float @default(0)
+  utilityDamage Int @default(0)
+  flashAssists  Int @default(0)
+  firstKills    Int @default(0)
+  firstDeaths   Int @default(0)
+  clutchWins    Int @default(0)
+  clutchAttempts Int @default(0)
+
+  match Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User?  @relation(fields: [userId], references: [id])
+
+  @@unique([matchId, steamId])
+  @@index([steamId])
+}
+
+enum Team_Side {
+  CT
+  T
+}
+
+// ─── Round ───────────────────────────────────────────────
+
+model Round {
+  id          String     @id @default(cuid())
+  matchId     String
+  number      Int
+  winner      Team_Side
+  winReason   WinReason
+  startTick   Int
+  endTick     Int
+  ctScore     Int
+  tScore      Int
+  ctEquipVal  Int        @default(0)
+  tEquipVal   Int        @default(0)
+  buyType_CT  BuyType    @default(UNKNOWN)
+  buyType_T   BuyType    @default(UNKNOWN)
+
+  match    Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  kills    Kill[]
+  grenades GrenadeEvent[]
+  bombs    BombEvent[]
+
+  @@unique([matchId, number])
+}
+
+enum WinReason {
+  ELIMINATION
+  BOMB_EXPLODED
+  BOMB_DEFUSED
+  TIME_RAN_OUT
+  TARGET_SAVED
+}
+
+enum BuyType {
+  FULL_BUY
+  FORCE_BUY
+  ECO
+  HALF_BUY
+  PISTOL
+  UNKNOWN
+}
+
+// ─── Events ──────────────────────────────────────────────
+
+model Kill {
+  id              String  @id @default(cuid())
+  roundId         String
+  tick            Int
+  attackerSteamId String
+  attackerName    String
+  victimSteamId   String
+  victimName      String
+  assisterSteamId String?
+  weapon          String
+  headshot        Boolean @default(false)
+  wallbang        Boolean @default(false)
+  throughSmoke    Boolean @default(false)
+  noScope         Boolean @default(false)
+  flashAssisted   Boolean @default(false)
+  attackerPosX    Float
+  attackerPosY    Float
+  attackerPosZ    Float
+  victimPosX      Float
+  victimPosY      Float
+  victimPosZ      Float
+  isFirstKill     Boolean @default(false)
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@index([attackerSteamId])
+  @@index([victimSteamId])
+}
+
+model GrenadeEvent {
+  id            String      @id @default(cuid())
+  roundId       String
+  tick          Int
+  throwerSteamId String
+  throwerName   String
+  grenadeType   GrenadeType
+  throwPosX     Float
+  throwPosY     Float
+  throwPosZ     Float
+  landPosX      Float
+  landPosY      Float
+  landPosZ      Float
+  trajectory    Json? // Array of {tick, x, y, z}
+  duration      Int?  // ms for smokes/molotovs
+  damageDealt   Int   @default(0)
+  playersFlashed Int  @default(0)
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@index([throwerSteamId])
+}
+
+enum GrenadeType {
+  SMOKE
+  FLASH
+  HE
+  MOLOTOV
+  INCENDIARY
+  DECOY
+}
+
+model BombEvent {
+  id        String    @id @default(cuid())
+  roundId   String
+  tick      Int
+  type      BombAction
+  playerSteamId String
+  posX      Float
+  posY      Float
+  posZ      Float
+  site      String? // A or B
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+}
+
+enum BombAction {
+  PLANT_BEGIN
+  PLANTED
+  DEFUSE_BEGIN
+  DEFUSED
+  EXPLODED
+  DROPPED
+  PICKED_UP
+}
+
+// ─── Teams ───────────────────────────────────────────────
+
+model Team {
+  id        String   @id @default(cuid())
+  name      String
+  logo      String?
+  createdAt DateTime @default(now())
+
+  members TeamMember[]
+}
+
+model TeamMember {
+  id     String    @id @default(cuid())
+  teamId String
+  userId String
+  role   TeamRole  @default(PLAYER)
+  joinedAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([teamId, userId])
+}
+
+enum TeamRole {
+  OWNER
+  COACH
+  PLAYER
+}
