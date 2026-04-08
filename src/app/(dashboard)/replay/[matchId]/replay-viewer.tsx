@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useReplayStore } from "@/stores/replay-store";
-import type { PlayerSnapshot, KillEvent } from "@/stores/replay-store";
+import type { PlayerSnapshot } from "@/stores/replay-store";
 import { PlaybackControls } from "./playback-controls";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -13,6 +13,7 @@ interface MapConfigData {
   scale: number;
   width: number;
   height: number;
+  radarImage: string;
 }
 
 interface RoundInfo {
@@ -45,7 +46,7 @@ const CT_COLOR_DEAD = "rgba(96, 165, 250, 0.3)";
 const T_COLOR_DEAD = "rgba(251, 191, 36, 0.3)";
 const KILL_MARKER_COLOR = "#ef4444";
 const CANVAS_SIZE = 1024;
-const PLAYER_RADIUS = 10;
+const PLAYER_RADIUS = 12;
 
 export function ReplayViewer({
   matchId,
@@ -60,6 +61,7 @@ export function ReplayViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const animFrameRef = useRef<number>(0);
   const lastTickTimeRef = useRef<number>(0);
+  const [radarImage, setRadarImage] = useState<HTMLImageElement | null>(null);
 
   const {
     frames,
@@ -76,6 +78,14 @@ export function ReplayViewer({
     reset,
   } = useReplayStore();
 
+  // Load radar image
+  useEffect(() => {
+    if (!mapConfig?.radarImage) return;
+    const img = new Image();
+    img.src = mapConfig.radarImage;
+    img.onload = () => setRadarImage(img);
+  }, [mapConfig?.radarImage]);
+
   // Load first round on mount
   useEffect(() => {
     loadRound(matchId, 1);
@@ -86,7 +96,6 @@ export function ReplayViewer({
   const worldToCanvas = useCallback(
     (gameX: number, gameY: number): { x: number; y: number } => {
       if (!mapConfig) {
-        // Fallback: normalize to canvas assuming typical mirage bounds
         return {
           x: ((gameX + 3230) / 5120) * CANVAS_SIZE,
           y: ((1713 - gameY) / 5120) * CANVAS_SIZE,
@@ -106,30 +115,39 @@ export function ReplayViewer({
       const width = ctx.canvas.width;
       const height = ctx.canvas.height;
 
-      // Clear
-      ctx.fillStyle = "#1a1a2e";
+      // Clear with dark background
+      ctx.fillStyle = "#0a0a12";
       ctx.fillRect(0, 0, width, height);
 
-      // Draw grid for orientation
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
-      ctx.lineWidth = 1;
-      const gridStep = width / 16;
-      for (let i = 1; i < 16; i++) {
-        ctx.beginPath();
-        ctx.moveTo(i * gridStep, 0);
-        ctx.lineTo(i * gridStep, height);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(0, i * gridStep);
-        ctx.lineTo(width, i * gridStep);
-        ctx.stroke();
+      // Draw radar image (desaturated, ~30% opacity per DESIGN.md)
+      if (radarImage) {
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.filter = "grayscale(100%)";
+        ctx.drawImage(radarImage, 0, 0, width, height);
+        ctx.restore();
+      } else {
+        // Fallback grid when no radar image
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
+        ctx.lineWidth = 1;
+        const gridStep = width / 16;
+        for (let i = 1; i < 16; i++) {
+          ctx.beginPath();
+          ctx.moveTo(i * gridStep, 0);
+          ctx.lineTo(i * gridStep, height);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, i * gridStep);
+          ctx.lineTo(width, i * gridStep);
+          ctx.stroke();
+        }
+        // Map name watermark
+        ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
+        ctx.font = `bold ${width * 0.06}px "Geist Mono", monospace`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(mapName.toUpperCase(), width / 2, height / 2);
       }
-
-      // Map label
-      ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
-      ctx.font = `bold ${width * 0.05}px "Geist Mono", monospace`;
-      ctx.textAlign = "center";
-      ctx.fillText(mapName.toUpperCase(), width / 2, height / 2);
 
       if (frames.length === 0) return;
 
@@ -151,15 +169,15 @@ export function ReplayViewer({
         drawPlayer(ctx, pos.x, pos.y, player, showPlayerNames);
       }
     },
-    [frames, currentFrameIndex, kills, worldToCanvas, showPlayerNames, mapName]
+    [frames, currentFrameIndex, kills, worldToCanvas, showPlayerNames, mapName, radarImage]
   );
 
   // Animation loop
   useEffect(() => {
     if (!isPlaying) return;
 
-    const tickInterval = 32; // ticks between frames
-    const tickRate = 64; // CS2 tick rate
+    const tickInterval = 32;
+    const tickRate = 64;
     const msPerFrame = (tickInterval / tickRate / playbackSpeed) * 1000;
 
     const animate = (time: number) => {
@@ -188,7 +206,7 @@ export function ReplayViewer({
   // Keyboard shortcuts
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
 
       switch (e.code) {
         case "Space":
@@ -214,94 +232,169 @@ export function ReplayViewer({
             <ArrowLeft className="h-4 w-4" />
             Back
           </Link>
-          <h1 className="text-lg font-bold text-[var(--text-primary)]">
+          <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
             {mapName}
           </h1>
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-mono font-bold text-[#60a5fa]">{scoreCT}</span>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-lg font-bold text-[var(--ct-blue)]">{scoreCT}</span>
             <span className="text-[var(--text-disabled)]">:</span>
-            <span className="font-mono font-bold text-[#fbbf24]">{scoreT}</span>
+            <span className="font-mono text-lg font-bold text-[var(--t-gold)]">{scoreT}</span>
           </div>
         </div>
 
         {isLoading && (
-          <span className="text-xs text-[var(--text-tertiary)]">Loading round data...</span>
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
+            <span className="text-xs text-[var(--text-tertiary)]">Loading round...</span>
+          </div>
         )}
       </div>
 
       {/* Canvas + sidebar */}
       <div className="flex flex-1 gap-4" ref={containerRef}>
         {/* Canvas */}
-        <div className="relative aspect-square w-full max-w-[700px] flex-shrink-0 overflow-hidden rounded-xl border border-[var(--border)] bg-[#1a1a2e]">
+        <div className="relative aspect-square w-full max-w-[700px] flex-shrink-0 overflow-hidden rounded-xl border border-[var(--border)] shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
           <canvas
             ref={canvasRef}
             width={CANVAS_SIZE}
             height={CANVAS_SIZE}
             className="h-full w-full"
           />
+          {/* Round info overlay */}
+          <div className="absolute left-3 top-3 rounded-lg bg-[rgba(15,15,18,0.8)] px-3 py-1.5 backdrop-blur-sm">
+            <span className="font-mono text-xs text-[var(--text-secondary)]">
+              R{currentRound}
+            </span>
+            {frames.length > 0 && (
+              <span className="ml-2 font-mono text-[10px] text-[var(--text-tertiary)]">
+                {currentFrameIndex + 1}/{frames.length}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Player list sidebar */}
-        <div className="flex min-w-[200px] flex-col gap-2">
-          <p className="text-xs font-medium uppercase text-[var(--text-tertiary)]">
-            Players
-          </p>
-          {frames.length > 0 && frames[currentFrameIndex] ? (
-            <>
-              {frames[currentFrameIndex].players
+        <div className="flex min-w-[220px] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-4">
+          {/* CT players */}
+          <div className="mb-1 flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-[var(--ct-blue)]" />
+            <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--ct-blue)]">
+              Counter-Terrorists
+            </span>
+          </div>
+          <div className="space-y-1">
+            {frames.length > 0 && frames[currentFrameIndex] ? (
+              frames[currentFrameIndex].players
+                .filter((p) => p.team === "CT")
+                .map((p) => <PlayerListItem key={p.steamId} player={p} />)
+            ) : (
+              players
                 .filter((p) => p.team === "CT")
                 .map((p) => (
-                  <PlayerListItem key={p.steamId} player={p} />
-                ))}
-              <div className="my-1 border-t border-[var(--border)]" />
-              {frames[currentFrameIndex].players
+                  <div key={p.steamId} className="flex items-center gap-2 rounded-md px-2 py-1 text-xs">
+                    <div className="h-2 w-2 rounded-full bg-[var(--ct-blue)]" />
+                    <span className="font-mono text-[var(--text-secondary)]">{p.name}</span>
+                  </div>
+                ))
+            )}
+          </div>
+
+          <div className="my-3 border-t border-[var(--border)]" />
+
+          {/* T players */}
+          <div className="mb-1 flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-[var(--t-gold)]" />
+            <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--t-gold)]">
+              Terrorists
+            </span>
+          </div>
+          <div className="space-y-1">
+            {frames.length > 0 && frames[currentFrameIndex] ? (
+              frames[currentFrameIndex].players
+                .filter((p) => p.team === "T")
+                .map((p) => <PlayerListItem key={p.steamId} player={p} />)
+            ) : (
+              players
                 .filter((p) => p.team === "T")
                 .map((p) => (
-                  <PlayerListItem key={p.steamId} player={p} />
-                ))}
-            </>
-          ) : (
-            players.map((p) => (
-              <div
-                key={p.steamId}
-                className="flex items-center gap-2 text-xs"
-              >
-                <div
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: p.team === "CT" ? CT_COLOR : T_COLOR }}
-                />
-                <span className="text-[var(--text-secondary)]">{p.name}</span>
+                  <div key={p.steamId} className="flex items-center gap-2 rounded-md px-2 py-1 text-xs">
+                    <div className="h-2 w-2 rounded-full bg-[var(--t-gold)]" />
+                    <span className="font-mono text-[var(--text-secondary)]">{p.name}</span>
+                  </div>
+                ))
+            )}
+          </div>
+
+          {/* Kill feed */}
+          {kills.length > 0 && frames[currentFrameIndex] && (
+            <>
+              <div className="my-3 border-t border-[var(--border)]" />
+              <div className="mb-1">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
+                  Kill Feed
+                </span>
               </div>
-            ))
+              <div className="space-y-0.5 overflow-y-auto" style={{ maxHeight: 160 }}>
+                {kills
+                  .filter((k) => k.tick <= frames[currentFrameIndex].tick)
+                  .map((k, i) => (
+                    <div key={i} className="flex items-center gap-1 text-[10px]">
+                      <span className="font-mono text-[var(--text-primary)]">{k.attackerName}</span>
+                      <span className="text-[var(--text-disabled)]">
+                        {k.headshot ? "●" : "→"}
+                      </span>
+                      <span className="font-mono text-[var(--text-tertiary)]">{k.victimName}</span>
+                    </div>
+                  ))}
+              </div>
+            </>
           )}
         </div>
       </div>
 
       {/* Controls */}
-      <PlaybackControls
-        matchId={matchId}
-        rounds={rounds}
-      />
+      <PlaybackControls matchId={matchId} rounds={rounds} />
     </div>
   );
 }
 
 function PlayerListItem({ player }: { player: PlayerSnapshot }) {
-  const color = player.team === "CT" ? CT_COLOR : T_COLOR;
+  const isCT = player.team === "CT";
   const isDead = !player.isAlive;
+  const color = isCT ? "var(--ct-blue)" : "var(--t-gold)";
 
   return (
-    <div className={`flex items-center gap-2 text-xs ${isDead ? "opacity-40" : ""}`}>
+    <div
+      className={`flex items-center gap-2 rounded-md px-2 py-1 text-xs transition-opacity ${
+        isDead ? "opacity-35" : ""
+      }`}
+    >
       <div
-        className="h-2 w-2 rounded-full"
+        className="h-2 w-2 flex-shrink-0 rounded-full"
         style={{ backgroundColor: color }}
       />
-      <span className="flex-1 font-mono text-[var(--text-secondary)]">
+      <span className="flex-1 truncate font-mono text-[var(--text-secondary)]">
         {player.name}
       </span>
-      <span className="font-mono text-[var(--text-tertiary)]">
-        {isDead ? "DEAD" : `${player.health}hp`}
-      </span>
+      {isDead ? (
+        <span className="font-mono text-[10px] text-[var(--error)]">DEAD</span>
+      ) : (
+        <span className="font-mono text-[10px] text-[var(--text-tertiary)]">
+          {player.health}
+        </span>
+      )}
+      {!isDead && (
+        <div className="h-1 w-8 overflow-hidden rounded-full bg-[var(--surface-3)]">
+          <div
+            className="h-full rounded-full transition-all"
+            style={{
+              width: `${player.health}%`,
+              backgroundColor:
+                player.health > 50 ? "#22c55e" : player.health > 25 ? "#eab308" : "#ef4444",
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -319,10 +412,10 @@ function drawPlayer(
   const isDead = !player.isAlive;
 
   if (isDead) {
-    // Draw X for dead players
-    ctx.strokeStyle = isDead && isCT ? CT_COLOR_DEAD : T_COLOR_DEAD;
+    // Death X marker (per DESIGN.md: × in #ef4444, 16px)
+    ctx.strokeStyle = isCT ? CT_COLOR_DEAD : T_COLOR_DEAD;
     ctx.lineWidth = 2;
-    const s = PLAYER_RADIUS * 0.6;
+    const s = 8;
     ctx.beginPath();
     ctx.moveTo(x - s, y - s);
     ctx.lineTo(x + s, y + s);
@@ -334,17 +427,20 @@ function drawPlayer(
 
   const color = isCT ? CT_COLOR : T_COLOR;
 
-  // Player circle
+  // Player circle (12px per DESIGN.md, white outline)
   ctx.beginPath();
   ctx.arc(x, y, PLAYER_RADIUS, 0, Math.PI * 2);
   ctx.fillStyle = color;
-  ctx.globalAlpha = 0.8;
+  ctx.globalAlpha = 0.85;
   ctx.fill();
   ctx.globalAlpha = 1;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
 
   // Direction indicator (view angle)
   const angleRad = (player.yaw * Math.PI) / 180;
-  const dirLen = PLAYER_RADIUS * 1.8;
+  const dirLen = PLAYER_RADIUS * 2;
   ctx.beginPath();
   ctx.moveTo(x, y);
   ctx.lineTo(
@@ -352,36 +448,41 @@ function drawPlayer(
     y - Math.sin(angleRad) * dirLen
   );
   ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2.5;
   ctx.stroke();
 
   // Health bar (below player)
   if (player.health < 100) {
-    const barWidth = PLAYER_RADIUS * 2;
+    const barWidth = PLAYER_RADIUS * 2.2;
     const barHeight = 3;
-    const barY = y + PLAYER_RADIUS + 4;
-    // Background
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    const barY = y + PLAYER_RADIUS + 5;
+    ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
     ctx.fillRect(x - barWidth / 2, barY, barWidth, barHeight);
-    // Health
     ctx.fillStyle = player.health > 50 ? "#22c55e" : player.health > 25 ? "#eab308" : "#ef4444";
     ctx.fillRect(x - barWidth / 2, barY, barWidth * (player.health / 100), barHeight);
   }
 
-  // Player name
+  // Player name (Geist Mono 10px, white with black outline per DESIGN.md)
   if (showName) {
-    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+    const nameY = y - PLAYER_RADIUS - 6;
     ctx.font = '10px "Geist Mono", monospace';
     ctx.textAlign = "center";
-    ctx.fillText(player.name, x, y - PLAYER_RADIUS - 4);
+    ctx.textBaseline = "bottom";
+    // Black outline
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+    ctx.lineWidth = 3;
+    ctx.strokeText(player.name, x, nameY);
+    // White fill
+    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.fillText(player.name, x, nameY);
   }
 }
 
 function drawKillMarker(ctx: CanvasRenderingContext2D, x: number, y: number) {
-  const s = 6;
+  const s = 8;
   ctx.strokeStyle = KILL_MARKER_COLOR;
-  ctx.lineWidth = 2;
-  ctx.globalAlpha = 0.7;
+  ctx.lineWidth = 2.5;
+  ctx.globalAlpha = 0.6;
   ctx.beginPath();
   ctx.moveTo(x - s, y - s);
   ctx.lineTo(x + s, y + s);

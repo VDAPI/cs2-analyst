@@ -111,43 +111,47 @@ export default async function MatchesPage() {
               result = userTeamScore > enemyScore ? "win" : userTeamScore < enemyScore ? "loss" : "draw";
             }
 
+            // Match card: left border per DESIGN.md (win=green, loss=red, draw/unknown=gray)
+            const borderColor =
+              result === "win" ? "#22c55e" :
+              result === "loss" ? "#ef4444" :
+              "#71717a";
+
             return (
               <Link key={match.id} href={`/matches/${match.id}`}>
-                <Card className="flex items-center justify-between p-4 hover:border-[var(--border-hover)]">
+                <Card
+                  className="flex items-center justify-between border-l-[3px] p-4 transition-all duration-150 hover:border-[var(--border-hover)]"
+                  style={{ borderLeftColor: borderColor }}
+                >
                   <div className="flex items-center gap-4">
-                    {/* Result indicator */}
+                    {/* Map thumbnail */}
                     <div
-                      className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                        result === "win"
-                          ? "bg-[var(--success-muted)]"
-                          : result === "loss"
-                            ? "bg-[var(--error-muted)]"
-                            : "bg-[var(--surface-3)]"
-                      }`}
-                    >
-                      {result ? (
-                        <span
-                          className={`text-xs font-bold ${
-                            result === "win"
-                              ? "text-[var(--success)]"
-                              : result === "loss"
-                                ? "text-[var(--error)]"
-                                : "text-[var(--text-secondary)]"
-                          }`}
-                        >
-                          {result === "win" ? "W" : result === "loss" ? "L" : "D"}
-                        </span>
-                      ) : (
-                        <span className="text-xs font-bold text-[var(--text-secondary)]">
-                          {match.map.replace("de_", "").slice(0, 3).toUpperCase()}
-                        </span>
-                      )}
-                    </div>
+                      className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)] bg-cover bg-center"
+                      style={{
+                        backgroundImage: `url(/maps/${match.map}_radar.png)`,
+                        filter: "grayscale(40%) brightness(0.7)",
+                      }}
+                    />
 
                     <div>
-                      <p className="font-medium text-[var(--text-primary)]">
-                        {mapDisplayName(match.map)}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-[var(--text-primary)]">
+                          {mapDisplayName(match.map)}
+                        </p>
+                        {result && (
+                          <span
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                              result === "win"
+                                ? "bg-[rgba(34,197,94,0.15)] text-[#22c55e]"
+                                : result === "loss"
+                                  ? "bg-[rgba(239,68,68,0.15)] text-[#ef4444]"
+                                  : "bg-[rgba(113,113,122,0.15)] text-[#71717a]"
+                            }`}
+                          >
+                            {result === "win" ? "W" : result === "loss" ? "L" : "D"}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-[var(--text-tertiary)]">
                         {match.date.toLocaleDateString()} — {match.players.length} players
                       </p>

@@ -50,6 +50,7 @@ export default async function ReplayPage({ params }: Props) {
         scale: mapConfig.scale,
         width: mapConfig.width,
         height: mapConfig.height,
+        radarImage: mapConfig.radarImage,
       } : null}
       rounds={match.rounds.map((r) => ({
         number: r.number,

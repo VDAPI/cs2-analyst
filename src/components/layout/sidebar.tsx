@@ -57,13 +57,13 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-150 ${
                 isActive
-                  ? "bg-[var(--accent-muted)] text-[var(--ct-blue)]"
+                  ? "bg-[rgba(59,130,246,0.15)] text-[#60a5fa] shadow-[inset_0_0_12px_rgba(59,130,246,0.08)]"
                   : "text-[var(--text-tertiary)] hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--text-secondary)]"
               }`}
             >
-              <Icon className="h-[18px] w-[18px]" />
+              <Icon className={`h-[18px] w-[18px] transition-colors duration-150 ${isActive ? "text-[#60a5fa]" : ""}`} />
               {item.label}
             </Link>
           );

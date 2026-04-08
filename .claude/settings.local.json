@@ -50,7 +50,17 @@
       "Bash(node -e ':*)",
       "Bash(ls:*)",
       "Bash(npx tsc:*)",
-      "Bash(npx next:*)"
+      "Bash(npx next:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh api:*)",
+      "Bash(where gh:*)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/GitHub CLI:/c/Users/vdapi/AppData/Local/GitHub CLI\")",
+      "WebFetch(domain:api.github.com)",
+      "Bash(curl -s https://api.github.com/repos/pnxenopoulos/cs2-map-data/contents)",
+      "Bash(curl -s \"https://api.github.com/search/repositories?q=cs2+radar+map+images+in:name,description&sort=stars&per_page=5\")",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(r['full_name'], r['html_url']\\) for r in data.get\\('items',[]\\)]\")",
+      "Bash(curl:*)",
+      "Bash(python3 -c \"import sys,json; [print\\(f['name']\\) for f in json.load\\(sys.stdin\\)]\")"
     ]
   }
 }

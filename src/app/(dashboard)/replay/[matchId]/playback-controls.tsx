@@ -55,7 +55,7 @@ export function PlaybackControls({ matchId, rounds }: PlaybackControlsProps) {
   };
 
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-4">
+    <div className="rounded-xl border border-[var(--border)] bg-[rgba(15,15,18,0.80)] p-4 backdrop-blur-xl">
       {/* Timeline scrubber */}
       <div className="mb-3">
         <input

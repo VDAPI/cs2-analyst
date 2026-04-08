@@ -69,15 +69,25 @@ export default async function MatchDetailPage({ params }: Props) {
       {/* Match header */}
       <Card className="p-6">
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-              {mapDisplayName(match.map)}
-            </h1>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              {match.date.toLocaleDateString()}
-              {match.duration > 0 && ` — ${formatDuration(match.duration)}`}
-              {match.server && ` — ${match.server}`}
-            </p>
+          <div className="flex items-center gap-4">
+            {/* Map thumbnail */}
+            <div
+              className="hidden h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)] bg-cover bg-center sm:block"
+              style={{
+                backgroundImage: `url(/maps/${match.map}_radar.png)`,
+                filter: "grayscale(30%) brightness(0.8)",
+              }}
+            />
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
+                {mapDisplayName(match.map)}
+              </h1>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                {match.date.toLocaleDateString()}
+                {match.duration > 0 && ` — ${formatDuration(match.duration)}`}
+                {match.server && ` — ${match.server}`}
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
