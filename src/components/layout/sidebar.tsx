@@ -36,14 +36,17 @@ export function Sidebar() {
   return (
     <aside className="flex h-full w-[var(--sidebar-width)] flex-col border-r border-[var(--border)] bg-[var(--surface-1)]">
       {/* Logo */}
-      <div className="flex h-[var(--topbar-height)] items-center gap-2.5 border-b border-[var(--border)] px-5">
+      <Link
+        href="/matches"
+        className="flex h-[var(--topbar-height)] items-center gap-2.5 border-b border-[var(--border)] px-5 transition-colors hover:bg-[rgba(255,255,255,0.04)]"
+      >
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)]">
           <Crosshair className="h-4 w-4 text-white" />
         </div>
         <span className="text-sm font-semibold text-[var(--text-primary)]">
           CS2 Analyst
         </span>
-      </div>
+      </Link>
 
       {/* Navigation */}
       <nav className="flex flex-1 flex-col gap-1 p-3">

@@ -1,17 +1,37 @@
-# Phase 1 MVP — Make `npm run dev` work cleanly
+# Phase 1 MVP
 
-## Status: DONE
+## Completed
 
----
+### Setup (done)
+- [x] Fix next.config.ts (serverExternalPackages)
+- [x] Install geist fonts
+- [x] Verify Tailwind v4 + PostCSS
+- [x] Create CLAUDE.md
 
-### Tasks
+### Auth Refactor (done)
+- [x] Email/password registration + login
+- [x] Steam as optional OAuth provider
+- [x] Steam linking from /settings
+- [x] Dev login bypass
+- [x] Route protection middleware
 
-- [x] **1. Fix `next.config.ts`** — Moved `serverComponentsExternalPackages` to top-level `serverExternalPackages`. Also removed redundant `webpack` config that caused Turbopack warning.
+### UI Fixes (done)
+- [x] Sidebar logo links to /matches
+- [x] Back button on /upload page
 
-- [x] **2. Install `geist` font package** — `npm install geist` added. Imports in `layout.tsx` resolve correctly.
+### Demo Upload & Parsing (done — needs real demo testing)
+- [x] Queue helper module (src/lib/queue.ts)
+- [x] Upload API route (POST /api/uploads)
+- [x] Upload status polling API (GET /api/uploads/[id]/status)
+- [x] Demo parser transformation (demoparser2 → typed structures)
+- [x] Worker: fix async bugs, complete DB batch inserts
+- [x] Upload page: real upload + polling + redirect
+- [x] Match detail page with scoreboard (/matches/[matchId])
+- [x] Matches list page with real data
 
-- [x] **3. Verify Tailwind v4 + PostCSS** — Works out of the box with Turbopack. No config files needed.
-
-- [x] **4. Verify landing page renders** — Page loads at `localhost:3000` with Geist fonts, design tokens, and feature grid rendering correctly. No errors or warnings.
-
-- [x] **5. Create CLAUDE.md** — Created ~75-line project context file based on AGENTS.md.
+## Next Steps
+- [ ] Test with real .dem file end-to-end
+- [ ] Handle edge cases in parser (warmup rounds, overtime)
+- [ ] Add grenade event parsing
+- [ ] Add tick data for heatmaps/replay
+- [ ] R2 storage migration (replace local files)

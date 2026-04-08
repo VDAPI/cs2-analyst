@@ -40,6 +40,6 @@ prisma/migrations/
 # testing
 coverage/
 
-# temp demo files
-*.dem
+# demo files
+data/demos/*.dem
 temp/

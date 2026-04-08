@@ -4,23 +4,11 @@
  * Runs as a separate process via `npm run worker:parse`.
  * Listens to the "demo-parse" BullMQ queue and processes
  * uploaded .dem files, storing results in PostgreSQL.
- *
- * Flow:
- * 1. User uploads .dem → file stored in R2 → job added to queue
- * 2. This worker picks up the job
- * 3. Downloads .dem from R2 to temp directory
- * 4. Parses with demoparser2
- * 5. Transforms & stores results in PostgreSQL via Prisma
- * 6. Updates DemoUpload status to COMPLETED
  */
 
 import { Worker, type Job } from "bullmq";
 import { PrismaClient } from "@prisma/client";
 import { parseDemoFile } from "../src/lib/parsers/demo-parser";
-import { createWriteStream } from "fs";
-import { unlink } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
 
 const prisma = new PrismaClient();
 
@@ -28,13 +16,12 @@ const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 
 interface DemoParseJobData {
   uploadId: string;
-  fileUrl: string;
+  filePath: string;
   userId: string;
 }
 
 async function processDemo(job: Job<DemoParseJobData>) {
-  const { uploadId, fileUrl, userId } = job.data;
-  const tempPath = join(tmpdir(), `demo-${uploadId}.dem`);
+  const { uploadId, filePath } = job.data;
 
   try {
     // Update status to PARSING
@@ -43,33 +30,29 @@ async function processDemo(job: Job<DemoParseJobData>) {
       data: { status: "PARSING" },
     });
 
-    job.updateProgress(10);
+    await job.updateProgress(10);
 
-    // 1. Download demo from R2/S3
-    // TODO: Implement R2 download
-    // const response = await fetch(fileUrl);
-    // const writer = createWriteStream(tempPath);
-    // ...pipe response to writer...
+    // Parse the demo
+    const parsed = await parseDemoFile(filePath);
 
-    job.updateProgress(30);
+    await job.updateProgress(50);
 
-    // 2. Parse the demo
-    const parsed = await parseDemoFile(tempPath);
+    // Resolve user links for all players
+    const playerUserLinks = await Promise.all(
+      parsed.players.map((p) => linkUser(p.steamId))
+    );
 
-    job.updateProgress(60);
-
-    // 3. Store in database
+    // Create match with rounds and players
     const match = await prisma.match.create({
       data: {
         map: parsed.header.map,
         date: parsed.header.date,
         duration: parsed.header.duration,
-        server: parsed.header.server,
+        server: parsed.header.server || null,
         scoreCT: parsed.header.scoreCT,
         scoreT: parsed.header.scoreT,
         tickRate: parsed.header.tickRate,
         totalTicks: parsed.header.totalTicks,
-        // Create rounds
         rounds: {
           create: parsed.rounds.map((r) => ({
             number: r.number,
@@ -83,9 +66,8 @@ async function processDemo(job: Job<DemoParseJobData>) {
             tEquipVal: r.tEquipValue,
           })),
         },
-        // Create player entries
         players: {
-          create: parsed.players.map((p) => ({
+          create: parsed.players.map((p, i) => ({
             steamId: p.steamId,
             name: p.name,
             team: p.team,
@@ -99,29 +81,85 @@ async function processDemo(job: Job<DemoParseJobData>) {
             flashAssists: p.flashAssists,
             firstKills: p.firstKills,
             firstDeaths: p.firstDeaths,
-            // Link to user if exists
-            ...(await linkUser(p.steamId)),
+            ...playerUserLinks[i],
           })),
         },
       },
     });
 
-    job.updateProgress(80);
+    await job.updateProgress(70);
 
-    // 4. Store kills, grenades, bomb events per round
-    // TODO: Batch insert kills, grenades, bomb events
+    // Get round IDs for foreign keys
+    const roundRecords = await prisma.round.findMany({
+      where: { matchId: match.id },
+      select: { id: true, number: true },
+    });
+    const roundIdByNumber = Object.fromEntries(
+      roundRecords.map((r) => [r.number, r.id])
+    );
 
-    // 5. Update upload status
+    // Batch insert kills
+    if (parsed.kills.length > 0) {
+      await prisma.kill.createMany({
+        data: parsed.kills
+          .filter((k) => roundIdByNumber[k.roundNumber])
+          .map((k) => ({
+            roundId: roundIdByNumber[k.roundNumber],
+            tick: k.tick,
+            attackerSteamId: k.attackerSteamId,
+            attackerName: k.attackerName,
+            victimSteamId: k.victimSteamId,
+            victimName: k.victimName,
+            assisterSteamId: k.assisterSteamId ?? null,
+            weapon: k.weapon,
+            headshot: k.headshot,
+            wallbang: k.wallbang,
+            throughSmoke: k.throughSmoke,
+            noScope: k.noScope,
+            flashAssisted: k.flashAssisted,
+            attackerPosX: k.attackerPos.x,
+            attackerPosY: k.attackerPos.y,
+            attackerPosZ: k.attackerPos.z,
+            victimPosX: k.victimPos.x,
+            victimPosY: k.victimPos.y,
+            victimPosZ: k.victimPos.z,
+            isFirstKill: k.isFirstKill,
+          })),
+      });
+    }
+
+    await job.updateProgress(85);
+
+    // Batch insert bomb events
+    if (parsed.bombEvents.length > 0) {
+      await prisma.bombEvent.createMany({
+        data: parsed.bombEvents
+          .filter((b) => roundIdByNumber[b.roundNumber])
+          .map((b) => ({
+            roundId: roundIdByNumber[b.roundNumber],
+            tick: b.tick,
+            type: mapBombAction(b.type),
+            playerSteamId: b.playerSteamId,
+            posX: b.pos.x,
+            posY: b.pos.y,
+            posZ: b.pos.z,
+            site: b.site ?? null,
+          })),
+      });
+    }
+
+    await job.updateProgress(95);
+
+    // Update upload status
     await prisma.demoUpload.update({
       where: { id: uploadId },
       data: { status: "COMPLETED", matchId: match.id },
     });
 
-    job.updateProgress(100);
+    await job.updateProgress(100);
 
     return { matchId: match.id };
   } catch (error) {
-    // Mark as failed
     await prisma.demoUpload.update({
       where: { id: uploadId },
       data: {
@@ -130,13 +168,6 @@ async function processDemo(job: Job<DemoParseJobData>) {
       },
     });
     throw error;
-  } finally {
-    // Clean up temp file
-    try {
-      await unlink(tempPath);
-    } catch {
-      // ignore cleanup errors
-    }
   }
 }
 
@@ -148,37 +179,49 @@ async function linkUser(steamId: string) {
   return user ? { userId: user.id } : {};
 }
 
-function mapWinReason(reason: string) {
-  const map: Record<string, string> = {
-    t_win_elimination: "ELIMINATION",
-    ct_win_elimination: "ELIMINATION",
-    t_win_bomb: "BOMB_EXPLODED",
-    ct_win_defuse: "BOMB_DEFUSED",
-    ct_win_time: "TIME_RAN_OUT",
-    target_saved: "TARGET_SAVED",
+function mapWinReason(reason: string): "ELIMINATION" | "BOMB_EXPLODED" | "BOMB_DEFUSED" | "TIME_RAN_OUT" | "TARGET_SAVED" {
+  const map: Record<string, "ELIMINATION" | "BOMB_EXPLODED" | "BOMB_DEFUSED" | "TIME_RAN_OUT" | "TARGET_SAVED"> = {
+    ELIMINATION: "ELIMINATION",
+    BOMB_EXPLODED: "BOMB_EXPLODED",
+    BOMB_DEFUSED: "BOMB_DEFUSED",
+    TIME_RAN_OUT: "TIME_RAN_OUT",
+    TARGET_SAVED: "TARGET_SAVED",
   };
-  return (map[reason.toLowerCase()] ?? "ELIMINATION") as any;
+  return map[reason] ?? "ELIMINATION";
+}
+
+function mapBombAction(type: string): "PLANT_BEGIN" | "PLANTED" | "DEFUSE_BEGIN" | "DEFUSED" | "EXPLODED" | "DROPPED" | "PICKED_UP" {
+  const map: Record<string, "PLANT_BEGIN" | "PLANTED" | "DEFUSE_BEGIN" | "DEFUSED" | "EXPLODED" | "DROPPED" | "PICKED_UP"> = {
+    PLANTED: "PLANTED",
+    DEFUSED: "DEFUSED",
+    EXPLODED: "EXPLODED",
+    PLANT_BEGIN: "PLANT_BEGIN",
+    DEFUSE_BEGIN: "DEFUSE_BEGIN",
+    DROPPED: "DROPPED",
+    PICKED_UP: "PICKED_UP",
+  };
+  return map[type] ?? "PLANTED";
 }
 
 // ─── Start Worker ────────────────────────────────────────
 
 const worker = new Worker("demo-parse", processDemo, {
   connection: { url: REDIS_URL },
-  concurrency: 2, // parse 2 demos at a time
+  concurrency: 2,
   limiter: {
     max: 10,
-    duration: 60_000, // max 10 jobs per minute
+    duration: 60_000,
   },
 });
 
 worker.on("completed", (job) => {
-  console.log(`✅ Demo parsed: ${job.id} → match ${job.returnvalue?.matchId}`);
+  console.log(`Demo parsed: ${job.id} -> match ${job.returnvalue?.matchId}`);
 });
 
 worker.on("failed", (job, err) => {
-  console.error(`❌ Demo parse failed: ${job?.id}`, err.message);
+  console.error(`Demo parse failed: ${job?.id}`, err.message);
 });
 
 worker.on("ready", () => {
-  console.log("🎮 Demo parser worker ready, waiting for jobs...");
+  console.log("Demo parser worker ready, waiting for jobs...");
 });
