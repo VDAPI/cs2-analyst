@@ -40,7 +40,17 @@
       "Bash(curl -s -X POST http://localhost:3000/api/auth/register -H \"Content-Type: application/json\" -d '{\"email\":\"test@test.com\",\"password\":\"testtest123\",\"name\":\"Test User\"}')",
       "Bash(curl -s -X POST http://localhost:3000/api/auth/register -H \"Content-Type: application/json\" -d '{\"email\":\"test@test.com\",\"password\":\"testtest123\"}')",
       "Bash(curl -s -X POST http://localhost:3000/api/auth/register -H \"Content-Type: application/json\" -d '{\"email\":\"bad@test.com\",\"password\":\"short\"}')",
-      "Bash(curl -s http://localhost:3000/api/auth/csrf)"
+      "Bash(curl -s http://localhost:3000/api/auth/csrf)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/upload)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/matches)",
+      "Bash(curl -s http://localhost:3000/api/auth/csrf -c /tmp/cookies.txt)",
+      "Bash(curl -s -X POST http://localhost:3000/api/uploads -b /tmp/cookies.txt)",
+      "Bash(curl -s http://localhost:3000/api/auth/csrf -c /tmp/cookies2.txt)",
+      "Bash(npx tsx:*)",
+      "Bash(node -e ':*)",
+      "Bash(ls:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx next:*)"
     ]
   }
 }

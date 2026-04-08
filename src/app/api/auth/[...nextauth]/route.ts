@@ -7,9 +7,9 @@ import type { NextRequest } from "next/server";
 
 async function handler(
   req: NextRequest,
-  ctx: { params: { nextauth: string[] } }
+  ctx: { params: Promise<{ nextauth: string[] }> }
 ) {
-  return NextAuth(req, ctx, {
+  return NextAuth(req, { params: await ctx.params }, {
     ...authOptions,
     providers: [
       ...authOptions.providers,

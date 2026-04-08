@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { Card, StatCard, Badge } from "@/components/ui";
+import { mapDisplayName } from "@/lib/utils/mapNames";
 import Link from "next/link";
 
 export default async function MatchesPage() {
@@ -145,7 +146,7 @@ export default async function MatchesPage() {
 
                     <div>
                       <p className="font-medium text-[var(--text-primary)]">
-                        {match.map}
+                        {mapDisplayName(match.map)}
                       </p>
                       <p className="text-xs text-[var(--text-tertiary)]">
                         {match.date.toLocaleDateString()} — {match.players.length} players

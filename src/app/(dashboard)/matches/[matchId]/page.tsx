@@ -3,9 +3,17 @@ import { notFound } from "next/navigation";
 import { Card, Badge } from "@/components/ui";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { RoundTimeline } from "./round-timeline";
+import { mapDisplayName } from "@/lib/utils/mapNames";
 
 interface Props {
   params: Promise<{ matchId: string }>;
+}
+
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
 export default async function MatchDetailPage({ params }: Props) {
@@ -15,7 +23,12 @@ export default async function MatchDetailPage({ params }: Props) {
     where: { id: matchId },
     include: {
       players: { orderBy: { hltvRating: "desc" } },
-      rounds: { orderBy: { number: "asc" } },
+      rounds: {
+        orderBy: { number: "asc" },
+        include: {
+          kills: { orderBy: { tick: "asc" } },
+        },
+      },
     },
   });
 
@@ -25,11 +38,22 @@ export default async function MatchDetailPage({ params }: Props) {
   const tPlayers = match.players.filter((p) => p.team === "T");
   const ctWon = match.scoreCT > match.scoreT;
 
-  const formatDuration = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  };
+  // Serialize rounds + kills for client component
+  const roundsData = match.rounds.map((r) => ({
+    number: r.number,
+    winner: r.winner as "CT" | "T",
+    winReason: r.winReason,
+    kills: r.kills.map((k) => ({
+      attackerName: k.attackerName,
+      victimName: k.victimName,
+      weapon: k.weapon,
+      headshot: k.headshot,
+      wallbang: k.wallbang,
+      throughSmoke: k.throughSmoke,
+      noScope: k.noScope,
+      isFirstKill: k.isFirstKill,
+    })),
+  }));
 
   return (
     <div className="space-y-6">
@@ -47,10 +71,11 @@ export default async function MatchDetailPage({ params }: Props) {
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-              {match.map}
+              {mapDisplayName(match.map)}
             </h1>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              {match.date.toLocaleDateString()} — {formatDuration(match.duration)}
+              {match.date.toLocaleDateString()}
+              {match.duration > 0 && ` — ${formatDuration(match.duration)}`}
               {match.server && ` — ${match.server}`}
             </p>
           </div>
@@ -72,29 +97,8 @@ export default async function MatchDetailPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Round timeline */}
-        {match.rounds.length > 0 && (
-          <div className="mt-6">
-            <p className="mb-2 text-xs font-medium uppercase text-[var(--text-tertiary)]">
-              Round Timeline
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {match.rounds.map((r) => (
-                <div
-                  key={r.number}
-                  className={`flex h-6 w-6 items-center justify-center rounded text-[10px] font-bold ${
-                    r.winner === "CT"
-                      ? "bg-[var(--ct-blue-muted)] text-[var(--ct-blue)]"
-                      : "bg-[var(--t-gold-muted)] text-[var(--t-gold)]"
-                  }`}
-                  title={`Round ${r.number}: ${r.winner} (${r.winReason})`}
-                >
-                  {r.number}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Interactive round timeline */}
+        {roundsData.length > 0 && <RoundTimeline rounds={roundsData} />}
       </Card>
 
       {/* CT Scoreboard */}
