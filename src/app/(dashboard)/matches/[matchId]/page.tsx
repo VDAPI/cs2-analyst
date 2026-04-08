@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 import { notFound } from "next/navigation";
 import { Card, Badge } from "@/components/ui";
 import Link from "next/link";
-import { ArrowLeft, DollarSign, Flame, Play } from "lucide-react";
+import { ArrowLeft, Crosshair, DollarSign, Flame, Play } from "lucide-react";
 import { RoundTimeline } from "./round-timeline";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 
@@ -129,6 +129,13 @@ export default async function MatchDetailPage({ params }: Props) {
           >
             <Play className="h-3.5 w-3.5" />
             2D Replay
+          </Link>
+          <Link
+            href={`/grenades/${matchId}`}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-all duration-150 hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
+          >
+            <Crosshair className="h-3.5 w-3.5" />
+            Grenades
           </Link>
         </div>
 

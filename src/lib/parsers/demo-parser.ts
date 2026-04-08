@@ -11,6 +11,8 @@ import type {
   ParsedPlayer,
   ParsedRound,
   ParsedBombEvent,
+  ParsedGrenade,
+  GrenadeType,
   DemoHeader,
 } from "@/types";
 
@@ -420,7 +422,101 @@ export async function parseDemoFile(filePath: string): Promise<ParsedDemo> {
   parseBombEvents(bombDefused, "DEFUSED");
   parseBombEvents(bombExploded, "EXPLODED");
 
-  // 7. Aggregate player stats
+  // 7. Grenade events
+  const grenades: ParsedGrenade[] = [];
+
+  const grenadeEventMap: Array<{ event: string; type: GrenadeType }> = [
+    { event: "smokegrenade_detonate", type: "SMOKE" },
+    { event: "flashbang_detonate", type: "FLASH" },
+    { event: "hegrenade_detonate", type: "HE" },
+    { event: "inferno_startburn", type: "MOLOTOV" },
+    { event: "decoy_detonate", type: "DECOY" },
+  ];
+
+  // Pre-parse flash blind events for flash effectiveness
+  const blindEvents = parser.parseEvent(filePath, "player_blind") as Record<string, unknown>[] | null;
+  // Group by entityid — each entityid is one flashbang throw
+  const blindByEntity = new Map<number, Array<{ victimId: string; duration: number }>>();
+  for (const b of blindEvents ?? []) {
+    const eid = num(b.entityid);
+    const victimId = str(b.user_steamid);
+    const attackerId = str(b.attacker_steamid);
+    if (!victimId || !attackerId) continue;
+    // Skip team flashes: only count enemies
+    const attackerInfo = playerRoster.get(attackerId);
+    const victimInfo = playerRoster.get(victimId);
+    if (attackerInfo && victimInfo && attackerInfo.team === victimInfo.team) continue;
+    const arr = blindByEntity.get(eid);
+    const entry = { victimId, duration: num(b.blind_duration) };
+    if (arr) arr.push(entry);
+    else blindByEntity.set(eid, [entry]);
+  }
+
+  // Pre-parse grenade damage from player_hurt (HE + molotov/inferno)
+  const grenadeDmgByAttackerTick = new Map<string, number>();
+  for (const d of damageEvents ?? []) {
+    const weapon = str(d.weapon);
+    if (weapon !== "hegrenade" && weapon !== "inferno" && weapon !== "molotov") continue;
+    const tick = num(d.tick);
+    if (tick <= matchStartTick) continue;
+    const attackerId = str(d.attacker_steamid);
+    if (!attackerId) continue;
+    // Key: attackerId + tick bucket (±32 ticks grouped together)
+    const bucket = Math.round(tick / 64) * 64;
+    const key = `${attackerId}:${bucket}`;
+    grenadeDmgByAttackerTick.set(key, (grenadeDmgByAttackerTick.get(key) ?? 0) + num(d.dmg_health));
+  }
+
+  for (const { event, type } of grenadeEventMap) {
+    const events = parser.parseEvent(filePath, event, ["X", "Y", "Z"]) as Record<string, unknown>[] | null;
+    for (const e of events ?? []) {
+      const tick = num(e.tick);
+      if (tick <= matchStartTick) continue;
+
+      const throwerSteamId = str(e.user_steamid);
+      if (!throwerSteamId) continue;
+
+      const entityId = num(e.entityid);
+
+      // Flash: count enemies blinded from player_blind
+      let playersFlashed = 0;
+      let totalBlindDuration = 0;
+      if (type === "FLASH") {
+        const blinds = blindByEntity.get(entityId);
+        if (blinds) {
+          playersFlashed = blinds.length;
+          totalBlindDuration = blinds.reduce((sum, b) => sum + b.duration, 0);
+        }
+      }
+
+      // HE/Molotov: sum damage from player_hurt near this tick
+      let damageDealt = 0;
+      if (type === "HE" || type === "MOLOTOV") {
+        const bucket = Math.round(tick / 64) * 64;
+        const key = `${throwerSteamId}:${bucket}`;
+        damageDealt = grenadeDmgByAttackerTick.get(key) ?? 0;
+      }
+
+      grenades.push({
+        tick,
+        roundNumber: findRoundNumber(tick),
+        throwerSteamId,
+        throwerName: str(e.user_name),
+        type,
+        throwPos: { x: num(e.user_X), y: num(e.user_Y), z: num(e.user_Z) },
+        landPos: { x: num(e.x), y: num(e.y), z: num(e.z) },
+        trajectory: [],
+        duration: type === "FLASH" ? Math.round(totalBlindDuration * 1000) : (num(e.duration) || undefined),
+        damageDealt,
+        playersFlashed,
+      });
+    }
+  }
+
+  // Sort grenades by tick
+  grenades.sort((a, b) => a.tick - b.tick);
+
+  // 8. Aggregate player stats
   // Start from the authoritative roster (parsePlayerInfo), then enrich with kill data
   const playerStats = new Map<string, {
     steamId: string;
@@ -512,7 +608,7 @@ export async function parseDemoFile(filePath: string): Promise<ParsedDemo> {
     rounds,
     players,
     kills,
-    grenades: [],
+    grenades,
     bombEvents,
     ticks: [],
   };

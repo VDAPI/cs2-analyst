@@ -7,7 +7,7 @@
  */
 
 import { Worker, type Job } from "bullmq";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { parseDemoFile } from "../src/lib/parsers/demo-parser";
 
 const prisma = new PrismaClient();
@@ -148,6 +148,31 @@ async function processDemo(job: Job<DemoParseJobData>) {
             posY: b.pos.y,
             posZ: b.pos.z,
             site: b.site ?? null,
+          })),
+      });
+    }
+
+    // Batch insert grenade events
+    if (parsed.grenades.length > 0) {
+      await prisma.grenadeEvent.createMany({
+        data: parsed.grenades
+          .filter((g) => roundIdByNumber[g.roundNumber])
+          .map((g) => ({
+            roundId: roundIdByNumber[g.roundNumber],
+            tick: g.tick,
+            throwerSteamId: g.throwerSteamId,
+            throwerName: g.throwerName,
+            grenadeType: g.type,
+            throwPosX: g.throwPos.x,
+            throwPosY: g.throwPos.y,
+            throwPosZ: g.throwPos.z,
+            landPosX: g.landPos.x,
+            landPosY: g.landPos.y,
+            landPosZ: g.landPos.z,
+            trajectory: Prisma.DbNull,
+            duration: g.duration ?? null,
+            damageDealt: g.damageDealt,
+            playersFlashed: g.playersFlashed,
           })),
       });
     }
