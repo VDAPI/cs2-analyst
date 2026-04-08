@@ -1,7 +1,7 @@
 "use client";
 
 import { useReplayStore } from "@/stores/replay-store";
-import { Play, Pause, SkipBack, SkipForward, Eye, EyeOff } from "lucide-react";
+import { Play, Pause, SkipBack, SkipForward, Eye, EyeOff, Crosshair } from "lucide-react";
 
 interface RoundInfo {
   number: number;
@@ -26,12 +26,14 @@ export function PlaybackControls({ matchId, rounds }: PlaybackControlsProps) {
     isPlaying,
     playbackSpeed,
     showPlayerNames,
+    showGrenades,
     isLoading,
     loadRound,
     setFrameIndex,
     togglePlay,
     setSpeed,
     togglePlayerNames,
+    toggleGrenades,
   } = useReplayStore();
 
   const totalFrames = frames.length;
@@ -154,6 +156,19 @@ export function PlaybackControls({ matchId, rounds }: PlaybackControlsProps) {
             ) : (
               <EyeOff className="h-4 w-4" />
             )}
+          </button>
+
+          {/* Toggle grenades */}
+          <button
+            onClick={toggleGrenades}
+            className={`rounded-md p-1.5 transition-colors ${
+              showGrenades
+                ? "text-[var(--accent)]"
+                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+            }`}
+            title={showGrenades ? "Hide grenades & bomb" : "Show grenades & bomb"}
+          >
+            <Crosshair className="h-4 w-4" />
           </button>
         </div>
       </div>

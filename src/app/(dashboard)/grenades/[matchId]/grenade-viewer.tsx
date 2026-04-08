@@ -118,7 +118,9 @@ export function GrenadeViewer({
     fetch(`/api/matches/${matchId}/grenades?${params}`)
       .then((r) => r.json())
       .then((data) => {
-        setGrenades(data.grenades ?? []);
+        const g = data.grenades ?? [];
+        console.log(`[Grenades] Loaded ${g.length} events (round=${roundFilter})`, g.length > 0 ? g[0] : "empty");
+        setGrenades(g);
         setStats(data.stats ?? []);
         setIsLoading(false);
       })
@@ -176,6 +178,11 @@ export function GrenadeViewer({
       ctx.drawImage(radarImage, 0, 0, w, h);
       ctx.restore();
     }
+    // Explicitly reset state after radar draw to prevent filter/alpha leaking
+    ctx.filter = "none";
+    ctx.globalAlpha = 1;
+
+    console.log(`[Grenades] Drawing ${filteredGrenades.length} grenades on canvas`);
 
     if (filteredGrenades.length === 0) {
       ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
@@ -223,12 +230,13 @@ export function GrenadeViewer({
       ctx.restore();
 
       // Throw position dot
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.7;
       ctx.beginPath();
       ctx.arc(from.x, from.y, 3, 0, Math.PI * 2);
       ctx.fillStyle = colors.line;
-      ctx.globalAlpha = alpha * 0.7;
       ctx.fill();
-      ctx.globalAlpha = 1;
+      ctx.restore();
 
       // Selected: show label
       if (isSelected) {
@@ -452,14 +460,18 @@ export function GrenadeViewer({
                     .map((s) => (
                       <tr
                         key={s.steamId}
-                        className="border-b border-[rgba(255,255,255,0.04)] hover:bg-[rgba(255,255,255,0.02)]"
+                        className={`border-b border-[rgba(255,255,255,0.04)] transition-colors ${
+                          playerFilter === s.steamId
+                            ? "bg-[rgba(255,255,255,0.08)] border-l-2 border-l-[#fafafa]"
+                            : "hover:bg-[rgba(255,255,255,0.02)]"
+                        }`}
                       >
                         <td className="py-1.5">
                           <button
                             onClick={() => setPlayerFilter(playerFilter === s.steamId ? "all" : s.steamId)}
                             className={`text-left transition-colors ${
                               playerFilter === s.steamId
-                                ? "text-[var(--accent)]"
+                                ? "text-white font-semibold"
                                 : s.team === "CT"
                                   ? "text-[var(--ct-blue)] hover:text-[var(--text-primary)]"
                                   : "text-[var(--t-gold)] hover:text-[var(--text-primary)]"
