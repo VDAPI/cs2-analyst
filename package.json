@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@laihoe/demoparser2": "^0.41.1",
+    "@next-auth/prisma-adapter": "^1.0.7",
     "@prisma/client": "^6.4.0",
     "@radix-ui/react-dialog": "^1.1.0",
     "@radix-ui/react-dropdown-menu": "^2.1.0",
@@ -37,6 +38,7 @@
     "lucide-react": "^0.460.0",
     "next": "15.1.0",
     "next-auth": "^4.24.0",
+    "next-auth-steam": "^0.4.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^2.15.0",

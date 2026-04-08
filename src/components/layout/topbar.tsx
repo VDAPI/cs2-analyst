@@ -1,8 +1,12 @@
 "use client";
 
-import { Search, Bell } from "lucide-react";
+import { useSession, signOut } from "next-auth/react";
+import { Search, Bell, LogOut } from "lucide-react";
+import Image from "next/image";
 
 export function Topbar() {
+  const { data: session } = useSession();
+
   return (
     <header className="glass sticky top-0 z-50 flex h-[var(--topbar-height)] items-center justify-between border-b border-[var(--border)] px-6">
       {/* Search */}
@@ -25,10 +29,38 @@ export function Topbar() {
           <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[var(--accent)]" />
         </button>
 
-        {/* User avatar placeholder */}
-        <button className="flex items-center gap-2">
+        {/* User */}
+        {session?.user && (
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {session.user.image ? (
+                <Image
+                  src={session.user.image}
+                  alt={session.user.name ?? "Avatar"}
+                  width={32}
+                  height={32}
+                  className="rounded-full"
+                />
+              ) : (
+                <div className="h-8 w-8 rounded-full bg-[var(--surface-3)]" />
+              )}
+              <span className="text-sm text-[var(--text-secondary)]">
+                {session.user.name}
+              </span>
+            </div>
+            <button
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className="rounded-lg p-2 text-[var(--text-tertiary)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--text-secondary)]"
+              title="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {!session?.user && (
           <div className="h-8 w-8 rounded-full bg-[var(--surface-3)]" />
-        </button>
+        )}
       </div>
     </header>
   );
