@@ -49,13 +49,14 @@ export const authOptions: AuthOptions = {
         token.id = user.id;
         const dbUser = await prisma.user.findUnique({
           where: { id: user.id },
-          select: { steamId: true, faceitId: true, faceitNickname: true, plan: true },
+          select: { steamId: true, faceitId: true, faceitNickname: true, plan: true, image: true },
         });
         if (dbUser) {
           token.steamId = dbUser.steamId;
           token.faceitId = dbUser.faceitId;
           token.faceitNickname = dbUser.faceitNickname;
           token.plan = dbUser.plan;
+          token.picture = dbUser.image;
         }
       }
 
@@ -83,6 +84,7 @@ export const authOptions: AuthOptions = {
         session.user.faceitId = (token.faceitId as string) ?? null;
         session.user.faceitNickname = (token.faceitNickname as string) ?? null;
         session.user.plan = token.plan as "FREE" | "PRO" | "TEAM";
+        session.user.image = (token.picture as string) ?? null;
       }
       return session;
     },

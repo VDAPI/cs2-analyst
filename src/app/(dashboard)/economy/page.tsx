@@ -56,8 +56,15 @@ export default async function EconomyListPage() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {matches.map((match) => (
             <Link key={match.id} href={`/economy/${match.id}`}>
-              <Card className="group relative overflow-hidden p-4 transition-all duration-150 hover:border-[var(--border-hover)]">
-                <div className="flex items-start justify-between">
+              <Card className="group relative overflow-hidden p-0 transition-all duration-150 hover:border-[var(--border-hover)]">
+                <div
+                  className="h-32 w-full bg-cover bg-center"
+                  style={{
+                    backgroundImage: `url(/maps/${match.map}_radar.png)`,
+                    filter: "grayscale(40%) brightness(0.5)",
+                  }}
+                />
+                <div className="flex items-start justify-between p-4">
                   <div>
                     <p className="font-medium text-[var(--text-primary)]">
                       {mapDisplayName(match.map)}

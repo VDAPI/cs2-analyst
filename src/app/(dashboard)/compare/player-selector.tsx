@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Button } from "@/components/ui";
+import { Card, Button, InitialsAvatar } from "@/components/ui";
 import { Search, GitCompare, X } from "lucide-react";
 import type { PlayerSummary } from "./types";
 
@@ -50,14 +50,6 @@ export function PlayerSelector({ players }: PlayerSelectorProps) {
     if (selected[0]?.steamId === steamId) return 1;
     if (selected[1]?.steamId === steamId) return 2;
     return null;
-  }
-
-  function getInitials(name: string) {
-    return name
-      .split(/[\s_-]+/)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() ?? "")
-      .join("");
   }
 
   const canCompare = selected[0] && selected[1];
@@ -145,16 +137,7 @@ export function PlayerSelector({ players }: PlayerSelectorProps) {
                 }`}
                 style={sel && slotColor ? { borderColor: slotColor } : undefined}
               >
-                {/* Avatar */}
-                <div
-                  className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold"
-                  style={{
-                    backgroundColor: sel && slotColor ? `${slotColor}22` : "var(--surface-3)",
-                    color: sel && slotColor ? slotColor : "var(--text-secondary)",
-                  }}
-                >
-                  {getInitials(player.name)}
-                </div>
+                <InitialsAvatar name={player.name} size="lg" />
                 <div className="text-center">
                   <p className="text-sm font-medium text-[var(--text-primary)]">
                     {player.name}
@@ -162,6 +145,14 @@ export function PlayerSelector({ players }: PlayerSelectorProps) {
                   <p className="stat-inline mt-0.5 text-xs text-[var(--text-tertiary)]">
                     {player.matchCount} match{player.matchCount !== 1 ? "es" : ""}
                   </p>
+                  <div className="mt-1.5 flex items-center justify-center gap-3 text-xs">
+                    <span className="font-mono text-[var(--text-secondary)]">
+                      {player.avgKd.toFixed(2)} <span className="text-[var(--text-disabled)]">K/D</span>
+                    </span>
+                    <span className="font-mono text-[var(--t-gold)]">
+                      {player.avgHltv.toFixed(2)} <span className="text-[var(--text-disabled)]">HLTV</span>
+                    </span>
+                  </div>
                 </div>
               </button>
             );
@@ -197,16 +188,7 @@ function SelectedSlot({
       className="flex flex-1 items-center gap-3 rounded-lg border px-4 py-2"
       style={{ borderColor: color }}
     >
-      <div
-        className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold"
-        style={{ backgroundColor: `${color}22`, color }}
-      >
-        {player.name
-          .split(/[\s_-]+/)
-          .slice(0, 2)
-          .map((w) => w[0]?.toUpperCase() ?? "")
-          .join("")}
-      </div>
+      <InitialsAvatar name={player.name} size="sm" />
       <div className="flex-1">
         <p className="text-sm font-medium text-[var(--text-primary)]">{player.name}</p>
         <p className="stat-inline text-xs text-[var(--text-tertiary)]">

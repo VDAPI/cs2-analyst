@@ -65,8 +65,21 @@ prisma/               — Schema & migrations
 - Brand accent: `#3b82f6`
 - See `DESIGN.md` for full spec (if present)
 
+## FACEIT Integration
+
+- **OAuth**: Manual OAuth2 + PKCE flow (NOT via NextAuth) at `/api/faceit/link` and `/api/faceit/link/callback`
+- **Token exchange**: Uses HTTP Basic Auth header (`Authorization: Basic base64(client_id:client_secret)`)
+- **Sync**: Fetches match history from FACEIT Data API, stores metadata in `FaceitMatch` model (map, score, date, faceitUrl)
+- **Demo downloads**: Not available — FACEIT demo CDN requires Downloads API approval (pending). Users upload demos manually from FACEIT matchroom.
+- **HTTPS required**: FACEIT OAuth requires HTTPS redirect URIs. Dev server uses `--experimental-https` flag.
+- **Dev cookies**: Self-signed cert breaks Secure cookies — all NextAuth cookies set to `secure: false` in dev via cookies config in `auth.ts`.
+- **Routes**: FACEIT routes live under `/api/faceit/*` (NOT `/api/auth/*`) to avoid NextAuth `[...nextauth]` catch-all interception.
+- **Env vars**: `FACEIT_API_KEY`, `FACEIT_CLIENT_ID`, `FACEIT_CLIENT_SECRET`
+
 ## Key Architectural Decisions
 
 - `@laihoe/demoparser2` is in `serverExternalPackages` (native Node.js bindings, server-only)
 - Demo parsing runs in BullMQ workers, not in API routes
 - Tailwind v4 uses `@import "tailwindcss"` syntax (no config file needed)
+- Settings page is a server component (queries DB directly for linked account status, not session JWT)
+- FACEIT OAuth uses popup window + `postMessage` for cross-window communication

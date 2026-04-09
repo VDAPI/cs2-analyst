@@ -9,7 +9,10 @@ export const metadata: Metadata = {
 
 export default function RegisterPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-6">
+    <main
+      className="flex min-h-screen flex-col items-center justify-center px-6"
+      style={{ background: "radial-gradient(ellipse at 50% 0%, rgba(59,130,246,0.08) 0%, transparent 60%)" }}
+    >
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold tracking-tight text-[var(--text-primary)]">

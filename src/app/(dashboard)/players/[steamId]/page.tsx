@@ -135,15 +135,24 @@ export default async function PlayerDetailPage({ params }: Props) {
                   return (
                     <tr
                       key={entry.id}
-                      className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(255,255,255,0.02)]"
+                      className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(255,255,255,0.04)]"
                     >
                       <td className="px-5 py-3">
-                        <Link
-                          href={`/matches/${entry.match.id}`}
-                          className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)]"
-                        >
-                          {mapDisplayName(entry.match.map)}
-                        </Link>
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="h-8 w-8 flex-shrink-0 rounded bg-[var(--surface-3)] bg-cover bg-center"
+                            style={{
+                              backgroundImage: `url(/maps/${entry.match.map}_radar.png)`,
+                              filter: "grayscale(40%) brightness(0.7)",
+                            }}
+                          />
+                          <Link
+                            href={`/matches/${entry.match.id}`}
+                            className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)]"
+                          >
+                            {mapDisplayName(entry.match.map)}
+                          </Link>
+                        </div>
                       </td>
                       <td className="px-3 py-3 text-[var(--text-tertiary)]">
                         {entry.match.date.toLocaleDateString()}

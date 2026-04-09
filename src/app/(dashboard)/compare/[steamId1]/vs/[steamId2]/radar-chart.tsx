@@ -82,10 +82,10 @@ export function RadarComparisonChart({
           <span className="text-[var(--text-secondary)]">{player2Name}</span>
         </div>
       </div>
-      <ResponsiveContainer width="100%" height={350}>
+      <ResponsiveContainer width="100%" height={420}>
         <RadarChart data={data} cx="50%" cy="50%" outerRadius="75%">
           <PolarGrid
-            stroke="rgba(255,255,255,0.08)"
+            stroke="rgba(255,255,255,0.12)"
             strokeDasharray="3 3"
           />
           <PolarAngleAxis
@@ -98,7 +98,7 @@ export function RadarComparisonChart({
             stroke="#60a5fa"
             fill="#60a5fa"
             fillOpacity={0.2}
-            strokeWidth={2}
+            strokeWidth={2.5}
           />
           <Radar
             name={player2Name}
@@ -106,7 +106,7 @@ export function RadarComparisonChart({
             stroke="#fbbf24"
             fill="#fbbf24"
             fillOpacity={0.2}
-            strokeWidth={2}
+            strokeWidth={2.5}
           />
           <Tooltip
             content={

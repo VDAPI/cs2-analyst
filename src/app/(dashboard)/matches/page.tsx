@@ -205,11 +205,11 @@ export default async function MatchesPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className={`stat-small ${ctWon ? "text-[var(--ct-blue)]" : "text-[var(--text-tertiary)]"}`}>
+                      <span className={`stat-small ${match.scoreCT > match.scoreT ? "text-[var(--success)]" : match.scoreCT < match.scoreT ? "text-[var(--error)]" : "text-[var(--text-tertiary)]"}`}>
                         {match.scoreCT}
                       </span>
                       <span className="text-[var(--text-disabled)]">:</span>
-                      <span className={`stat-small ${!ctWon ? "text-[var(--t-gold)]" : "text-[var(--text-tertiary)]"}`}>
+                      <span className={`stat-small ${match.scoreT > match.scoreCT ? "text-[var(--success)]" : match.scoreT < match.scoreCT ? "text-[var(--error)]" : "text-[var(--text-tertiary)]"}`}>
                         {match.scoreT}
                       </span>
                     </div>

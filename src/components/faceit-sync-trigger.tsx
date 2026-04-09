@@ -66,6 +66,7 @@ export function FaceitSyncTrigger({ hasFaceit }: FaceitSyncTriggerProps) {
         size="sm"
         onClick={runSync}
         disabled={syncing}
+        className="!border-[#ff5500] !text-[#ff5500] hover:!bg-[rgba(255,85,0,0.1)]"
       >
         <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
         Sync FACEIT

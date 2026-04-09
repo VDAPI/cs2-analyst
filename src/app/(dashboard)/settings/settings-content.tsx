@@ -3,20 +3,26 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Button } from "@/components/ui";
-import Image from "next/image";
-import { Unlink } from "lucide-react";
+import { Button, Badge, UserAvatar } from "@/components/ui";
+import { Unlink, Check, Camera } from "lucide-react";
 
 interface SettingsContentProps {
   user: {
     name: string | null;
     email: string | null;
     image: string | null;
+    plan: string;
     steamId: string | null;
     faceitId: string | null;
     faceitNickname: string | null;
   };
 }
+
+const planBadgeVariant: Record<string, "default" | "success" | "warning"> = {
+  FREE: "default",
+  PRO: "success",
+  TEAM: "warning",
+};
 
 export function SettingsContent({ user }: SettingsContentProps) {
   const { update } = useSession();
@@ -26,12 +32,16 @@ export function SettingsContent({ user }: SettingsContentProps) {
   const error = searchParams.get("error");
   const didRefresh = useRef(false);
 
+  // Profile editing state
+  const [displayName, setDisplayName] = useState(user.name ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
   const [faceitState, setFaceitState] = useState({
     id: user.faceitId,
     nickname: user.faceitNickname,
   });
 
-  // Refresh session JWT after linking so other pages also see the change
   useEffect(() => {
     if ((linked === "steam" || linked === "faceit") && !didRefresh.current) {
       didRefresh.current = true;
@@ -39,7 +49,6 @@ export function SettingsContent({ user }: SettingsContentProps) {
     }
   }, [linked, update]);
 
-  // Listen for popup message (FACEIT linking in popup window)
   const handleMessage = useCallback(
     async (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
@@ -75,8 +84,104 @@ export function SettingsContent({ user }: SettingsContentProps) {
     }
   }
 
+  async function handleSaveName() {
+    const trimmed = displayName.trim();
+    if (!trimmed || trimmed === user.name) return;
+    setSaving(true);
+    setSaved(false);
+    try {
+      const res = await fetch("/api/user/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (res.ok) {
+        await update();
+        setSaved(true);
+        router.refresh();
+        setTimeout(() => setSaved(false), 2000);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Avatar state
+  const [avatarImage, setAvatarImage] = useState<string | null>(user.image);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function resizeImage(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 128;
+        canvas.height = 128;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Canvas not supported")); return; }
+
+        // Center-crop to square
+        const min = Math.min(img.width, img.height);
+        const sx = (img.width - min) / 2;
+        const sy = (img.height - min) / 2;
+        ctx.drawImage(img, sx, sy, min, min, 0, 0, 128, 128);
+
+        resolve(canvas.toDataURL("image/webp", 0.85));
+      };
+      img.onerror = () => reject(new Error("Failed to load image"));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Image must be under 2MB");
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const dataUri = await resizeImage(file);
+      const res = await fetch("/api/user/avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: dataUri }),
+      });
+      if (res.ok) {
+        setAvatarImage(dataUri);
+        await update();
+        router.refresh();
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  async function handleRemoveAvatar() {
+    setUploadingAvatar(true);
+    try {
+      const res = await fetch("/api/user/avatar", { method: "DELETE" });
+      if (res.ok) {
+        setAvatarImage(null);
+        await update();
+        router.refresh();
+      }
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
   const hasSteam = !!user.steamId;
   const hasFaceit = !!faceitState.id;
+  const nameChanged = displayName.trim() !== (user.name ?? "") && displayName.trim().length > 0;
 
   function openFaceitLinkPopup() {
     const w = 500;
@@ -102,24 +207,90 @@ export function SettingsContent({ user }: SettingsContentProps) {
         <h2 className="text-lg font-semibold text-[var(--text-primary)]">Account</h2>
         <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-5">
           <div className="flex items-center gap-4">
-            {user.image ? (
-              <Image
-                src={user.image}
-                alt="Avatar"
-                width={48}
-                height={48}
-                className="rounded-full"
+            <div className="relative">
+              <UserAvatar name={user.name ?? "?"} image={avatarImage} size="lg" />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[var(--surface-1)] bg-[var(--accent)] text-white transition-colors hover:bg-[var(--accent-hover)]"
+                title="Change avatar"
+              >
+                <Camera className="h-3 w-3" />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={handleAvatarUpload}
+                className="hidden"
               />
-            ) : (
-              <div className="h-12 w-12 rounded-full bg-[var(--surface-3)]" />
-            )}
+            </div>
             <div>
-              <p className="font-medium text-[var(--text-primary)]">
-                {user.name ?? "No name set"}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="font-medium text-[var(--text-primary)]">
+                  {user.name ?? "No name set"}
+                </p>
+                <Badge variant={planBadgeVariant[user.plan] ?? "default"}>
+                  {user.plan}
+                </Badge>
+              </div>
               <p className="text-sm text-[var(--text-secondary)]">
                 {user.email ?? "No email"}
               </p>
+              <div className="mt-1 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                  className="text-xs text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)]"
+                >
+                  {uploadingAvatar ? "Uploading..." : "Change avatar"}
+                </button>
+                {avatarImage && (
+                  <>
+                    <span className="text-[var(--text-disabled)]">·</span>
+                    <button
+                      type="button"
+                      onClick={handleRemoveAvatar}
+                      disabled={uploadingAvatar}
+                      className="text-xs text-[var(--error)] transition-colors hover:text-[var(--text-primary)]"
+                    >
+                      Remove
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Display name edit */}
+          <div className="mt-5 border-t border-[var(--border)] pt-5">
+            <label className="text-xs font-medium uppercase text-[var(--text-tertiary)]">
+              Display Name
+            </label>
+            <div className="mt-2 flex items-center gap-3">
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                maxLength={50}
+                className="h-10 flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-4 text-sm text-[var(--text-primary)] outline-none transition-colors placeholder:text-[var(--text-disabled)] focus:border-[var(--accent)]"
+                placeholder="Enter display name"
+              />
+              <Button
+                size="sm"
+                disabled={!nameChanged || saving}
+                onClick={handleSaveName}
+              >
+                {saved ? (
+                  <><Check className="mr-1 h-3.5 w-3.5" /> Saved</>
+                ) : saving ? (
+                  "Saving..."
+                ) : (
+                  "Save"
+                )}
+              </Button>
             </div>
           </div>
         </div>
@@ -171,9 +342,7 @@ export function SettingsContent({ user }: SettingsContentProps) {
               <div>
                 <p className="font-medium text-[var(--text-primary)]">Steam</p>
                 <p className="text-sm text-[var(--text-secondary)]">
-                  {hasSteam
-                    ? `Linked (ID: ${user.steamId})`
-                    : "Not linked"}
+                  {hasSteam ? `Linked (ID: ${user.steamId})` : "Not linked"}
                 </p>
               </div>
             </div>
@@ -186,9 +355,7 @@ export function SettingsContent({ user }: SettingsContentProps) {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => {
-                  window.location.href = "/api/auth/link-steam";
-                }}
+                onClick={() => { window.location.href = "/api/auth/link-steam"; }}
               >
                 Link Account
               </Button>

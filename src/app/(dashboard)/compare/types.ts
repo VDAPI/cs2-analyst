@@ -2,6 +2,8 @@ export interface PlayerSummary {
   steamId: string;
   name: string;
   matchCount: number;
+  avgKd: number;
+  avgHltv: number;
 }
 
 export interface PlayerComparisonStats {

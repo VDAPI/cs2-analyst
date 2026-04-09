@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { Card } from "@/components/ui";
+import { Card, InitialsAvatar } from "@/components/ui";
 import Link from "next/link";
 
 export default async function PlayersPage() {
@@ -143,15 +143,18 @@ export default async function PlayersPage() {
                 {players.map((p) => (
                   <tr
                     key={p.steamId}
-                    className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(255,255,255,0.02)]"
+                    className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(255,255,255,0.04)]"
                   >
                     <td className="px-5 py-3">
-                      <Link
-                        href={`/players/${p.steamId}`}
-                        className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)]"
-                      >
-                        {p.name}
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <InitialsAvatar name={p.name} size="sm" />
+                        <Link
+                          href={`/players/${p.steamId}`}
+                          className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)] hover:underline"
+                        >
+                          {p.name}
+                        </Link>
+                      </div>
                     </td>
                     <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
                       {p.matches}

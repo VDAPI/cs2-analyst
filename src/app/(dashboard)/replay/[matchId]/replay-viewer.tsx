@@ -302,9 +302,9 @@ export function ReplayViewer({
         {/* Player list sidebar */}
         <div className="flex min-w-[220px] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-4">
           {/* CT players */}
-          <div className="mb-1 flex items-center gap-2">
+          <div className="mb-1 flex items-center gap-2 rounded px-2 py-1 bg-[rgba(96,165,250,0.1)]">
             <div className="h-1.5 w-1.5 rounded-full bg-[var(--ct-blue)]" />
-            <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--ct-blue)]">
+            <span className="text-xs font-medium uppercase tracking-wider text-[var(--ct-blue)]">
               Counter-Terrorists
             </span>
           </div>
@@ -328,9 +328,9 @@ export function ReplayViewer({
           <div className="my-3 border-t border-[var(--border)]" />
 
           {/* T players */}
-          <div className="mb-1 flex items-center gap-2">
+          <div className="mb-1 flex items-center gap-2 rounded px-2 py-1 bg-[rgba(251,191,36,0.1)]">
             <div className="h-1.5 w-1.5 rounded-full bg-[var(--t-gold)]" />
-            <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--t-gold)]">
+            <span className="text-xs font-medium uppercase tracking-wider text-[var(--t-gold)]">
               Terrorists
             </span>
           </div>
@@ -572,9 +572,9 @@ function drawActiveSmokes(
 
     // Outer smoke body — solid fill with soft edge
     const grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, radius);
-    grad.addColorStop(0, `rgba(200, 210, 220, ${0.6 * fade})`);
-    grad.addColorStop(0.5, `rgba(148, 163, 184, ${0.55 * fade})`);
-    grad.addColorStop(0.8, `rgba(148, 163, 184, ${0.3 * fade})`);
+    grad.addColorStop(0, `rgba(200, 210, 220, ${0.75 * fade})`);
+    grad.addColorStop(0.5, `rgba(148, 163, 184, ${0.65 * fade})`);
+    grad.addColorStop(0.8, `rgba(148, 163, 184, ${0.4 * fade})`);
     grad.addColorStop(1, `rgba(148, 163, 184, 0)`);
     ctx.fillStyle = grad;
     ctx.beginPath();
@@ -583,7 +583,7 @@ function drawActiveSmokes(
 
     // White center glow
     const glow = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, radius * 0.4);
-    glow.addColorStop(0, `rgba(255, 255, 255, ${0.25 * fade})`);
+    glow.addColorStop(0, `rgba(255, 255, 255, ${0.35 * fade})`);
     glow.addColorStop(1, "rgba(255, 255, 255, 0)");
     ctx.fillStyle = glow;
     ctx.beginPath();
