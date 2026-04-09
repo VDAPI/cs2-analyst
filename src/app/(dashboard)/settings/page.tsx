@@ -21,11 +21,12 @@ function SettingsContent() {
   const error = searchParams.get("error");
 
   // Refresh session after linking
-  if (linked === "steam") {
+  if (linked === "steam" || linked === "faceit") {
     update();
   }
 
   const hasSteam = !!session?.user?.steamId;
+  const hasFaceit = !!session?.user?.faceitId;
 
   return (
     <div className="max-w-2xl">
@@ -78,6 +79,18 @@ function SettingsContent() {
           </p>
         )}
 
+        {linked === "faceit" && (
+          <p className="mt-3 rounded-lg bg-[var(--success-muted)] px-3 py-2 text-sm text-[var(--success)]">
+            FACEIT account linked successfully!
+          </p>
+        )}
+
+        {error === "faceit-already-linked" && (
+          <p className="mt-3 rounded-lg bg-[var(--error-muted)] px-3 py-2 text-sm text-[var(--error)]">
+            This FACEIT account is already linked to another user.
+          </p>
+        )}
+
         <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -114,21 +127,38 @@ function SettingsContent() {
           </div>
         </div>
 
-        {/* Future: FACEIT */}
-        <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-5 opacity-50">
+        {/* FACEIT */}
+        <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--surface-3)]">
-                <span className="text-sm font-bold text-[var(--text-tertiary)]">F</span>
+                <span className="text-sm font-bold" style={{ color: "#ff5500" }}>F</span>
               </div>
               <div>
                 <p className="font-medium text-[var(--text-primary)]">FACEIT</p>
-                <p className="text-sm text-[var(--text-secondary)]">Coming soon</p>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  {hasFaceit
+                    ? `Linked as ${session.user.faceitNickname ?? session.user.faceitId}`
+                    : "Not linked"}
+                </p>
               </div>
             </div>
-            <Button variant="secondary" size="sm" disabled>
-              Link Account
-            </Button>
+
+            {hasFaceit ? (
+              <span className="rounded-full bg-[var(--success-muted)] px-3 py-1 text-xs font-medium text-[var(--success)]">
+                Connected
+              </span>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  window.location.href = "/api/auth/link-faceit";
+                }}
+              >
+                Link Account
+              </Button>
+            )}
           </div>
         </div>
       </section>

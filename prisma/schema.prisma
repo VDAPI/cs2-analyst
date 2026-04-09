@@ -45,16 +45,19 @@ model VerificationToken {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  steamId       String?   @unique
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  plan          Plan      @default(FREE)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  steamId         String?   @unique
+  faceitId        String?   @unique
+  faceitNickname  String?
+  lastFaceitSync  DateTime?
+  name            String?
+  email           String?   @unique
+  emailVerified   DateTime?
+  image           String?
+  password        String?
+  plan            Plan      @default(FREE)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   accounts     Account[]
   sessions     Session[]
@@ -72,19 +75,26 @@ enum Plan {
 // ─── Demo & Match ────────────────────────────────────────
 
 model DemoUpload {
-  id        String      @id @default(cuid())
-  userId    String
-  fileName  String
-  fileUrl   String
-  fileSize  Int
-  status    ParseStatus @default(QUEUED)
-  error     String?
-  matchId   String?     @unique
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
+  id            String       @id @default(cuid())
+  userId        String
+  fileName      String
+  fileUrl       String
+  fileSize      Int
+  status        ParseStatus  @default(QUEUED)
+  source        UploadSource @default(MANUAL)
+  faceitMatchId String?      @unique
+  error         String?
+  matchId       String?      @unique
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   user  User   @relation(fields: [userId], references: [id])
   match Match? @relation(fields: [matchId], references: [id])
+}
+
+enum UploadSource {
+  MANUAL
+  FACEIT
 }
 
 enum ParseStatus {

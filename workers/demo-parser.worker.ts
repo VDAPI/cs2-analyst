@@ -9,6 +9,7 @@
 import { Worker, type Job } from "bullmq";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { parseDemoFile } from "../src/lib/parsers/demo-parser";
+import { unlink } from "fs/promises";
 
 const prisma = new PrismaClient();
 
@@ -184,6 +185,15 @@ async function processDemo(job: Job<DemoParseJobData>) {
       where: { id: uploadId },
       data: { status: "COMPLETED", matchId: match.id },
     });
+
+    // Clean up FACEIT demos (re-downloadable, save disk space)
+    const upload = await prisma.demoUpload.findUnique({
+      where: { id: uploadId },
+      select: { source: true },
+    });
+    if (upload?.source === "FACEIT") {
+      await unlink(filePath).catch(() => {});
+    }
 
     await job.updateProgress(100);
 

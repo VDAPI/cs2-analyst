@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { Card, StatCard, Badge } from "@/components/ui";
 import { mapDisplayName } from "@/lib/utils/mapNames";
+import { FaceitSyncTrigger } from "@/components/faceit-sync-trigger";
 import Link from "next/link";
 
 export default async function MatchesPage() {
@@ -14,7 +15,7 @@ export default async function MatchesPage() {
         where: { upload: { userId } },
         include: {
           players: true,
-          upload: { select: { createdAt: true } },
+          upload: { select: { createdAt: true, source: true } },
         },
         orderBy: { date: "desc" },
       })
@@ -52,13 +53,16 @@ export default async function MatchesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-          Matches
-        </h1>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Your recent CS2 match history and stats overview.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+            Matches
+          </h1>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            Your recent CS2 match history and stats overview.
+          </p>
+        </div>
+        <FaceitSyncTrigger />
       </div>
 
       {/* Stat overview row */}
@@ -149,6 +153,11 @@ export default async function MatchesPage() {
                             }`}
                           >
                             {result === "win" ? "W" : result === "loss" ? "L" : "D"}
+                          </span>
+                        )}
+                        {match.upload?.source === "FACEIT" && (
+                          <span className="rounded-full bg-[rgba(255,85,0,0.15)] px-1.5 py-0.5 text-[10px] font-bold text-[#ff5500]">
+                            FACEIT
                           </span>
                         )}
                       </div>

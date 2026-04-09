@@ -7,6 +7,8 @@ declare module "next-auth" {
     user: {
       id: string;
       steamId: string | null;
+      faceitId: string | null;
+      faceitNickname: string | null;
       plan: Plan;
       name?: string | null;
       email?: string | null;
@@ -19,6 +21,8 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string;
     steamId: string | null;
+    faceitId: string | null;
+    faceitNickname: string | null;
     plan: Plan;
   }
 }

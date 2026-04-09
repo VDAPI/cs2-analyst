@@ -40,6 +40,28 @@ export const authOptions: AuthOptions = {
         return { id: user.id, name: user.name, email: user.email, image: user.image };
       },
     }),
+    {
+      id: "faceit",
+      name: "FACEIT",
+      type: "oauth",
+      authorization: {
+        url: "https://accounts.faceit.com",
+        params: { scope: "openid email profile membership" },
+      },
+      token: "https://accounts.faceit.com/oauth/token",
+      userinfo: "https://api.faceit.com/auth/v1/resources/userinfo",
+      clientId: process.env.FACEIT_CLIENT_ID,
+      clientSecret: process.env.FACEIT_CLIENT_SECRET,
+      checks: ["pkce", "state"],
+      profile(profile) {
+        return {
+          id: profile.guid as string,
+          name: profile.nickname as string,
+          email: (profile.email as string) ?? null,
+          image: (profile.avatar as string) ?? null,
+        };
+      },
+    },
   ],
   session: { strategy: "jwt" },
   callbacks: {
@@ -48,10 +70,12 @@ export const authOptions: AuthOptions = {
         token.id = user.id;
         const dbUser = await prisma.user.findUnique({
           where: { id: user.id },
-          select: { steamId: true, plan: true },
+          select: { steamId: true, faceitId: true, faceitNickname: true, plan: true },
         });
         if (dbUser) {
           token.steamId = dbUser.steamId;
+          token.faceitId = dbUser.faceitId;
+          token.faceitNickname = dbUser.faceitNickname;
           token.plan = dbUser.plan;
         }
       }
@@ -59,10 +83,12 @@ export const authOptions: AuthOptions = {
       if (trigger === "update") {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { steamId: true, plan: true, name: true, image: true },
+          select: { steamId: true, faceitId: true, faceitNickname: true, plan: true, name: true, image: true },
         });
         if (dbUser) {
           token.steamId = dbUser.steamId;
+          token.faceitId = dbUser.faceitId;
+          token.faceitNickname = dbUser.faceitNickname;
           token.plan = dbUser.plan;
           token.name = dbUser.name;
           token.picture = dbUser.image;
@@ -75,6 +101,8 @@ export const authOptions: AuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.steamId = (token.steamId as string) ?? null;
+        session.user.faceitId = (token.faceitId as string) ?? null;
+        session.user.faceitNickname = (token.faceitNickname as string) ?? null;
         session.user.plan = token.plan as "FREE" | "PRO" | "TEAM";
       }
       return session;
