@@ -59,11 +59,12 @@ model User {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  accounts     Account[]
-  sessions     Session[]
-  matchPlayers MatchPlayer[]
-  teams        TeamMember[]
-  uploads      DemoUpload[]
+  accounts      Account[]
+  sessions      Session[]
+  matchPlayers  MatchPlayer[]
+  teams         TeamMember[]
+  uploads       DemoUpload[]
+  faceitMatches FaceitMatch[]
 }
 
 enum Plan {
@@ -88,8 +89,9 @@ model DemoUpload {
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
-  user  User   @relation(fields: [userId], references: [id])
-  match Match? @relation(fields: [matchId], references: [id])
+  user        User         @relation(fields: [userId], references: [id])
+  match       Match?       @relation(fields: [matchId], references: [id])
+  faceitMatch FaceitMatch?
 }
 
 enum UploadSource {
@@ -285,6 +287,24 @@ enum BombAction {
   EXPLODED
   DROPPED
   PICKED_UP
+}
+
+// ─── FACEIT ──────────────────────────────────────────
+
+model FaceitMatch {
+  id            String    @id @default(cuid())
+  userId        String
+  faceitMatchId String    @unique
+  map           String
+  score         String    // e.g. "16-9"
+  date          DateTime
+  faceitUrl     String
+  competition   String?
+  uploadId      String?   @unique // linked when user uploads demo
+  createdAt     DateTime  @default(now())
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  upload DemoUpload? @relation(fields: [uploadId], references: [id])
 }
 
 // ─── Teams ───────────────────────────────────────────────

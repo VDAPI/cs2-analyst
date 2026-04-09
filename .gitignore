@@ -43,3 +43,5 @@ coverage/
 # demo files
 data/demos/*.dem
 temp/
+
+certificates

@@ -40,28 +40,7 @@ export const authOptions: AuthOptions = {
         return { id: user.id, name: user.name, email: user.email, image: user.image };
       },
     }),
-    {
-      id: "faceit",
-      name: "FACEIT",
-      type: "oauth",
-      authorization: {
-        url: "https://accounts.faceit.com",
-        params: { scope: "openid email profile membership" },
-      },
-      token: "https://accounts.faceit.com/oauth/token",
-      userinfo: "https://api.faceit.com/auth/v1/resources/userinfo",
-      clientId: process.env.FACEIT_CLIENT_ID,
-      clientSecret: process.env.FACEIT_CLIENT_SECRET,
-      checks: ["pkce", "state"],
-      profile(profile) {
-        return {
-          id: profile.guid as string,
-          name: profile.nickname as string,
-          email: (profile.email as string) ?? null,
-          image: (profile.avatar as string) ?? null,
-        };
-      },
-    },
+    // FACEIT is handled via manual OAuth flow in /api/auth/link-faceit
   ],
   session: { strategy: "jwt" },
   callbacks: {
@@ -111,4 +90,55 @@ export const authOptions: AuthOptions = {
   pages: {
     signIn: "/login",
   },
+  cookies:
+    process.env.NODE_ENV === "development"
+      ? {
+          sessionToken: {
+            name: "next-auth.session-token",
+            options: {
+              httpOnly: true,
+              sameSite: "lax" as const,
+              path: "/",
+              secure: false,
+            },
+          },
+          callbackUrl: {
+            name: "next-auth.callback-url",
+            options: {
+              sameSite: "lax" as const,
+              path: "/",
+              secure: false,
+            },
+          },
+          csrfToken: {
+            name: "next-auth.csrf-token",
+            options: {
+              httpOnly: true,
+              sameSite: "lax" as const,
+              path: "/",
+              secure: false,
+            },
+          },
+          pkceCodeVerifier: {
+            name: "next-auth.pkce.code_verifier",
+            options: {
+              httpOnly: true,
+              sameSite: "lax" as const,
+              path: "/",
+              secure: false,
+              maxAge: 60 * 15,
+            },
+          },
+          state: {
+            name: "next-auth.state",
+            options: {
+              httpOnly: true,
+              sameSite: "lax" as const,
+              path: "/",
+              secure: false,
+              maxAge: 60 * 15,
+            },
+          },
+        }
+      : undefined,
 };

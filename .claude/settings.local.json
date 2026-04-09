@@ -65,7 +65,10 @@
       "Bash(tasklist.exe)",
       "Bash(findstr /i \"node\")",
       "Bash(node -e \"const p = require\\('@laihoe/demoparser2'\\); const f = 'data/demos/cmnpsxg8m0001d9v81jiqjepb.dem'; const fs = require\\('fs'\\); console.log\\('exists:', fs.existsSync\\(f\\)\\);\")",
-      "Bash(node -e 'const { PrismaClient } = require\\('\\\\''@prisma/client'\\\\''\\); const p = new PrismaClient\\(\\); p.$queryRawUnsafe\\('\\\\''SELECT COUNT\\(*\\) as count FROM \"GrenadeEvent\"'\\\\''\\).then\\(r => console.log\\('\\\\''GrenadeEvent rows:'\\\\'', r\\)\\).catch\\(e => console.log\\('\\\\''Error:'\\\\'', e.message\\)\\).finally\\(\\(\\) => p.$disconnect\\(\\)\\)')"
+      "Bash(node -e 'const { PrismaClient } = require\\('\\\\''@prisma/client'\\\\''\\); const p = new PrismaClient\\(\\); p.$queryRawUnsafe\\('\\\\''SELECT COUNT\\(*\\) as count FROM \"GrenadeEvent\"'\\\\''\\).then\\(r => console.log\\('\\\\''GrenadeEvent rows:'\\\\'', r\\)\\).catch\\(e => console.log\\('\\\\''Error:'\\\\'', e.message\\)\\).finally\\(\\(\\) => p.$disconnect\\(\\)\\)')",
+      "WebFetch(domain:docs.faceit.com)",
+      "WebFetch(domain:developers.faceit.com)",
+      "WebFetch(domain:cdn.faceit.com)"
     ]
   }
 }

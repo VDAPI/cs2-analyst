@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { Card, StatCard, Badge } from "@/components/ui";
+import { Card, StatCard } from "@/components/ui";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { FaceitSyncTrigger } from "@/components/faceit-sync-trigger";
 import Link from "next/link";
@@ -10,26 +10,42 @@ export default async function MatchesPage() {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
 
-  const matches = userId
+  // Fetch parsed matches (from uploaded demos)
+  const parsedMatches = userId
     ? await prisma.match.findMany({
         where: { upload: { userId } },
         include: {
           players: true,
-          upload: { select: { createdAt: true, source: true } },
+          upload: { select: { createdAt: true, source: true, faceitMatchId: true } },
         },
         orderBy: { date: "desc" },
       })
     : [];
 
-  // Aggregate stats
-  const matchCount = matches.length;
+  // Fetch FACEIT metadata matches (not yet uploaded)
+  const faceitMatches = userId
+    ? await prisma.faceitMatch.findMany({
+        where: { userId, uploadId: null }, // only unlinked ones
+        orderBy: { date: "desc" },
+      })
+    : [];
+
+  // Check DB for faceitId (don't rely on session JWT)
+  const dbUser = userId
+    ? await prisma.user.findUnique({
+        where: { id: userId },
+        select: { faceitId: true },
+      })
+    : null;
+
+  // Aggregate stats from parsed matches only
+  const matchCount = parsedMatches.length;
   let wins = 0;
   let totalHltv = 0;
   let totalAdr = 0;
   let playerMatches = 0;
 
-  for (const match of matches) {
-    // Find the user's player entry by steamId
+  for (const match of parsedMatches) {
     const userSteamId = session?.user?.steamId;
     const userPlayer = userSteamId
       ? match.players.find((p) => p.steamId === userSteamId)
@@ -51,6 +67,18 @@ export default async function MatchesPage() {
   const avgHltv = playerMatches > 0 ? (totalHltv / playerMatches).toFixed(2) : "--";
   const avgAdr = playerMatches > 0 ? (totalAdr / playerMatches).toFixed(1) : "--";
 
+  // Build a set of faceitMatchIds that are already parsed
+  const parsedFaceitIds = new Set(
+    parsedMatches
+      .map((m) => m.upload?.faceitMatchId)
+      .filter(Boolean)
+  );
+
+  // Filter out FACEIT matches that already have a parsed demo
+  const unlinkedFaceitMatches = faceitMatches.filter(
+    (fm) => !parsedFaceitIds.has(fm.faceitMatchId)
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -62,7 +90,7 @@ export default async function MatchesPage() {
             Your recent CS2 match history and stats overview.
           </p>
         </div>
-        <FaceitSyncTrigger />
+        <FaceitSyncTrigger hasFaceit={!!dbUser?.faceitId} />
       </div>
 
       {/* Stat overview row */}
@@ -77,8 +105,8 @@ export default async function MatchesPage() {
         <StatCard label="Avg ADR" value={avgAdr} accentColor="var(--ct-blue)" />
       </div>
 
-      {/* Match list */}
-      {matches.length === 0 ? (
+      {/* Parsed match list */}
+      {parsedMatches.length === 0 && unlinkedFaceitMatches.length === 0 ? (
         <Card>
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <p className="text-lg font-medium text-[var(--text-secondary)]">
@@ -97,13 +125,13 @@ export default async function MatchesPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {matches.map((match) => {
+          {/* Parsed matches — full analytics available */}
+          {parsedMatches.map((match) => {
             const ctWon = match.scoreCT > match.scoreT;
             const topPlayer = match.players.reduce((a, b) =>
               a.hltvRating > b.hltvRating ? a : b
             );
 
-            // Determine win/loss for the current user
             const userSteamId = session?.user?.steamId;
             const userPlayer = userSteamId
               ? match.players.find((p) => p.steamId === userSteamId)
@@ -115,7 +143,6 @@ export default async function MatchesPage() {
               result = userTeamScore > enemyScore ? "win" : userTeamScore < enemyScore ? "loss" : "draw";
             }
 
-            // Match card: left border per DESIGN.md (win=green, loss=red, draw/unknown=gray)
             const borderColor =
               result === "win" ? "#22c55e" :
               result === "loss" ? "#ef4444" :
@@ -128,7 +155,6 @@ export default async function MatchesPage() {
                   style={{ borderLeftColor: borderColor }}
                 >
                   <div className="flex items-center gap-4">
-                    {/* Map thumbnail */}
                     <div
                       className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)] bg-cover bg-center"
                       style={{
@@ -192,6 +218,90 @@ export default async function MatchesPage() {
               </Link>
             );
           })}
+
+          {/* FACEIT matches — metadata only, no demo uploaded yet */}
+          {unlinkedFaceitMatches.length > 0 && (
+            <>
+              {parsedMatches.length > 0 && (
+                <div className="flex items-center gap-3 pt-4">
+                  <div className="h-px flex-1 bg-[var(--border)]" />
+                  <span className="text-xs font-medium text-[var(--text-tertiary)]">
+                    FACEIT Matches — upload demo to analyze
+                  </span>
+                  <div className="h-px flex-1 bg-[var(--border)]" />
+                </div>
+              )}
+
+              {unlinkedFaceitMatches.map((fm) => {
+                const [s1, s2] = fm.score.split("-").map(Number);
+
+                return (
+                  <Card
+                    key={fm.id}
+                    className="flex items-center justify-between border-l-[3px] p-4 opacity-75"
+                    style={{ borderLeftColor: "#ff5500" }}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div
+                        className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)] bg-cover bg-center"
+                        style={{
+                          backgroundImage: `url(/maps/${fm.map}_radar.png)`,
+                          filter: "grayscale(40%) brightness(0.7)",
+                        }}
+                      />
+
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-[var(--text-primary)]">
+                            {mapDisplayName(fm.map)}
+                          </p>
+                          <span className="rounded-full bg-[rgba(255,85,0,0.15)] px-1.5 py-0.5 text-[10px] font-bold text-[#ff5500]">
+                            FACEIT
+                          </span>
+                          <span className="rounded-full bg-[var(--surface-3)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-tertiary)]">
+                            No demo
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--text-tertiary)]">
+                          {fm.date.toLocaleDateString()}
+                          {fm.competition ? ` — ${fm.competition}` : ""}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <span className="stat-small text-[var(--text-primary)]">
+                          {s1}
+                        </span>
+                        <span className="text-[var(--text-disabled)]">:</span>
+                        <span className="stat-small text-[var(--text-primary)]">
+                          {s2}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={fm.faceitUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex h-8 items-center rounded-lg bg-[var(--surface-3)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                        >
+                          View on FACEIT
+                        </a>
+                        <Link
+                          href={`/upload?faceitMatchId=${fm.faceitMatchId}`}
+                          className="inline-flex h-8 items-center rounded-lg bg-[var(--accent)] px-3 text-xs font-medium text-white transition-colors hover:bg-[var(--accent-hover)]"
+                        >
+                          Upload Demo
+                        </Link>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </>
+          )}
         </div>
       )}
     </div>

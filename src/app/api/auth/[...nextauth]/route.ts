@@ -5,19 +5,17 @@ import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 
-interface FaceitProfile {
-  guid?: string;
-  nickname?: string;
-  avatar?: string;
-  email?: string;
-}
-
 async function handler(
   req: NextRequest,
   ctx: { params: Promise<{ nextauth: string[] }> }
 ) {
-  return NextAuth(req, { params: await ctx.params }, {
+  const params = await ctx.params;
+  const route = params.nextauth?.join("/");
+  console.log(`[NextAuth] ${req.method} /api/auth/${route}`);
+
+  return NextAuth(req, { params }, {
     ...authOptions,
+    debug: process.env.NODE_ENV === "development",
     providers: [
       ...authOptions.providers,
       Steam(req, {
@@ -27,6 +25,10 @@ async function handler(
     callbacks: {
       ...authOptions.callbacks,
       async signIn({ user, account, profile }) {
+        console.log(`[NextAuth] signIn callback — provider: ${account?.provider}, user: ${user?.id}`);
+        if (account?.provider === "faceit") {
+          console.log("[NextAuth] FACEIT profile:", JSON.stringify(profile, null, 2));
+        }
         // ─── Steam Linking ─────────────────────────────────
         if (account?.provider === "steam") {
           const cookieStore = await cookies();
@@ -80,72 +82,7 @@ async function handler(
           return true;
         }
 
-        // ─── FACEIT Linking ────────────────────────────────
-        if (account?.provider === "faceit") {
-          const cookieStore = await cookies();
-          const linkIntent = cookieStore.get("faceit-link-intent");
-
-          if (linkIntent) {
-            const existingUserId = linkIntent.value;
-            const faceitProfile = profile as FaceitProfile;
-            const faceitId = faceitProfile?.guid ?? null;
-            const faceitNickname = faceitProfile?.nickname ?? null;
-
-            if (faceitId) {
-              const existing = await prisma.user.findUnique({ where: { faceitId } });
-              if (existing && existing.id !== existingUserId) {
-                cookieStore.delete("faceit-link-intent");
-                return "/settings?error=faceit-already-linked";
-              }
-            }
-
-            await prisma.account.upsert({
-              where: {
-                provider_providerAccountId: {
-                  provider: account.provider,
-                  providerAccountId: account.providerAccountId,
-                },
-              },
-              update: {
-                access_token: account.access_token,
-                refresh_token: account.refresh_token,
-                expires_at: account.expires_at,
-                token_type: account.token_type,
-                scope: account.scope,
-                id_token: account.id_token,
-              },
-              create: {
-                userId: existingUserId,
-                type: account.type,
-                provider: account.provider,
-                providerAccountId: account.providerAccountId,
-                access_token: account.access_token,
-                refresh_token: account.refresh_token,
-                expires_at: account.expires_at,
-                token_type: account.token_type,
-                scope: account.scope,
-                id_token: account.id_token,
-              },
-            });
-
-            if (faceitId) {
-              await prisma.user.update({
-                where: { id: existingUserId },
-                data: {
-                  faceitId,
-                  faceitNickname,
-                  image: faceitProfile?.avatar ?? undefined,
-                },
-              });
-            }
-
-            cookieStore.delete("faceit-link-intent");
-            return "/settings?linked=faceit";
-          }
-
-          return true;
-        }
-
+        // FACEIT linking handled via manual OAuth in /api/auth/link-faceit
         return true;
       },
     },
