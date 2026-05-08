@@ -51,6 +51,29 @@ export default async function MatchDetailPage({ params }: Props) {
     r.kills.map((k) => ({ ...k, roundId: r.id }))
   );
 
+  // Per-player wallbang / smoke / no-scope kill counts
+  const specialsBySteamId = new Map<
+    string,
+    { wallbangs: number; smokeKills: number; noScopeKills: number }
+  >();
+  for (const k of allKills) {
+    if (!k.wallbang && !k.throughSmoke && !k.noScope) continue;
+    let s = specialsBySteamId.get(k.attackerSteamId);
+    if (!s) {
+      s = { wallbangs: 0, smokeKills: 0, noScopeKills: 0 };
+      specialsBySteamId.set(k.attackerSteamId, s);
+    }
+    if (k.wallbang) s.wallbangs++;
+    if (k.throughSmoke) s.smokeKills++;
+    if (k.noScope) s.noScopeKills++;
+  }
+
+  const augmentPlayer = (p: (typeof match.players)[number]) => ({
+    ...p,
+    wallbangs: specialsBySteamId.get(p.steamId)?.wallbangs ?? 0,
+    smokeKills: specialsBySteamId.get(p.steamId)?.smokeKills ?? 0,
+  });
+
   const trade = detectTradeKills({
     kills: allKills,
     teamBySteamId,
@@ -206,14 +229,14 @@ export default async function MatchDetailPage({ params }: Props) {
       <ScoreboardTable
         title="Counter-Terrorists"
         teamColor="ct"
-        players={ctPlayers}
+        players={ctPlayers.map(augmentPlayer)}
       />
 
       {/* T Scoreboard */}
       <ScoreboardTable
         title="Terrorists"
         teamColor="t"
-        players={tPlayers}
+        players={tPlayers.map(augmentPlayer)}
       />
     </div>
   );
@@ -236,6 +259,8 @@ function ScoreboardTable({
     hsPercent: number;
     firstKills: number;
     firstDeaths: number;
+    wallbangs: number;
+    smokeKills: number;
   }[];
 }) {
   const borderColor = teamColor === "ct" ? "var(--ct-blue)" : "var(--t-gold)";
@@ -258,6 +283,8 @@ function ScoreboardTable({
               <th className="px-3 py-2.5 text-center">ADR</th>
               <th className="px-3 py-2.5 text-center">HLTV</th>
               <th className="px-3 py-2.5 text-center">HS%</th>
+              <th className="px-3 py-2.5 text-center" title="Wallbang kills">WB</th>
+              <th className="px-3 py-2.5 text-center" title="Through-smoke kills">SK</th>
               <th className="px-3 py-2.5 text-center">FK</th>
               <th className="px-3 py-2.5 text-center">FD</th>
             </tr>
@@ -303,6 +330,12 @@ function ScoreboardTable({
                 </td>
                 <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
                   {p.hsPercent.toFixed(0)}%
+                </td>
+                <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
+                  {p.wallbangs}
+                </td>
+                <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
+                  {p.smokeKills}
                 </td>
                 <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
                   {p.firstKills}

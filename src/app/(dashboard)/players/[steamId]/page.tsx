@@ -7,6 +7,7 @@ import { mapDisplayName } from "@/lib/utils/mapNames";
 import { weaponDisplayName } from "@/lib/utils/formatters";
 import { detectTradeKills } from "@/lib/utils/tradeKills";
 import { detectClutches } from "@/lib/utils/clutches";
+import { playerSideAtRound } from "@/lib/utils/sideSplit";
 import { WeaponBarChart, type WeaponStat } from "@/components/charts/weapon-bar-chart";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -104,6 +105,9 @@ export default async function PlayerDetailPage({ params }: Props) {
                   victimSteamId: true,
                   weapon: true,
                   headshot: true,
+                  wallbang: true,
+                  throughSmoke: true,
+                  noScope: true,
                 },
               },
             },
@@ -112,8 +116,32 @@ export default async function PlayerDetailPage({ params }: Props) {
       })
     : [];
 
+  // Grenades thrown by this player (across user's demos)
+  const grenades = userId
+    ? await prisma.grenadeEvent.findMany({
+        where: {
+          throwerSteamId: steamId,
+          round: { match: { upload: { userId } } },
+        },
+        select: {
+          grenadeType: true,
+          damageDealt: true,
+          playersFlashed: true,
+        },
+      })
+    : [];
+
   // Per-match aggregations
   const weaponAgg = new Map<string, { kills: number; headshots: number }>();
+  let totalWallbangs = 0;
+  let totalSmokeKills = 0;
+  let totalNoScopeKills = 0;
+  let totalGapSeconds = 0;
+  let totalGaps = 0;
+  const sideStats: Record<"CT" | "T", { kills: number; deaths: number; headshots: number }> = {
+    CT: { kills: 0, deaths: 0, headshots: 0 },
+    T: { kills: 0, deaths: 0, headshots: 0 },
+  };
   const multiKillRounds: {
     count: number;
     weapons: string[];
@@ -185,18 +213,46 @@ export default async function PlayerDetailPage({ params }: Props) {
           headshots: k.headshot ? 1 : 0,
         });
       }
+      if (k.wallbang) totalWallbangs++;
+      if (k.throughSmoke) totalSmokeKills++;
+      if (k.noScope) totalNoScopeKills++;
     }
 
-    // Multi-kill rounds (this player only)
+    // Side split: walk all kills involving this player
+    const playerMatchTeam = match.players.find((p) => p.steamId === steamId)
+      ?.team as "CT" | "T" | undefined;
+    if (playerMatchTeam) {
+      for (const round of match.rounds) {
+        const side = playerSideAtRound(playerMatchTeam, round.number);
+        for (const k of round.kills) {
+          if (k.attackerSteamId === steamId) {
+            sideStats[side].kills++;
+            if (k.headshot) sideStats[side].headshots++;
+          }
+          if (k.victimSteamId === steamId) {
+            sideStats[side].deaths++;
+          }
+        }
+      }
+    }
+
+    // Multi-kill rounds + engagement-speed gaps (this player only)
     const perRound = new Map<
       string,
-      { count: number; weapons: string[]; headshots: number; roundNumber: number }
+      {
+        count: number;
+        weapons: string[];
+        headshots: number;
+        roundNumber: number;
+        ticks: number[];
+      }
     >();
     for (const k of playerKillsThisMatch) {
       const existing = perRound.get(k.roundId);
       if (existing) {
         existing.count++;
         existing.weapons.push(k.weapon);
+        existing.ticks.push(k.tick);
         if (k.headshot) existing.headshots++;
       } else {
         const round = match.rounds.find((r) => r.id === k.roundId);
@@ -206,13 +262,25 @@ export default async function PlayerDetailPage({ params }: Props) {
           weapons: [k.weapon],
           headshots: k.headshot ? 1 : 0,
           roundNumber: round.number,
+          ticks: [k.tick],
         });
       }
     }
     for (const r of perRound.values()) {
+      // Engagement speed: gaps between consecutive kills in same round
+      if (r.ticks.length >= 2) {
+        const sorted = [...r.ticks].sort((a, b) => a - b);
+        for (let i = 1; i < sorted.length; i++) {
+          totalGapSeconds += (sorted[i] - sorted[i - 1]) / match.tickRate;
+          totalGaps++;
+        }
+      }
       if (r.count >= 3) {
         multiKillRounds.push({
-          ...r,
+          count: r.count,
+          weapons: r.weapons,
+          headshots: r.headshots,
+          roundNumber: r.roundNumber,
           matchId: match.id,
           map: match.map,
           date: match.date,
@@ -269,6 +337,149 @@ export default async function PlayerDetailPage({ params }: Props) {
     clutchesAttempted += clutchBySize[size].attempted;
   }
 
+  // Special-kill percentages
+  const wallbangPct = totalKills > 0 ? (totalWallbangs / totalKills) * 100 : null;
+  const smokeKillPct = totalKills > 0 ? (totalSmokeKills / totalKills) * 100 : null;
+  const noScopePct = totalKills > 0 ? (totalNoScopeKills / totalKills) * 100 : null;
+
+  // Engagement speed: average seconds between consecutive same-round kills
+  const avgEngagementSpeed = totalGaps > 0 ? totalGapSeconds / totalGaps : null;
+
+  // Utility efficiency from grenades
+  // NOTE: avg flash duration on enemies and "unused utility on death" require
+  // parser changes (no per-tick inventory or flash duration in schema).
+  const utilAgg = {
+    flashCount: 0,
+    flashedTotal: 0,
+    heCount: 0,
+    heDmg: 0,
+    mollyCount: 0,
+    mollyDmg: 0,
+    smokeCount: 0,
+    decoyCount: 0,
+  };
+  for (const g of grenades) {
+    switch (g.grenadeType) {
+      case "FLASH":
+        utilAgg.flashCount++;
+        utilAgg.flashedTotal += g.playersFlashed;
+        break;
+      case "HE":
+        utilAgg.heCount++;
+        utilAgg.heDmg += g.damageDealt;
+        break;
+      case "MOLOTOV":
+      case "INCENDIARY":
+        utilAgg.mollyCount++;
+        utilAgg.mollyDmg += g.damageDealt;
+        break;
+      case "SMOKE":
+        utilAgg.smokeCount++;
+        break;
+      case "DECOY":
+        utilAgg.decoyCount++;
+        break;
+    }
+  }
+  const totalUtility =
+    utilAgg.flashCount +
+    utilAgg.heCount +
+    utilAgg.mollyCount +
+    utilAgg.smokeCount +
+    utilAgg.decoyCount;
+  const avgFlashEff =
+    utilAgg.flashCount > 0 ? utilAgg.flashedTotal / utilAgg.flashCount : null;
+  const avgHeDmg = utilAgg.heCount > 0 ? utilAgg.heDmg / utilAgg.heCount : null;
+  const avgMollyDmg =
+    utilAgg.mollyCount > 0 ? utilAgg.mollyDmg / utilAgg.mollyCount : null;
+
+  // Side split derived
+  const sideKD: Record<"CT" | "T", { kd: number | null; hsPct: number | null }> = {
+    CT: {
+      kd:
+        sideStats.CT.deaths > 0
+          ? sideStats.CT.kills / sideStats.CT.deaths
+          : sideStats.CT.kills > 0
+            ? sideStats.CT.kills
+            : null,
+      hsPct:
+        sideStats.CT.kills > 0
+          ? (sideStats.CT.headshots / sideStats.CT.kills) * 100
+          : null,
+    },
+    T: {
+      kd:
+        sideStats.T.deaths > 0
+          ? sideStats.T.kills / sideStats.T.deaths
+          : sideStats.T.kills > 0
+            ? sideStats.T.kills
+            : null,
+      hsPct:
+        sideStats.T.kills > 0
+          ? (sideStats.T.headshots / sideStats.T.kills) * 100
+          : null,
+    },
+  };
+  const hasSideData =
+    sideStats.CT.kills + sideStats.CT.deaths + sideStats.T.kills + sideStats.T.deaths > 0;
+
+  // Per-map breakdown
+  const mapAgg = new Map<
+    string,
+    {
+      matches: number;
+      wins: number;
+      kills: number;
+      deaths: number;
+      adrSum: number;
+      hltvSum: number;
+    }
+  >();
+  for (const entry of matchEntries) {
+    const teamScore = entry.team === "CT" ? entry.match.scoreCT : entry.match.scoreT;
+    const enemyScore = entry.team === "CT" ? entry.match.scoreT : entry.match.scoreCT;
+    const won = teamScore > enemyScore;
+    const existing = mapAgg.get(entry.match.map);
+    if (existing) {
+      existing.matches++;
+      if (won) existing.wins++;
+      existing.kills += entry.kills;
+      existing.deaths += entry.deaths;
+      existing.adrSum += entry.adr;
+      existing.hltvSum += entry.hltvRating;
+    } else {
+      mapAgg.set(entry.match.map, {
+        matches: 1,
+        wins: won ? 1 : 0,
+        kills: entry.kills,
+        deaths: entry.deaths,
+        adrSum: entry.adr,
+        hltvSum: entry.hltvRating,
+      });
+    }
+  }
+  const mapStats = Array.from(mapAgg.entries())
+    .map(([map, s]) => ({
+      map,
+      matches: s.matches,
+      winRate: (s.wins / s.matches) * 100,
+      kd: s.deaths > 0 ? s.kills / s.deaths : s.kills,
+      avgAdr: s.adrSum / s.matches,
+      avgHltv: s.hltvSum / s.matches,
+    }))
+    .sort((a, b) => b.matches - a.matches);
+
+  // Best/worst by HLTV (only label when we have at least 2 maps with 2+ matches)
+  const eligibleMaps = mapStats.filter((m) => m.matches >= 2);
+  const bestMap =
+    eligibleMaps.length >= 2
+      ? eligibleMaps.reduce((b, m) => (m.avgHltv > b.avgHltv ? m : b)).map
+      : null;
+  const worstMap =
+    eligibleMaps.length >= 2
+      ? eligibleMaps.reduce((w, m) => (m.avgHltv < w.avgHltv ? m : w)).map
+      : null;
+
   return (
     <div className="space-y-6">
       <Link
@@ -317,12 +528,62 @@ export default async function PlayerDetailPage({ params }: Props) {
         />
       </div>
 
+      {/* Side split */}
+      {hasSideData && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <SideCard
+            label="CT Side"
+            color="var(--ct-blue)"
+            stats={sideStats.CT}
+            kd={sideKD.CT.kd}
+            hsPct={sideKD.CT.hsPct}
+          />
+          <SideCard
+            label="T Side"
+            color="var(--t-gold)"
+            stats={sideStats.T}
+            kd={sideKD.T.kd}
+            hsPct={sideKD.T.hsPct}
+          />
+        </div>
+      )}
+
       {/* Multi-kill stats */}
       {(threeKs > 0 || fourKs > 0 || aces > 0) && (
         <div className="grid grid-cols-3 gap-4">
           <StatCard label="3K Rounds" value={threeKs} />
           <StatCard label="4K Rounds" value={fourKs} accentColor="var(--ct-blue)" />
           <StatCard label="Aces" value={aces} accentColor="var(--t-gold)" />
+        </div>
+      )}
+
+      {/* Style — special-kill % + engagement speed */}
+      {totalKills > 0 && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <StatCard
+            label="Wallbang %"
+            value={wallbangPct === null ? "—" : `${wallbangPct.toFixed(1)}%`}
+            accentColor="var(--accent)"
+          />
+          <StatCard
+            label="Smoke Kill %"
+            value={smokeKillPct === null ? "—" : `${smokeKillPct.toFixed(1)}%`}
+            accentColor="var(--smoke)"
+          />
+          <StatCard
+            label="No-Scope %"
+            value={noScopePct === null ? "—" : `${noScopePct.toFixed(1)}%`}
+            accentColor="var(--warning)"
+          />
+          <StatCard
+            label="Engagement Speed"
+            value={
+              avgEngagementSpeed === null
+                ? "—"
+                : `${avgEngagementSpeed.toFixed(1)}s`
+            }
+            accentColor="var(--info)"
+          />
         </div>
       )}
 
@@ -359,6 +620,47 @@ export default async function PlayerDetailPage({ params }: Props) {
                 />
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Utility efficiency */}
+      {totalUtility > 0 && (
+        <div>
+          <h2 className="mb-3 text-lg font-semibold text-[var(--text-primary)]">
+            Utility Efficiency
+          </h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <StatCard
+              label="Flash Effectiveness"
+              value={avgFlashEff === null ? "—" : avgFlashEff.toFixed(2)}
+              accentColor="var(--flash)"
+            />
+            <StatCard
+              label="HE Damage / Nade"
+              value={avgHeDmg === null ? "—" : avgHeDmg.toFixed(0)}
+              accentColor="var(--he)"
+            />
+            <StatCard
+              label="Molly Damage / Nade"
+              value={avgMollyDmg === null ? "—" : avgMollyDmg.toFixed(0)}
+              accentColor="var(--molotov)"
+            />
+            <Card
+              className="border-t-2"
+              style={{ borderTopColor: "var(--accent)" }}
+            >
+              <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
+                Total Utility Thrown
+              </p>
+              <p className="stat-number mt-2 text-[var(--text-primary)]">
+                {totalUtility}
+              </p>
+              <p className="mt-1 font-mono text-xs text-[var(--text-tertiary)]">
+                F: {utilAgg.flashCount} · HE: {utilAgg.heCount} · M: {utilAgg.mollyCount} · S: {utilAgg.smokeCount}
+                {utilAgg.decoyCount > 0 ? ` · D: ${utilAgg.decoyCount}` : ""}
+              </p>
+            </Card>
           </div>
         </div>
       )}
@@ -425,6 +727,86 @@ export default async function PlayerDetailPage({ params }: Props) {
                         </td>
                         <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
                           {r.headshots}/{r.count}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Map performance */}
+      {mapStats.length > 0 && (
+        <div>
+          <h2 className="mb-3 text-lg font-semibold text-[var(--text-primary)]">
+            Map Performance
+          </h2>
+          <Card className="overflow-hidden p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--border)] text-left text-xs font-medium uppercase text-[var(--text-tertiary)]">
+                    <th className="px-5 py-3">Map</th>
+                    <th className="px-3 py-3 text-center">Matches</th>
+                    <th className="px-3 py-3 text-center">W%</th>
+                    <th className="px-3 py-3 text-center">K/D</th>
+                    <th className="px-3 py-3 text-center">ADR</th>
+                    <th className="px-3 py-3 text-center">HLTV</th>
+                    <th className="px-3 py-3 text-center"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mapStats.map((m) => {
+                    const isBest = m.map === bestMap;
+                    const isWorst = m.map === worstMap;
+                    return (
+                      <tr
+                        key={m.map}
+                        className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(255,255,255,0.04)]"
+                      >
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="h-8 w-8 flex-shrink-0 rounded bg-[var(--surface-3)] bg-cover bg-center"
+                              style={{
+                                backgroundImage: `url(/maps/${m.map}_radar.png)`,
+                                filter: "grayscale(40%) brightness(0.7)",
+                              }}
+                            />
+                            <span className="font-medium text-[var(--text-primary)]">
+                              {mapDisplayName(m.map)}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
+                          {m.matches}
+                        </td>
+                        <td className="stat-inline px-3 py-3 text-center text-[var(--text-primary)]">
+                          {m.winRate.toFixed(0)}%
+                        </td>
+                        <td className="stat-inline px-3 py-3 text-center text-[var(--text-primary)]">
+                          {m.kd.toFixed(2)}
+                        </td>
+                        <td className="stat-inline px-3 py-3 text-center text-[var(--text-primary)]">
+                          {m.avgAdr.toFixed(1)}
+                        </td>
+                        <td
+                          className={`stat-inline px-3 py-3 text-center font-semibold ${
+                            m.avgHltv >= 1.2
+                              ? "text-[var(--success)]"
+                              : m.avgHltv >= 0.8
+                                ? "text-[var(--text-primary)]"
+                                : "text-[var(--error)]"
+                          }`}
+                        >
+                          {m.avgHltv.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          {isBest && <Badge variant="success">Best</Badge>}
+                          {isWorst && <Badge variant="error">Worst</Badge>}
                         </td>
                       </tr>
                     );
@@ -526,6 +908,51 @@ export default async function PlayerDetailPage({ params }: Props) {
           </div>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function SideCard({
+  label,
+  color,
+  stats,
+  kd,
+  hsPct,
+}: {
+  label: string;
+  color: string;
+  stats: { kills: number; deaths: number; headshots: number };
+  kd: number | null;
+  hsPct: number | null;
+}) {
+  return (
+    <Card className="border-t-2" style={{ borderTopColor: color }}>
+      <p
+        className="text-xs font-semibold uppercase tracking-wider"
+        style={{ color }}
+      >
+        {label}
+      </p>
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        <SideStat label="K" value={stats.kills} />
+        <SideStat label="D" value={stats.deaths} />
+        <SideStat label="K/D" value={kd === null ? "—" : kd.toFixed(2)} />
+        <SideStat
+          label="HS%"
+          value={hsPct === null ? "—" : `${hsPct.toFixed(0)}%`}
+        />
+      </div>
+    </Card>
+  );
+}
+
+function SideStat({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div>
+      <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
+        {label}
+      </p>
+      <p className="stat-small mt-1 text-[var(--text-primary)]">{value}</p>
     </div>
   );
 }
