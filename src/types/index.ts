@@ -7,7 +7,17 @@ export interface ParsedDemo {
   kills: ParsedKill[];
   grenades: ParsedGrenade[];
   bombEvents: ParsedBombEvent[];
+  roundPlayers: ParsedRoundPlayer[];
   ticks: PlayerTickData[];
+}
+
+export interface ParsedRoundPlayer {
+  roundNumber: number;
+  steamId: string;
+  equipValue: number;
+  money: number;
+  damage: number;
+  buyType: string;
 }
 
 export interface DemoHeader {

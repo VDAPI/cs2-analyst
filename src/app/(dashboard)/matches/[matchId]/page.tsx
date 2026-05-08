@@ -110,6 +110,8 @@ export default async function MatchDetailPage({ params }: Props) {
     number: r.number,
     winner: r.winner as "CT" | "T",
     winReason: r.winReason,
+    buyTypeCT: r.buyType_CT as string,
+    buyTypeT: r.buyType_T as string,
     kills: r.kills.map((k) => ({
       attackerSteamId: k.attackerSteamId,
       attackerName: k.attackerName,

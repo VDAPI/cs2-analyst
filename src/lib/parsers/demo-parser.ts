@@ -10,6 +10,7 @@ import type {
   ParsedKill,
   ParsedPlayer,
   ParsedRound,
+  ParsedRoundPlayer,
   ParsedBombEvent,
   ParsedGrenade,
   GrenadeType,
@@ -188,6 +189,16 @@ export async function parseDemoFile(filePath: string): Promise<ParsedDemo> {
     });
   }
 
+  // Per-player per-round economy snapshots (populated during freeze-end loop below)
+  // Key: `${roundNumber}|${steamId}` -> snapshot
+  const roundPlayerEcon = new Map<
+    string,
+    { roundNumber: number; steamId: string; equipValue: number; money: number; buyType: string }
+  >();
+  // Per-player per-round damage totals (populated during damage loop below)
+  // Key: `${roundNumber}|${steamId}` -> damage
+  const damageByRoundPlayer = new Map<string, number>();
+
   // ── Economy data from round_freeze_end + parseTicks ──
   const freezeEndEvents = parser.parseEvent(filePath, "round_freeze_end") as Record<string, unknown>[] | null;
   if (freezeEndEvents && freezeEndEvents.length > 0 && rounds.length > 0) {
@@ -243,6 +254,7 @@ export async function parseDemoFile(filePath: string): Promise<ParsedDemo> {
 
             const equip = num(p.current_equip_value);
             const money = num(p.balance);
+            const steamId = str(p.steamid);
 
             // Determine which side this player is on THIS round
             const isCTSide = isSecondHalf ? teamNum === 3 : teamNum === 2;
@@ -255,6 +267,17 @@ export async function parseDemoFile(filePath: string): Promise<ParsedDemo> {
               tEquipTotal += equip;
               tMoneyTotal += money;
               tCount++;
+            }
+
+            // Per-player snapshot for RoundPlayer
+            if (steamId) {
+              roundPlayerEcon.set(`${round.number}|${steamId}`, {
+                roundNumber: round.number,
+                steamId,
+                equipValue: equip,
+                money,
+                buyType: classifyBuyType(equip, 1, round.number),
+              });
             }
           }
 
@@ -394,6 +417,9 @@ export async function parseDemoFile(filePath: string): Promise<ParsedDemo> {
     playerHp.set(victimId, Math.max(0, victimHp - actualDmg));
 
     damageByPlayer.set(attackerId, (damageByPlayer.get(attackerId) ?? 0) + actualDmg);
+
+    const rpKey = `${roundNum}|${attackerId}`;
+    damageByRoundPlayer.set(rpKey, (damageByRoundPlayer.get(rpKey) ?? 0) + actualDmg);
   }
 
   // 6. Bomb events
@@ -603,6 +629,27 @@ export async function parseDemoFile(filePath: string): Promise<ParsedDemo> {
     };
   });
 
+  // Build RoundPlayer rows: union of econ snapshots and damage totals.
+  const roundPlayerKeys = new Set<string>([
+    ...roundPlayerEcon.keys(),
+    ...damageByRoundPlayer.keys(),
+  ]);
+  const roundPlayers: ParsedRoundPlayer[] = [];
+  for (const key of roundPlayerKeys) {
+    const sep = key.indexOf("|");
+    const roundNumber = Number(key.slice(0, sep));
+    const steamId = key.slice(sep + 1);
+    const econ = roundPlayerEcon.get(key);
+    roundPlayers.push({
+      roundNumber,
+      steamId,
+      equipValue: econ?.equipValue ?? 0,
+      money: econ?.money ?? 0,
+      damage: damageByRoundPlayer.get(key) ?? 0,
+      buyType: econ?.buyType ?? "UNKNOWN",
+    });
+  }
+
   return {
     header,
     rounds,
@@ -610,6 +657,7 @@ export async function parseDemoFile(filePath: string): Promise<ParsedDemo> {
     kills,
     grenades,
     bombEvents,
+    roundPlayers,
     ticks: [],
   };
 }

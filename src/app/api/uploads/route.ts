@@ -6,7 +6,7 @@ import { demoParseQueue } from "@/lib/queue";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 
-const MAX_FILE_SIZE = 300 * 1024 * 1024; // 300MB
+const MAX_FILE_SIZE = 700 * 1024 * 1024; // 700MB
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   }
 
   if (file.size > MAX_FILE_SIZE) {
-    return NextResponse.json({ error: "File too large (max 300MB)" }, { status: 400 });
+    return NextResponse.json({ error: "File too large (max 700MB)" }, { status: 400 });
   }
 
   // Create upload record

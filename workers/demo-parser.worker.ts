@@ -153,6 +153,23 @@ async function processDemo(job: Job<DemoParseJobData>) {
       });
     }
 
+    // Batch insert per-player per-round economy / damage rows
+    if (parsed.roundPlayers.length > 0) {
+      await prisma.roundPlayer.createMany({
+        data: parsed.roundPlayers
+          .filter((rp) => roundIdByNumber[rp.roundNumber])
+          .map((rp) => ({
+            roundId: roundIdByNumber[rp.roundNumber],
+            steamId: rp.steamId,
+            equipValue: rp.equipValue,
+            money: rp.money,
+            damage: rp.damage,
+            buyType: mapBuyType(rp.buyType),
+          })),
+        skipDuplicates: true,
+      });
+    }
+
     // Batch insert grenade events
     if (parsed.grenades.length > 0) {
       await prisma.grenadeEvent.createMany({

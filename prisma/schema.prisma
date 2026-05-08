@@ -181,8 +181,24 @@ model Round {
   kills    Kill[]
   grenades GrenadeEvent[]
   bombs    BombEvent[]
+  players  RoundPlayer[]
 
   @@unique([matchId, number])
+}
+
+model RoundPlayer {
+  id         String  @id @default(cuid())
+  roundId    String
+  steamId    String
+  equipValue Int     @default(0)
+  money      Int     @default(0)
+  damage     Int     @default(0)
+  buyType    BuyType @default(UNKNOWN)
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, steamId])
+  @@index([steamId])
 }
 
 enum WinReason {

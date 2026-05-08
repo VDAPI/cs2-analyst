@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@laihoe/demoparser2"],
   experimental: {
     serverActions: {
-      bodySizeLimit: "350mb",
+      bodySizeLimit: "750mb",
     },
   },
   images: {

@@ -157,7 +157,7 @@ export default function UploadPage() {
                 Drag & drop .dem file here
               </p>
               <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-                or click to browse — max 300 MB
+                or click to browse — max 700 MB
               </p>
               <input
                 type="file"

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Crosshair, Shield, Flame, Timer, Zap } from "lucide-react";
 import type { MultiKill } from "@/lib/utils/multiKills";
+import { BUY_TYPE_COLORS, BUY_TYPE_LABELS, type BuyTypeKey } from "@/lib/utils/buyType";
 
 interface KillData {
   attackerSteamId: string;
@@ -24,6 +25,8 @@ interface RoundData {
   number: number;
   winner: "CT" | "T";
   winReason: string;
+  buyTypeCT: string;
+  buyTypeT: string;
   kills: KillData[];
 }
 
@@ -141,6 +144,30 @@ export function RoundTimeline({ rounds, multiKillMap, clutchMap }: RoundTimeline
         })}
       </div>
 
+      {/* Buy type strips: CT row, then T row */}
+      <div className="mt-1.5 flex flex-col gap-0.5">
+        <div className="flex gap-1">
+          {rounds.map((r) => (
+            <BuyTypeCell
+              key={`ct-${r.number}`}
+              buyType={r.buyTypeCT}
+              round={r.number}
+              side="CT"
+            />
+          ))}
+        </div>
+        <div className="flex gap-1">
+          {rounds.map((r) => (
+            <BuyTypeCell
+              key={`t-${r.number}`}
+              buyType={r.buyTypeT}
+              round={r.number}
+              side="T"
+            />
+          ))}
+        </div>
+      </div>
+
       {/* Kill feed for selected round */}
       {selected && (
         <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
@@ -183,6 +210,27 @@ export function RoundTimeline({ rounds, multiKillMap, clutchMap }: RoundTimeline
         </div>
       )}
     </div>
+  );
+}
+
+function BuyTypeCell({
+  buyType,
+  round,
+  side,
+}: {
+  buyType: string;
+  round: number;
+  side: "CT" | "T";
+}) {
+  const key = (buyType as BuyTypeKey) ?? "UNKNOWN";
+  const color = BUY_TYPE_COLORS[key] ?? BUY_TYPE_COLORS.UNKNOWN;
+  const label = BUY_TYPE_LABELS[key] ?? "—";
+  return (
+    <div
+      className="h-1.5 w-7 rounded-sm transition-all duration-150"
+      style={{ backgroundColor: color, opacity: 0.65 }}
+      title={`R${round} ${side}: ${label}`}
+    />
   );
 }
 

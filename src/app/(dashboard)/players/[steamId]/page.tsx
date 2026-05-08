@@ -8,6 +8,7 @@ import { weaponDisplayName } from "@/lib/utils/formatters";
 import { detectTradeKills } from "@/lib/utils/tradeKills";
 import { detectClutches } from "@/lib/utils/clutches";
 import { playerSideAtRound } from "@/lib/utils/sideSplit";
+import { BUY_TYPE_COLORS, type BuyTypeKey } from "@/lib/utils/buyType";
 import { WeaponBarChart, type WeaponStat } from "@/components/charts/weapon-bar-chart";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -110,6 +111,15 @@ export default async function PlayerDetailPage({ params }: Props) {
                   noScope: true,
                 },
               },
+              players: {
+                select: {
+                  steamId: true,
+                  buyType: true,
+                  damage: true,
+                  equipValue: true,
+                  money: true,
+                },
+              },
             },
           },
         },
@@ -142,6 +152,29 @@ export default async function PlayerDetailPage({ params }: Props) {
     CT: { kills: 0, deaths: 0, headshots: 0 },
     T: { kills: 0, deaths: 0, headshots: 0 },
   };
+
+  // Per-buy-type performance
+  type BuyTypeStats = {
+    rounds: number;
+    won: number;
+    kills: number;
+    deaths: number;
+    headshots: number;
+    damage: number;
+  };
+  const buyTypeStats: Record<"PISTOL" | "ECO" | "FORCE" | "FULL", BuyTypeStats> = {
+    PISTOL: { rounds: 0, won: 0, kills: 0, deaths: 0, headshots: 0, damage: 0 },
+    ECO: { rounds: 0, won: 0, kills: 0, deaths: 0, headshots: 0, damage: 0 },
+    FORCE: { rounds: 0, won: 0, kills: 0, deaths: 0, headshots: 0, damage: 0 },
+    FULL: { rounds: 0, won: 0, kills: 0, deaths: 0, headshots: 0, damage: 0 },
+  };
+  let antiEcoAttempts = 0;
+  let antiEcoWins = 0;
+
+  // Save round detection
+  let saveCount = 0;
+  let savePaidOff = 0;
+  let saveTotalEquip = 0;
   const multiKillRounds: {
     count: number;
     weapons: string[];
@@ -233,6 +266,87 @@ export default async function PlayerDetailPage({ params }: Props) {
             sideStats[side].deaths++;
           }
         }
+      }
+    }
+
+    // Per-buy-type performance + anti-eco + save rounds
+    if (playerMatchTeam) {
+      const enemySteamIds = new Set(
+        match.players.filter((p) => p.team !== playerMatchTeam).map((p) => p.steamId)
+      );
+
+      const sortedRounds = [...match.rounds].sort((a, b) => a.number - b.number);
+
+      for (let i = 0; i < sortedRounds.length; i++) {
+        const round = sortedRounds[i];
+        const playerRP = round.players.find((rp) => rp.steamId === steamId);
+        if (!playerRP) continue;
+
+        const side = playerSideAtRound(playerMatchTeam, round.number);
+        const won = round.winner === side;
+
+        const bucket: keyof typeof buyTypeStats | null = (() => {
+          switch (playerRP.buyType) {
+            case "PISTOL":
+              return "PISTOL";
+            case "ECO":
+              return "ECO";
+            case "HALF_BUY":
+            case "FORCE_BUY":
+              return "FORCE";
+            case "FULL_BUY":
+              return "FULL";
+            default:
+              return null;
+          }
+        })();
+
+        const playerKillsInRound = round.kills.filter(
+          (k) => k.attackerSteamId === steamId
+        );
+        const playerDeathsInRound = round.kills.filter(
+          (k) => k.victimSteamId === steamId
+        );
+
+        if (bucket) {
+          const s = buyTypeStats[bucket];
+          s.rounds++;
+          if (won) s.won++;
+          s.kills += playerKillsInRound.length;
+          s.headshots += playerKillsInRound.filter((k) => k.headshot).length;
+          s.deaths += playerDeathsInRound.length;
+          s.damage += playerRP.damage;
+        }
+
+        // Anti-eco: player FULL_BUY vs enemy team majority ECO
+        if (playerRP.buyType === "FULL_BUY") {
+          const enemyRPs = round.players.filter((rp) =>
+            enemySteamIds.has(rp.steamId)
+          );
+          const enemyEcoCount = enemyRPs.filter((rp) => rp.buyType === "ECO").length;
+          if (enemyRPs.length > 0 && enemyEcoCount > enemyRPs.length / 2) {
+            antiEcoAttempts++;
+            if (won) antiEcoWins++;
+          }
+        }
+
+        // Save round: round lost, player didn't engage and didn't die,
+        // had non-trivial equip preserved.
+        if (
+          !won &&
+          playerKillsInRound.length === 0 &&
+          playerDeathsInRound.length === 0 &&
+          playerRP.equipValue >= 1500
+        ) {
+          saveCount++;
+          saveTotalEquip += playerRP.equipValue;
+          const next = sortedRounds[i + 1];
+          if (next) {
+            const nextRP = next.players.find((rp) => rp.steamId === steamId);
+            if (nextRP && nextRP.equipValue >= 4000) savePaidOff++;
+          }
+        }
+
       }
     }
 
@@ -469,6 +583,31 @@ export default async function PlayerDetailPage({ params }: Props) {
     }))
     .sort((a, b) => b.matches - a.matches);
 
+  // Per-buy-type derived stats
+  const buyTypePerf = (Object.keys(buyTypeStats) as Array<keyof typeof buyTypeStats>).map(
+    (key) => {
+      const s = buyTypeStats[key];
+      return {
+        key,
+        rounds: s.rounds,
+        kd:
+          s.deaths > 0
+            ? s.kills / s.deaths
+            : s.kills > 0
+              ? s.kills
+              : null,
+        adr: s.rounds > 0 ? s.damage / s.rounds : null,
+        hsPct: s.kills > 0 ? (s.headshots / s.kills) * 100 : null,
+        winRate: s.rounds > 0 ? (s.won / s.rounds) * 100 : null,
+      };
+    }
+  );
+  const hasBuyTypeData = buyTypePerf.some((b) => b.rounds > 0);
+  const antiEcoWinRate =
+    antiEcoAttempts > 0 ? (antiEcoWins / antiEcoAttempts) * 100 : null;
+  const avgSaveEquip = saveCount > 0 ? saveTotalEquip / saveCount : null;
+  const savePaidOffPct = saveCount > 0 ? (savePaidOff / saveCount) * 100 : null;
+
   // Best/worst by HLTV (only label when we have at least 2 maps with 2+ matches)
   const eligibleMaps = mapStats.filter((m) => m.matches >= 2);
   const bestMap =
@@ -545,6 +684,103 @@ export default async function PlayerDetailPage({ params }: Props) {
             kd={sideKD.T.kd}
             hsPct={sideKD.T.hsPct}
           />
+        </div>
+      )}
+
+      {/* Performance by Economy */}
+      {hasBuyTypeData && (
+        <div>
+          <h2 className="mb-3 text-lg font-semibold text-[var(--text-primary)]">
+            Performance by Economy
+          </h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+            {buyTypePerf.map((b) => (
+              <BuyTypeCard
+                key={b.key}
+                label={
+                  b.key === "FULL"
+                    ? "Full Buy"
+                    : b.key === "FORCE"
+                      ? "Force Buy"
+                      : b.key === "ECO"
+                        ? "Eco"
+                        : "Pistol"
+                }
+                color={
+                  BUY_TYPE_COLORS[
+                    (b.key === "FULL"
+                      ? "FULL_BUY"
+                      : b.key === "FORCE"
+                        ? "FORCE_BUY"
+                        : b.key === "ECO"
+                          ? "ECO"
+                          : "PISTOL") as BuyTypeKey
+                  ]
+                }
+                rounds={b.rounds}
+                kd={b.kd}
+                adr={b.adr}
+                hsPct={b.hsPct}
+                winRate={b.winRate}
+              />
+            ))}
+            <Card
+              className="border-t-2"
+              style={{
+                borderTopColor:
+                  antiEcoWinRate === null
+                    ? "var(--text-disabled)"
+                    : antiEcoWinRate >= 85
+                      ? "var(--success)"
+                      : antiEcoWinRate < 70
+                        ? "var(--error)"
+                        : "var(--warning)",
+              }}
+            >
+              <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
+                Anti-Eco WR
+              </p>
+              <p
+                className={`stat-number mt-2 ${
+                  antiEcoWinRate === null
+                    ? "text-[var(--text-disabled)]"
+                    : antiEcoWinRate >= 85
+                      ? "text-[var(--success)]"
+                      : antiEcoWinRate < 70
+                        ? "text-[var(--error)]"
+                        : "text-[var(--text-primary)]"
+                }`}
+              >
+                {antiEcoWinRate === null
+                  ? "—"
+                  : `${antiEcoWinRate.toFixed(0)}%`}
+              </p>
+              <p className="mt-1 font-mono text-xs text-[var(--text-tertiary)]">
+                {antiEcoWins}/{antiEcoAttempts} rounds
+              </p>
+            </Card>
+          </div>
+          {saveCount > 0 && (
+            <div className="mt-4 grid grid-cols-3 gap-4">
+              <StatCard
+                label="Save Rounds"
+                value={saveCount}
+                accentColor="var(--info)"
+              />
+              <StatCard
+                label="Avg Equip Saved"
+                value={avgSaveEquip === null ? "—" : `$${Math.round(avgSaveEquip)}`}
+                accentColor="var(--info)"
+              />
+              <StatCard
+                label="Saves Paid Off"
+                value={
+                  savePaidOffPct === null ? "—" : `${savePaidOffPct.toFixed(0)}%`
+                }
+                accentColor="var(--success)"
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -954,5 +1190,61 @@ function SideStat({ label, value }: { label: string; value: number | string }) {
       </p>
       <p className="stat-small mt-1 text-[var(--text-primary)]">{value}</p>
     </div>
+  );
+}
+
+function BuyTypeCard({
+  label,
+  color,
+  rounds,
+  kd,
+  adr,
+  hsPct,
+  winRate,
+}: {
+  label: string;
+  color: string;
+  rounds: number;
+  kd: number | null;
+  adr: number | null;
+  hsPct: number | null;
+  winRate: number | null;
+}) {
+  if (rounds === 0) {
+    return (
+      <Card
+        className="border-t-2 opacity-50"
+        style={{ borderTopColor: color }}
+      >
+        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>
+          {label}
+        </p>
+        <p className="mt-2 text-xs text-[var(--text-tertiary)]">No rounds</p>
+      </Card>
+    );
+  }
+  return (
+    <Card className="border-t-2" style={{ borderTopColor: color }}>
+      <div className="flex items-baseline justify-between">
+        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>
+          {label}
+        </p>
+        <p className="font-mono text-[10px] text-[var(--text-tertiary)]">
+          {rounds}r
+        </p>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-x-2 gap-y-2">
+        <SideStat label="K/D" value={kd === null ? "—" : kd.toFixed(2)} />
+        <SideStat label="ADR" value={adr === null ? "—" : adr.toFixed(0)} />
+        <SideStat
+          label="HS%"
+          value={hsPct === null ? "—" : `${hsPct.toFixed(0)}%`}
+        />
+        <SideStat
+          label="W%"
+          value={winRate === null ? "—" : `${winRate.toFixed(0)}%`}
+        />
+      </div>
+    </Card>
   );
 }
