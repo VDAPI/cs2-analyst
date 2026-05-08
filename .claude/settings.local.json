@@ -68,7 +68,8 @@
       "Bash(node -e 'const { PrismaClient } = require\\('\\\\''@prisma/client'\\\\''\\); const p = new PrismaClient\\(\\); p.$queryRawUnsafe\\('\\\\''SELECT COUNT\\(*\\) as count FROM \"GrenadeEvent\"'\\\\''\\).then\\(r => console.log\\('\\\\''GrenadeEvent rows:'\\\\'', r\\)\\).catch\\(e => console.log\\('\\\\''Error:'\\\\'', e.message\\)\\).finally\\(\\(\\) => p.$disconnect\\(\\)\\)')",
       "WebFetch(domain:docs.faceit.com)",
       "WebFetch(domain:developers.faceit.com)",
-      "WebFetch(domain:cdn.faceit.com)"
+      "WebFetch(domain:cdn.faceit.com)",
+      "Bash(findstr /C:\"parsers\")"
     ]
   }
 }

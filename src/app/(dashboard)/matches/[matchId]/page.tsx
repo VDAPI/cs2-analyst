@@ -5,6 +5,9 @@ import Link from "next/link";
 import { ArrowLeft, Crosshair, DollarSign, Flame, Play } from "lucide-react";
 import { RoundTimeline } from "./round-timeline";
 import { mapDisplayName } from "@/lib/utils/mapNames";
+import { detectMultiKills, multiKillsByRound } from "@/lib/utils/multiKills";
+import { detectTradeKills } from "@/lib/utils/tradeKills";
+import { detectClutches } from "@/lib/utils/clutches";
 
 interface Props {
   params: Promise<{ matchId: string }>;
@@ -38,22 +41,72 @@ export default async function MatchDetailPage({ params }: Props) {
   const tPlayers = match.players.filter((p) => p.team === "T");
   const ctWon = match.scoreCT > match.scoreT;
 
+  // Team mapping for trade / clutch detection
+  const teamBySteamId = new Map<string, "CT" | "T">();
+  for (const p of match.players) {
+    teamBySteamId.set(p.steamId, p.team as "CT" | "T");
+  }
+
+  const allKills = match.rounds.flatMap((r) =>
+    r.kills.map((k) => ({ ...k, roundId: r.id }))
+  );
+
+  const trade = detectTradeKills({
+    kills: allKills,
+    teamBySteamId,
+    tickRate: match.tickRate,
+  });
+
+  const clutches = detectClutches({
+    rounds: match.rounds.map((r) => ({
+      id: r.id,
+      number: r.number,
+      winner: r.winner as "CT" | "T",
+      kills: r.kills,
+    })),
+    teamBySteamId,
+  });
+
+  const clutchByRoundNumber: Record<
+    number,
+    { steamId: string; playerName: string; team: "CT" | "T"; size: 1 | 2 | 3 | 4 | 5; won: boolean }
+  > = {};
+  for (const c of clutches) {
+    const player = match.players.find((p) => p.steamId === c.clutcherSteamId);
+    clutchByRoundNumber[c.roundNumber] = {
+      steamId: c.clutcherSteamId,
+      playerName: player?.name ?? c.clutcherSteamId,
+      team: c.clutcherTeam,
+      size: c.size,
+      won: c.won,
+    };
+  }
+
   // Serialize rounds + kills for client component
   const roundsData = match.rounds.map((r) => ({
     number: r.number,
     winner: r.winner as "CT" | "T",
     winReason: r.winReason,
     kills: r.kills.map((k) => ({
+      attackerSteamId: k.attackerSteamId,
       attackerName: k.attackerName,
       victimName: k.victimName,
+      victimSteamId: k.victimSteamId,
       weapon: k.weapon,
       headshot: k.headshot,
       wallbang: k.wallbang,
       throughSmoke: k.throughSmoke,
       noScope: k.noScope,
       isFirstKill: k.isFirstKill,
+      traded: trade.tradedKillIds.has(k.id),
+      tradeKill: trade.tradeKillIds.has(k.id),
+      attackerTeam: teamBySteamId.get(k.attackerSteamId) ?? null,
     })),
   }));
+
+  // Detect multi-kills (3K, 4K, ace)
+  const multiKills = detectMultiKills(roundsData);
+  const multiKillMap = Object.fromEntries(multiKillsByRound(multiKills));
 
   return (
     <div className="space-y-6">
@@ -140,7 +193,13 @@ export default async function MatchDetailPage({ params }: Props) {
         </div>
 
         {/* Interactive round timeline */}
-        {roundsData.length > 0 && <RoundTimeline rounds={roundsData} />}
+        {roundsData.length > 0 && (
+          <RoundTimeline
+            rounds={roundsData}
+            multiKillMap={multiKillMap}
+            clutchMap={clutchByRoundNumber}
+          />
+        )}
       </Card>
 
       {/* CT Scoreboard */}

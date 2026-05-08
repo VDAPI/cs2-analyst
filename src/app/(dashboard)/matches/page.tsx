@@ -17,6 +17,12 @@ export default async function MatchesPage() {
         include: {
           players: true,
           upload: { select: { createdAt: true, source: true, faceitMatchId: true } },
+          rounds: {
+            select: {
+              number: true,
+              kills: { select: { attackerSteamId: true, attackerName: true } },
+            },
+          },
         },
         orderBy: { date: "desc" },
       })
@@ -148,6 +154,24 @@ export default async function MatchesPage() {
               result === "loss" ? "#ef4444" :
               "#71717a";
 
+            // Detect aces in this match
+            let aceInfo: { playerName: string; roundNumber: number } | null = null;
+            for (const round of match.rounds) {
+              const killCounts = new Map<string, { name: string; count: number }>();
+              for (const kill of round.kills) {
+                const existing = killCounts.get(kill.attackerSteamId);
+                if (existing) existing.count++;
+                else killCounts.set(kill.attackerSteamId, { name: kill.attackerName, count: 1 });
+              }
+              for (const [, data] of killCounts) {
+                if (data.count >= 5) {
+                  aceInfo = { playerName: data.name, roundNumber: round.number };
+                  break;
+                }
+              }
+              if (aceInfo) break;
+            }
+
             return (
               <Link key={match.id} href={`/matches/${match.id}`}>
                 <Card
@@ -184,6 +208,11 @@ export default async function MatchesPage() {
                         {match.upload?.source === "FACEIT" && (
                           <span className="rounded-full bg-[rgba(255,85,0,0.15)] px-1.5 py-0.5 text-[10px] font-bold text-[#ff5500]">
                             FACEIT
+                          </span>
+                        )}
+                        {aceInfo && (
+                          <span className="rounded-full bg-[rgba(251,191,36,0.15)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--t-gold)]">
+                            ACE by {aceInfo.playerName} (R{aceInfo.roundNumber})
                           </span>
                         )}
                       </div>
