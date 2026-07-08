@@ -1,7 +1,44 @@
+import type { DemoFetchStatus } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { getMatchHistory, getMatchDetails } from "./api";
+import type { FaceitMatchDetail } from "./types";
 
 const SYNC_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Pull the demo resource URL out of a Data API match-details payload.
+ * Returns { demoResourceUrl, demoStatus } — AVAILABLE if a demo URL is
+ * present, NOT_READY otherwise (fresh matches often have no demo yet).
+ */
+export function extractDemoResource(details: FaceitMatchDetail): {
+  demoResourceUrl: string | null;
+  demoStatus: DemoFetchStatus;
+} {
+  const demoUrl = details.demo_url?.[0];
+  if (demoUrl && demoUrl.trim().length > 0) {
+    return { demoResourceUrl: demoUrl, demoStatus: "AVAILABLE" };
+  }
+  return { demoResourceUrl: null, demoStatus: "NOT_READY" };
+}
+
+/**
+ * Fetch match details from the Data API and persist the demo resource URL
+ * + status onto the stored FaceitMatch. Used by both the sync loop and the
+ * download job (which re-fetches when the resource URL is missing).
+ * Returns the resolved demo resource info.
+ */
+export async function refreshDemoResource(faceitMatchId: string): Promise<{
+  demoResourceUrl: string | null;
+  demoStatus: DemoFetchStatus;
+}> {
+  const details = await getMatchDetails(faceitMatchId);
+  const resource = extractDemoResource(details);
+  await prisma.faceitMatch.update({
+    where: { faceitMatchId },
+    data: resource,
+  });
+  return resource;
+}
 
 interface SyncResult {
   synced: number;
@@ -85,6 +122,8 @@ export async function syncFaceitMatches(userId: string, force = false): Promise<
       // Replace {lang} placeholder if present
       faceitUrl = faceitUrl.replace("{lang}", "en");
 
+      const { demoResourceUrl, demoStatus } = extractDemoResource(details);
+
       await prisma.faceitMatch.create({
         data: {
           userId,
@@ -94,6 +133,8 @@ export async function syncFaceitMatches(userId: string, force = false): Promise<
           date,
           faceitUrl,
           competition: match.competition_name ?? null,
+          demoResourceUrl,
+          demoStatus,
         },
       });
 

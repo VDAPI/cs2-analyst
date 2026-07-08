@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { Card, StatCard } from "@/components/ui";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { FaceitSyncTrigger } from "@/components/faceit-sync-trigger";
+import { FaceitDownloadButton } from "@/components/faceit-download-button";
 import Link from "next/link";
 
 export default async function MatchesPage() {
@@ -28,10 +29,12 @@ export default async function MatchesPage() {
       })
     : [];
 
-  // Fetch FACEIT metadata matches (not yet uploaded)
+  // Fetch FACEIT metadata matches. Includes matches with an in-flight
+  // download (uploadId set but not yet parsed) so the download progress
+  // button stays visible; fully-parsed ones are filtered out below.
   const faceitMatches = userId
     ? await prisma.faceitMatch.findMany({
-        where: { userId, uploadId: null }, // only unlinked ones
+        where: { userId },
         orderBy: { date: "desc" },
       })
     : [];
@@ -318,12 +321,11 @@ export default async function MatchesPage() {
                         >
                           View on FACEIT
                         </a>
-                        <Link
-                          href={`/upload?faceitMatchId=${fm.faceitMatchId}`}
-                          className="inline-flex h-8 items-center rounded-lg bg-[var(--accent)] px-3 text-xs font-medium text-white transition-colors hover:bg-[var(--accent-hover)]"
-                        >
-                          Upload Demo
-                        </Link>
+                        <FaceitDownloadButton
+                          faceitMatchId={fm.id}
+                          demoStatus={fm.demoStatus}
+                          initialUploadId={fm.uploadId}
+                        />
                       </div>
                     </div>
                   </Card>

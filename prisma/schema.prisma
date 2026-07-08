@@ -308,19 +308,29 @@ enum BombAction {
 // ─── FACEIT ──────────────────────────────────────────
 
 model FaceitMatch {
-  id            String    @id @default(cuid())
-  userId        String
-  faceitMatchId String    @unique
-  map           String
-  score         String    // e.g. "16-9"
-  date          DateTime
-  faceitUrl     String
-  competition   String?
-  uploadId      String?   @unique // linked when user uploads demo
-  createdAt     DateTime  @default(now())
+  id              String          @id @default(cuid())
+  userId          String
+  faceitMatchId   String          @unique
+  map             String
+  score           String          // e.g. "16-9"
+  date            DateTime
+  faceitUrl       String
+  competition     String?
+  demoResourceUrl String? // demo_url[0] from Data API — exchanged for a signed URL at download time
+  demoStatus      DemoFetchStatus @default(UNKNOWN)
+  uploadId        String?         @unique // linked when user uploads/downloads demo
+  createdAt       DateTime        @default(now())
 
   user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   upload DemoUpload? @relation(fields: [uploadId], references: [id])
+}
+
+enum DemoFetchStatus {
+  UNKNOWN
+  AVAILABLE
+  NOT_READY
+  DOWNLOADED
+  FAILED
 }
 
 // ─── Teams ───────────────────────────────────────────────

@@ -10,11 +10,13 @@ import {
   listGameEvents,
 } from "@laihoe/demoparser2";
 
-const filePath = process.argv[2];
-if (!filePath) {
+const rawPath = process.argv[2];
+if (!rawPath) {
   console.error("Usage: npx tsx scripts/debug-parse.ts <path-to-dem-file>");
   process.exit(1);
 }
+// demoparser2 (Rust) needs forward-slash paths to avoid "IllegalPathOp" on Windows.
+const filePath = rawPath.replace(/\\/g, "/");
 
 console.log("=== FILE ===");
 console.log(filePath);

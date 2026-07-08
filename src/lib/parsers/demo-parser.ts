@@ -49,8 +49,13 @@ function bool(val: unknown): boolean {
 
 // ─── Main parser ─────────────────────────────────────────
 
-export async function parseDemoFile(filePath: string): Promise<ParsedDemo> {
+export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
   const parser = await getParser();
+
+  // demoparser2 (Rust) can fail with "IllegalPathOp" on Windows-style backslash
+  // paths. Normalize to forward slashes before any parser call.
+  const filePath = rawPath.replace(/\\/g, "/");
+  console.log(`[parseDemoFile] rawPath="${rawPath}" normalized="${filePath}"`);
 
   // 1. Header
   const rawHeader = parser.parseHeader(filePath);

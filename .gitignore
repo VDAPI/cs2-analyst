@@ -42,6 +42,8 @@ coverage/
 
 # demo files
 data/demos/*.dem
+*.dem
+*.dem.zst
 temp/
 
 certificates

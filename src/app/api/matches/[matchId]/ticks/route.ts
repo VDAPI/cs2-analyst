@@ -59,7 +59,8 @@ export async function GET(req: Request, { params }: Props) {
     return NextResponse.json({ error: "Round not found" }, { status: 404 });
   }
 
-  const filePath = match.upload.fileUrl;
+  // demoparser2 (Rust) needs forward-slash paths to avoid "IllegalPathOp" on Windows.
+  const filePath = match.upload.fileUrl.replace(/\\/g, "/");
   const parser = await getParser();
 
   // Generate tick list for this round at the given interval

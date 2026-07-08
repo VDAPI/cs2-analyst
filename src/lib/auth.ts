@@ -49,21 +49,20 @@ export const authOptions: AuthOptions = {
         token.id = user.id;
         const dbUser = await prisma.user.findUnique({
           where: { id: user.id },
-          select: { steamId: true, faceitId: true, faceitNickname: true, plan: true, image: true },
+          select: { steamId: true, faceitId: true, faceitNickname: true, plan: true },
         });
         if (dbUser) {
           token.steamId = dbUser.steamId;
           token.faceitId = dbUser.faceitId;
           token.faceitNickname = dbUser.faceitNickname;
           token.plan = dbUser.plan;
-          token.picture = dbUser.image;
         }
       }
 
       if (trigger === "update") {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { steamId: true, faceitId: true, faceitNickname: true, plan: true, name: true, image: true },
+          select: { steamId: true, faceitId: true, faceitNickname: true, plan: true, name: true },
         });
         if (dbUser) {
           token.steamId = dbUser.steamId;
@@ -71,7 +70,6 @@ export const authOptions: AuthOptions = {
           token.faceitNickname = dbUser.faceitNickname;
           token.plan = dbUser.plan;
           token.name = dbUser.name;
-          token.picture = dbUser.image;
         }
       }
 
@@ -84,7 +82,13 @@ export const authOptions: AuthOptions = {
         session.user.faceitId = (token.faceitId as string) ?? null;
         session.user.faceitNickname = (token.faceitNickname as string) ?? null;
         session.user.plan = token.plan as "FREE" | "PRO" | "TEAM";
-        session.user.image = (token.picture as string) ?? null;
+        // Resolve the avatar from the DB, not the JWT — base64 data-URI avatars
+        // would bloat the session cookie past 4096 bytes (CHUNKING_SESSION_COOKIE).
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { image: true },
+        });
+        session.user.image = dbUser?.image ?? null;
       }
       return session;
     },
