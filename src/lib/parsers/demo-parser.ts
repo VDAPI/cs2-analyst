@@ -16,6 +16,26 @@ import type {
   GrenadeType,
   DemoHeader,
 } from "@/types";
+import { detectClutches, type ClutchInputKill } from "@/lib/utils/clutches";
+
+/**
+ * Weapons whose player_hurt damage counts as utility damage.
+ *
+ * A player_hurt event carries exactly one weapon string and is counted once, so
+ * no event can be billed twice no matter how many aliases this set holds.
+ *
+ * TODO(utility-damage): confirm the fire-damage weapon string against a real demo
+ * before touching this set. demoparser2's weapon-name table (visible as strings in
+ * wasm/pkg/demoparser2_bg.wasm) holds `molotov`, `incgrenade` and `firebomb` but no
+ * bare `inferno` — yet `inferno` is what this codebase has always matched on, here
+ * and in the per-grenade damage bucket below. Two risks, both unresolvable without
+ * demo data: (a) if burn damage surfaces as `incgrenade`, every CT incendiary is
+ * silently dropped and CT utility damage reads low against T; (b) if the engine
+ * emits one player_hurt per alias for a single burn tick, an alias-widened set
+ * would double-count. Dump the distinct `player_hurt.weapon` values first:
+ * `npx tsx scripts/debug-parse.ts <file.dem>`.
+ */
+const UTILITY_WEAPONS = new Set(["hegrenade", "inferno", "molotov"]);
 
 // Dynamic import — demoparser2 uses native Node bindings
 let demoparser: typeof import("@laihoe/demoparser2") | null = null;
@@ -380,6 +400,7 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
   // Also filter out friendly fire by comparing attacker/victim teams.
   const damageEvents = parser.parseEvent(filePath, "player_hurt") as Record<string, unknown>[];
   const damageByPlayer = new Map<string, number>();
+  const utilityDamageByPlayer = new Map<string, number>();
 
   // Sort damage events by tick to correctly track HP drain within a round
   const sortedDamage = (damageEvents ?? [])
@@ -422,6 +443,13 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
     playerHp.set(victimId, Math.max(0, victimHp - actualDmg));
 
     damageByPlayer.set(attackerId, (damageByPlayer.get(attackerId) ?? 0) + actualDmg);
+
+    if (UTILITY_WEAPONS.has(str(d.weapon))) {
+      utilityDamageByPlayer.set(
+        attackerId,
+        (utilityDamageByPlayer.get(attackerId) ?? 0) + actualDmg
+      );
+    }
 
     const rpKey = `${roundNum}|${attackerId}`;
     damageByRoundPlayer.set(rpKey, (damageByRoundPlayer.get(rpKey) ?? 0) + actualDmg);
@@ -556,6 +584,7 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
     kills: number;
     deaths: number;
     assists: number;
+    flashAssists: number;
     hsKills: number;
     firstKills: number;
     firstDeaths: number;
@@ -570,13 +599,14 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
       kills: 0,
       deaths: 0,
       assists: 0,
+      flashAssists: 0,
       hsKills: 0,
       firstKills: 0,
       firstDeaths: 0,
     });
   }
 
-  // Count kills, deaths, assists from kill events
+  // Count kills and deaths from kill events
   for (const k of kills) {
     const attacker = playerStats.get(k.attackerSteamId);
     const victim = playerStats.get(k.victimSteamId);
@@ -591,12 +621,24 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
       victim.deaths++;
       if (k.isFirstKill) victim.firstDeaths++;
     }
-
-    if (k.assisterSteamId) {
-      const assister = playerStats.get(k.assisterSteamId);
-      if (assister) assister.assists++;
-    }
   }
+
+  // Assists are tallied separately — see computeAssistCounts for why flash
+  // assists are excluded from the regular assist total.
+  for (const [steamId, counts] of computeAssistCounts(kills, playerRoster.keys())) {
+    const p = playerStats.get(steamId);
+    if (!p) continue;
+    p.assists = counts.assists;
+    p.flashAssists = counts.flashAssists;
+  }
+
+  // 9. Clutch detection (1vX)
+  const clutchWinsByPlayer = computeClutchWins({
+    rounds,
+    kills,
+    playerRoster,
+    halftimeTick,
+  });
 
   // Build final player list
   const players: ParsedPlayer[] = Array.from(playerStats.values()).map((p) => {
@@ -627,8 +669,9 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
       adr: Math.round(adr * 10) / 10,
       hltvRating: Math.round(Math.max(hltvRating, 0) * 100) / 100,
       hsPercent: Math.round(hsPercent * 10) / 10,
-      utilityDamage: 0,
-      flashAssists: 0,
+      utilityDamage: Math.round(utilityDamageByPlayer.get(p.steamId) ?? 0),
+      flashAssists: p.flashAssists,
+      clutchWins: clutchWinsByPlayer.get(p.steamId) ?? 0,
       firstKills: p.firstKills,
       firstDeaths: p.firstDeaths,
     };
@@ -665,6 +708,117 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
     roundPlayers,
     ticks: [],
   };
+}
+
+export interface AssistCounts {
+  assists: number;
+  flashAssists: number;
+}
+
+/**
+ * Tally assists per player, keyed by steamId.
+ *
+ * DESIGN DECISION — deliberate divergence from HLTV. `assists` and `flashAssists`
+ * are disjoint: a kill whose assist came from a flashbang increments `flashAssists`
+ * only, never both counters. HLTV folds flash assists into the regular assist
+ * total; we keep them apart so a utility contribution is not also billed as
+ * fragging support, and so the two columns can be read independently.
+ *
+ * Do NOT "align this with HLTV" by incrementing both — the split is the point.
+ * Anything comparing our assist totals against HLTV's must add the columns back
+ * together at the call site.
+ */
+export function computeAssistCounts(
+  kills: Pick<ParsedKill, "assisterSteamId" | "flashAssisted">[],
+  knownSteamIds: Iterable<string>
+): Map<string, AssistCounts> {
+  const counts = new Map<string, AssistCounts>();
+  for (const steamId of knownSteamIds) {
+    counts.set(steamId, { assists: 0, flashAssists: 0 });
+  }
+
+  for (const k of kills) {
+    if (!k.assisterSteamId) continue;
+    const c = counts.get(k.assisterSteamId);
+    if (!c) continue;
+    if (k.flashAssisted) c.flashAssists++;
+    else c.assists++;
+  }
+
+  return counts;
+}
+
+export interface ClutchWinsInput {
+  rounds: Pick<ParsedRound, "number" | "winner" | "endTick">[];
+  kills: Pick<ParsedKill, "tick" | "roundNumber" | "attackerSteamId" | "victimSteamId">[];
+  /** steamId → side at END of match (as reported by parsePlayerInfo). */
+  playerRoster: Map<string, { team: "CT" | "T" }>;
+  /** Rounds ending after this tick belong to the second half. */
+  halftimeTick: number;
+}
+
+/**
+ * Count won 1vX clutches per player.
+ *
+ * A round's `winner` is an absolute side, but `playerRoster` holds end-of-match
+ * sides. Each half is therefore resolved against the side map that was actually
+ * in play — using the roster verbatim would invert the won/lost flag on every
+ * first-half clutch.
+ */
+export function computeClutchWins({
+  rounds,
+  kills,
+  playerRoster,
+  halftimeTick,
+}: ClutchWinsInput): Map<string, number> {
+  const clutchWinsByPlayer = new Map<string, number>();
+
+  const killsByRound = new Map<number, ClutchInputKill[]>();
+  for (const k of kills) {
+    const entry: ClutchInputKill = {
+      tick: k.tick,
+      attackerSteamId: k.attackerSteamId,
+      victimSteamId: k.victimSteamId,
+    };
+    const list = killsByRound.get(k.roundNumber);
+    if (list) list.push(entry);
+    else killsByRound.set(k.roundNumber, [entry]);
+  }
+
+  for (const isSecondHalf of [false, true]) {
+    const halfRounds = rounds.filter(
+      (r) => (r.endTick > halftimeTick) === isSecondHalf
+    );
+    if (halfRounds.length === 0) continue;
+
+    const teamBySteamId = new Map<string, "CT" | "T">();
+    for (const [steamId, info] of playerRoster) {
+      teamBySteamId.set(
+        steamId,
+        isSecondHalf ? info.team : info.team === "CT" ? "T" : "CT"
+      );
+    }
+
+    const clutches = detectClutches({
+      rounds: halfRounds.map((r) => ({
+        id: String(r.number),
+        number: r.number,
+        winner: r.winner,
+        kills: killsByRound.get(r.number) ?? [],
+      })),
+      teamBySteamId,
+    });
+
+    for (const c of clutches) {
+      if (!c.won) continue;
+      clutchWinsByPlayer.set(
+        c.clutcherSteamId,
+        (clutchWinsByPlayer.get(c.clutcherSteamId) ?? 0) + 1
+      );
+    }
+  }
+
+  return clutchWinsByPlayer;
 }
 
 /**

@@ -78,6 +78,7 @@ export async function parseAndPersistDemo(
             hsPercent: p.hsPercent,
             utilityDamage: p.utilityDamage,
             flashAssists: p.flashAssists,
+            clutchWins: p.clutchWins,
             firstKills: p.firstKills,
             firstDeaths: p.firstDeaths,
             ...playerUserLinks[i],

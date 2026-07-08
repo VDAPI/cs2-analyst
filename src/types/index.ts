@@ -59,6 +59,7 @@ export interface ParsedPlayer {
   hsPercent: number;
   utilityDamage: number;
   flashAssists: number;
+  clutchWins: number;
   firstKills: number;
   firstDeaths: number;
 }

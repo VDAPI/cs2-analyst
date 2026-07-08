@@ -1,7 +1,26 @@
 # Lessons Learned
 
 ## Parser Insights
-<!-- Add findings about demoparser2 behavior, data quirks, etc. -->
+
+### parsePlayerInfo returns end-of-match sides, not per-round sides
+`team_number` (2 = T, 3 = CT) reflects the side a player finished on. In the first
+half the sides are inverted. Any stat that compares a player against a round-level
+side — `round_end.winner` is an absolute side — must resolve the side per half or
+it silently inverts for the whole first half. This bit clutch detection: crediting
+clutches against the raw roster dropped every first-half clutch.
+
+### Grenade damage attribution is bucketed, not exact
+Per-grenade `damageDealt` keys `player_hurt` by `attackerId + tick rounded to 64`,
+so two HE grenades from the same player within ~½ second merge into one. It also
+skips the friendly-fire and HP-overkill filters that the ADR loop applies, so it
+runs slightly hot. Per-player `utilityDamage` is computed separately, off the
+filtered ADR loop, and does not share this flaw.
+
+Unresolved: both paths match fire damage on the weapon string `inferno`, but
+demoparser2's weapon-name table contains `molotov`, `incgrenade` and `firebomb`
+and no bare `inferno`. If burn damage really arrives as `incgrenade`, CT
+incendiary damage is being dropped on the floor. See TODO(utility-damage) in
+`demo-parser.ts` — needs a real demo to settle.
 
 ## Architecture Decisions
 

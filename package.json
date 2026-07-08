@@ -12,7 +12,8 @@
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "worker:parse": "tsx workers/demo-parser.worker.ts",
-    "worker:faceit": "tsx workers/faceit-demo-download.worker.ts"
+    "worker:faceit": "tsx workers/faceit-demo-download.worker.ts",
+    "test:clutches": "tsx --tsconfig tsconfig.json scripts/test-clutch-wins.ts"
   },
   "dependencies": {
     "@laihoe/demoparser2": "^0.41.3",

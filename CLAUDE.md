@@ -80,6 +80,9 @@ prisma/               — Schema & migrations
 
 - `@laihoe/demoparser2` is in `serverExternalPackages` (native Node.js bindings, server-only)
 - Demo parsing runs in BullMQ workers, not in API routes
+- **Sides are per-half, not per-match**: `parsePlayerInfo.team_number` gives the side a player *finished* on, while `round.winner` is an absolute side. Any logic comparing a player to a round-level side must resolve the side for that half or it silently inverts across the whole first half. Follow the `computeClutchWins()` pattern in `src/lib/parsers/demo-parser.ts`.
+- **`assists` and `flashAssists` are disjoint**: a flash-assisted kill increments `flashAssists` only, never both. This is a deliberate divergence from HLTV (which folds flash assists into assists) — do not "unify" them. Add the columns together at the call site when comparing against HLTV numbers.
+- Parser invariants that are easy to break have a no-demo regression test: `npm run test:clutches`
 - Tailwind v4 uses `@import "tailwindcss"` syntax (no config file needed)
 - Settings page is a server component (queries DB directly for linked account status, not session JWT)
 - FACEIT OAuth uses popup window + `postMessage` for cross-window communication
