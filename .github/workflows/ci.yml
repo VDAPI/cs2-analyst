@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Required before tsc: src/ imports @prisma/client types.
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      # Each check runs even if an earlier one fails, so a single push
+      # surfaces every problem instead of only the first.
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: npm run lint
+
+      - name: Typecheck
+        if: ${{ !cancelled() }}
+        run: npx tsc --noEmit
+
+      - name: Parser regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:clutches
