@@ -26,7 +26,21 @@ npm run db:push      # Push Prisma schema to DB
 npm run db:migrate   # Run Prisma migrations
 npm run db:generate  # Generate Prisma client
 npm run db:studio    # Open Prisma Studio
+npm run test:clutches # Parser regression test (no demo file needed)
 ```
+
+The GitHub CLI (`gh`) is installed and authenticated — use it to inspect CI,
+pull requests and issues rather than asking for pasted logs:
+
+```bash
+gh run list --limit 5        # Recent CI runs
+gh run view <id> --log-failed # Logs of the failing steps only
+gh pr list / gh pr view <n>
+gh issue list / gh issue view <n>
+```
+
+Read-only `gh` subcommands are allowlisted in `.claude/settings.json`. Anything
+that writes (`gh pr create`, `gh issue create`, …) prompts for approval.
 
 ## Infrastructure
 
