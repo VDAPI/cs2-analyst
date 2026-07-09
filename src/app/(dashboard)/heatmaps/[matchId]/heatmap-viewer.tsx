@@ -73,11 +73,11 @@ export function HeatmapViewer({
 
   // Load radar image
   useEffect(() => {
-    if (!mapConfig?.radarImage) return;
+    const src = mapConfig?.radarImage ?? `/maps/${mapRaw}_radar.png`;
     const img = new Image();
-    img.src = mapConfig.radarImage;
+    img.src = src;
     img.onload = () => setRadarImage(img);
-  }, [mapConfig?.radarImage]);
+  }, [mapConfig?.radarImage, mapRaw]);
 
   // Fetch heatmap data
   useEffect(() => {
