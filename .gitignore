@@ -31,11 +31,17 @@ Thumbs.db
 prisma/*.db
 prisma/migrations/
 
+# typescript
+tsconfig.tsbuildinfo
+
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+
+# claude code — machine-local permissions, not shared
+.claude/settings.local.json
 
 # testing
 coverage/

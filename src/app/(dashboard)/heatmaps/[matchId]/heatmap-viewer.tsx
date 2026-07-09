@@ -42,15 +42,36 @@ type SideFilter = "all" | "CT" | "T";
 
 const CANVAS_SIZE = 1024;
 
+interface GradientStop {
+  t: number;
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
 // DESIGN.md heatmap gradient:
 // transparent → blue(0.2) → green(0.4) → gold(0.6) → red(0.8)
-const HEATMAP_COLORS = [
-  { stop: 0, color: "rgba(59, 130, 246, 0)" },
-  { stop: 0.25, color: "rgba(59, 130, 246, 0.2)" },
-  { stop: 0.5, color: "rgba(34, 197, 94, 0.4)" },
-  { stop: 0.75, color: "rgba(251, 191, 36, 0.6)" },
-  { stop: 1.0, color: "rgba(239, 68, 68, 0.8)" },
+// Single source of truth: both interpolateColor() and the legend swatch below
+// derive from this — keep them in sync by construction, not by hand.
+const HEATMAP_COLORS: GradientStop[] = [
+  { t: 0, r: 59, g: 130, b: 246, a: 0 },
+  { t: 0.25, r: 59, g: 130, b: 246, a: 0.2 },
+  { t: 0.5, r: 34, g: 197, b: 94, a: 0.4 },
+  { t: 0.75, r: 251, g: 191, b: 36, a: 0.6 },
+  { t: 1.0, r: 239, g: 68, b: 68, a: 0.8 },
 ];
+
+// The legend sits on a dark backdrop, where the fully transparent first stop
+// would read as a gap — drop it and lift the rest so the ramp stays legible.
+const LEGEND_ALPHA_BOOST = 0.1;
+
+const LEGEND_GRADIENT = `linear-gradient(to right, ${HEATMAP_COLORS.slice(1)
+  .map((s) => {
+    const alpha = Math.round((s.a + LEGEND_ALPHA_BOOST) * 100) / 100;
+    return `rgba(${s.r},${s.g},${s.b},${alpha})`;
+  })
+  .join(", ")})`;
 
 export function HeatmapViewer({
   matchId,
@@ -221,9 +242,10 @@ export function HeatmapViewer({
               Intensity
             </p>
             <div className="flex items-center gap-1">
-              <div className="h-2 w-24 rounded-full" style={{
-                background: "linear-gradient(to right, rgba(59,130,246,0.3), rgba(34,197,94,0.5), rgba(251,191,36,0.7), rgba(239,68,68,0.9))"
-              }} />
+              <div
+                className="h-2 w-24 rounded-full"
+                style={{ background: LEGEND_GRADIENT }}
+              />
               <span className="text-[9px] text-[var(--text-tertiary)]">High</span>
             </div>
             <p className="mt-1 font-mono text-[10px] text-[var(--text-secondary)]">
@@ -418,14 +440,7 @@ function drawHeatmapLayer(
 }
 
 function interpolateColor(t: number): { r: number; g: number; b: number; a: number } {
-  // DESIGN.md gradient: transparent → blue → green → gold → red
-  const stops = [
-    { t: 0, r: 59, g: 130, b: 246, a: 0 },
-    { t: 0.25, r: 59, g: 130, b: 246, a: 0.2 },
-    { t: 0.5, r: 34, g: 197, b: 94, a: 0.4 },
-    { t: 0.75, r: 251, g: 191, b: 36, a: 0.6 },
-    { t: 1.0, r: 239, g: 68, b: 68, a: 0.8 },
-  ];
+  const stops = HEATMAP_COLORS;
 
   // Find surrounding stops
   let lower = stops[0];

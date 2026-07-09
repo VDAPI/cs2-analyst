@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Hook for Canvas-based 2D replay rendering.
@@ -103,6 +103,3 @@ export function useDebounce<T>(value: T, delay: number): T {
 
   return debouncedValue;
 }
-
-// Need to import useState for useDebounce
-import { useState } from "react";

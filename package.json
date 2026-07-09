@@ -6,7 +6,7 @@
     "dev": "next dev --turbo --experimental-https",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
@@ -51,6 +51,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
     "@tailwindcss/postcss": "^4.2.2",
     "@tailwindcss/typography": "^0.5.0",
     "@types/bcryptjs": "^2.4.6",

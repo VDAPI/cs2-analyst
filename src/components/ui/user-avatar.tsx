@@ -23,6 +23,9 @@ export function UserAvatar({ name, image, size = "md", className }: UserAvatarPr
   }
 
   return (
+    // Steam/FACEIT avatars are remote 32–48px thumbnails; next/image would cost a
+    // remotePatterns entry and an optimization pass for no measurable gain.
+    // eslint-disable-next-line @next/next/no-img-element
     <img
       src={image}
       alt={name}

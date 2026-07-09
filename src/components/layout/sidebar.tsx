@@ -6,7 +6,6 @@ import {
   BarChart3,
   Upload,
   Users,
-  Map,
   DollarSign,
   Crosshair,
   Play,

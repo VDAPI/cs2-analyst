@@ -136,7 +136,6 @@ export default async function MatchesPage() {
         <div className="space-y-3">
           {/* Parsed matches — full analytics available */}
           {parsedMatches.map((match) => {
-            const ctWon = match.scoreCT > match.scoreT;
             const topPlayer = match.players.reduce((a, b) =>
               a.hltvRating > b.hltvRating ? a : b
             );
