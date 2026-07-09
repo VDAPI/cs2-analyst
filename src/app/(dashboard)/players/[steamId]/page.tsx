@@ -53,6 +53,7 @@ export default async function PlayerDetailPage({ params }: Props) {
   let totalKills = 0;
   let totalDeaths = 0;
   let totalAssists = 0;
+  let totalFlashAssists = 0;
   let totalAdr = 0;
   let totalHltv = 0;
   let totalHs = 0;
@@ -62,6 +63,7 @@ export default async function PlayerDetailPage({ params }: Props) {
     totalKills += entry.kills;
     totalDeaths += entry.deaths;
     totalAssists += entry.assists;
+    totalFlashAssists += entry.flashAssists;
     totalAdr += entry.adr;
     totalHltv += entry.hltvRating;
     totalHs += entry.hsPercent;
@@ -641,7 +643,17 @@ export default async function PlayerDetailPage({ params }: Props) {
 
       {/* Stat overview */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-4">
+        <StatCard
+          label="K / D / A"
+          value={`${totalKills} / ${totalDeaths} / ${totalAssists}`}
+        />
         <StatCard label="K/D Ratio" value={avgKd.toFixed(2)} />
+        {/* Disjoint from assists by design — see CLAUDE.md */}
+        <StatCard
+          label="Flash Assists"
+          value={totalFlashAssists}
+          accentColor="var(--t-gold)"
+        />
         <StatCard label="Avg ADR" value={avgAdr.toFixed(1)} accentColor="var(--ct-blue)" />
         <StatCard label="Avg HLTV" value={avgHltv.toFixed(2)} accentColor="var(--t-gold)" />
         <StatCard label="HS%" value={`${avgHs.toFixed(0)}%`} />
