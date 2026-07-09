@@ -59,3 +59,12 @@
 - [ ] Auto-download and parse FACEIT demos when Downloads API available
 - [ ] Link manually uploaded demos to FaceitMatch records via faceitMatchId
 - [ ] Upload page: accept faceitMatchId query param to pre-link upload
+
+# Infrastructure
+
+## CI (pending)
+- [ ] Bump `actions/checkout` and `actions/setup-node` to `@v5` in
+      `.github/workflows/ci.yml`. Both currently pin `@v4`, which targets
+      Node 20; the runner already forces them onto Node 24 and emits a
+      deprecation annotation on every run. Not urgent — CI is green — but it
+      will break once runners drop the Node 20 shim. Small, self-contained.
