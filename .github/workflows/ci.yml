@@ -24,6 +24,11 @@ jobs:
           node-version: 24
           cache: npm
 
+      # Node 24 bundles npm 11, whose `npm ci` rejects the lockfile its own
+      # `npm install` produces. See "npm 10 is pinned" in CLAUDE.md.
+      - name: Pin npm 10
+        run: npm install -g npm@10
+
       - name: Install dependencies
         run: npm ci
 

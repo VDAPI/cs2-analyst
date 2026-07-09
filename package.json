@@ -2,6 +2,9 @@
   "name": "cs2-analyst",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "npm": "^10"
+  },
   "scripts": {
     "dev": "next dev --turbo --experimental-https",
     "build": "next build",
