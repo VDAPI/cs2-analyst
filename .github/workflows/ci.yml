@@ -118,6 +118,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: npm run test:winprob
 
+      - name: Role detection and "play like a pro" regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:roles
+
       - name: Parser checks on the E2E fixture demo
         if: ${{ !cancelled() }}
         run: npm run test:e2e-demo -- --fixture

@@ -35,6 +35,7 @@
     "test:admin": "tsx --tsconfig tsconfig.json scripts/test-admin.ts",
     "admin:grant": "tsx --tsconfig tsconfig.json scripts/grant-admin.ts",
     "test:norms": "tsx --tsconfig tsconfig.json scripts/test-norms.ts",
+    "test:roles": "tsx --tsconfig tsconfig.json scripts/test-roles.ts",
     "pro:import": "tsx --tsconfig tsconfig.json scripts/import-pro-demos.ts",
     "norms:refresh": "tsx --tsconfig tsconfig.json scripts/refresh-norms.ts",
     "test:progress": "tsx --tsconfig tsconfig.json scripts/test-progress.ts",

@@ -14,6 +14,8 @@ import { analyzeAim, type AimInput, type PlayerAim } from "@/lib/analysis/aim";
 import { analyzeTactics, type PlayerTactics, type TacticsInput } from "@/lib/analysis/tactics";
 import { analyzeUtility, type PlayerUtility, type UtilityInput } from "@/lib/analysis/utility";
 import { playerMetrics } from "@/lib/findings/report";
+import { placeLookup, type PlaceCell } from "@/lib/analysis/places";
+import { detectRoles, type Role, type SideProfile } from "@/lib/roles/roles";
 import { metricsToSample, type NormSide, type NormSampleInput, type SampleMetrics } from "./norms";
 
 type Side = "CT" | "T";
@@ -97,10 +99,16 @@ export interface NormMatchInput {
   aim: AimInput | null;
   tactics: TacticsInput | null;
   utility: UtilityInput | null;
+  /** The map's callout cells (MapPlaceCell), so role detection knows the bombsites. */
+  places?: PlaceCell[];
 }
 
 export interface BuiltNormSample extends NormSampleInput {
   steamId: string;
+  /** Role on that side (S24); the match role on the "all" sample. */
+  role: Role | null;
+  /** The side's role profile (timing, spacing, setup spots); null on the "all" sample. */
+  profile: SideProfile | null;
 }
 
 interface Analysed {
@@ -146,10 +154,17 @@ function framesInput(input: NormMatchInput): SideRoundsInput["rounds"] {
 /** Every player's samples: whole match ("all") plus CT and T. Players without any metric are skipped. */
 export function buildNormSamples(input: NormMatchInput): BuiltNormSample[] {
   const out: BuiltNormSample[] = [];
+  const places = input.places?.length ? placeLookup(input.places) : undefined;
+  const roles = new Map(
+    (input.tactics ? detectRoles(input.tactics, { placeOf: places }) : []).map((r) => [r.steamId, r] as const)
+  );
   const push = (steamId: string, side: NormSide, metrics: SampleMetrics) => {
-    if (Object.keys(metrics).length === 0) return;
+    const r = roles.get(steamId);
+    const sideRoles = side === "all" ? null : (r?.sides[side] ?? null);
+    const role = side === "all" ? (r?.role ?? null) : (sideRoles?.role ?? null);
+    if (Object.keys(metrics).length === 0 && !role) return;
     const rank = input.players.find((p) => p.steamId === steamId)?.rank ?? null;
-    out.push({ steamId, side, map: input.map, pro: input.pro, rank, metrics });
+    out.push({ steamId, side, map: input.map, pro: input.pro, rank, metrics, role, profile: sideRoles?.profile ?? null });
   };
 
   const whole = analyse(input, null);
