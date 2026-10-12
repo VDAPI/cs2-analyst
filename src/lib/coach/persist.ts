@@ -16,6 +16,7 @@ import { matchFacts, planFacts, type MatchFactsInput } from "./facts";
 import { buildTrainingPlan, PLAN_VERSION, PLAN_WINDOW, weekStartOf, type TrainingPlanContent } from "./plan";
 import { feedbackWeights, type FeedbackCount, type FeedbackWeights } from "./ranking";
 import { mergeMatchText, mergePlanText, rulesMatchText, rulesPlanText, type CoachMatchText, type CoachPlanText, type CoachStatus } from "./text";
+import { hitRateLimit } from "@/lib/security/rate-limit";
 export type { CoachStatus };
 
 /** AI texts one user can have written per 24 h (report notes, plans, rewrites). */
@@ -88,6 +89,8 @@ async function cachedAi<F, T>(prisma: PrismaClient, o: CachedAiOptions<F, T>): P
     const row = await prisma.coachText.findUnique({ where });
     return row && row.factsHash === factsHash ? { text: row.content as T, status: "ai" } : { text: null, status: "failed" };
   }
+  // Every model call counts, whatever happens to its text (S29).
+  if (!(await hitRateLimit("coachAiDaily", o.userId)).allowed) return { text: null, status: "limit" };
   const job = (async () => {
     const res = await o.write(o.facts);
     if (!res) return null;

@@ -2,6 +2,7 @@ import { Card, CardHeader, PageHeader, StatCard } from "@/components/ui";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { MlActions } from "@/components/admin/ml-actions";
 import { countAdminUploads } from "@/lib/admin/data";
+import { requireAdminPage } from "@/lib/admin/session";
 import { prisma } from "@/lib/db/prisma";
 import { getT } from "@/lib/i18n/server";
 import type { MessageKey } from "@/lib/i18n/translate";
@@ -51,6 +52,7 @@ function readEvaluation(v: unknown): Evaluation | null {
 
 /** Round win-probability model (S14): data, the active model, how the candidates compared, retraining. */
 export default async function AdminMlPage() {
+  await requireAdminPage();
   const { t } = await getT();
   const [counts, dataAgg, proData, situations, models, lastRun] = await Promise.all([
     countAdminUploads(),

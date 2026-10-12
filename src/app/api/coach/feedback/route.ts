@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { isFindingType } from "@/lib/findings/catalog";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 const schema = z.object({
   type: z.string().refine(isFindingType),
@@ -17,6 +18,8 @@ const schema = z.object({
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await rateLimit("write", session.user.id);
+  if (limited) return limited;
   const userId = session.user.id;
   const body = schema.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });

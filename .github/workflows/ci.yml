@@ -110,6 +110,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: npm run test:training
 
+      - name: Security and privacy regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:security
+
       - name: Win probability (features, scoring, impact, pro situations) regression tests
         if: ${{ !cancelled() }}
         run: npm run test:winprob

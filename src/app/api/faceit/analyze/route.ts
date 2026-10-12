@@ -11,6 +11,7 @@ import {
   FACEIT_UPLOAD_INCLUDE,
   queueFaceitDownload,
 } from "@/lib/faceit/analyze";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 const bodySchema = z.object({
   ids: z.array(z.string().min(1)).min(1).max(100),
@@ -33,6 +34,8 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = await rateLimit("analyze", session.user.id);
+  if (limited) return limited;
   const userId = session.user.id;
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));

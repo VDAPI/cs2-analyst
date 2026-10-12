@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getMatchAccess } from "@/lib/sharing/access";
+import { getMatchAccess, roundAllowed } from "@/lib/sharing/access";
+import { GrenadeType } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 
 interface Props {
@@ -17,13 +18,23 @@ export async function GET(req: Request, { params }: Props) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const url = new URL(req.url);
-  const roundFilter = url.searchParams.get("round");
+  const roundFilter = url.searchParams.get("round") || null;
   const typeFilter = url.searchParams.get("type");
   const playerFilter = url.searchParams.get("player");
 
+  // One parse for both the access check and the query ("3e1" must not pass
+  // as 30 and then read round 3).
+  const roundNum = roundFilter != null && /^\d{1,3}$/.test(roundFilter) ? Number(roundFilter) : null;
+  if (roundFilter != null && roundNum == null) {
+    return NextResponse.json({ error: "Invalid round" }, { status: 400 });
+  }
   // A moment link reads only its own round.
-  if (access.round != null && Number(roundFilter) !== access.round) {
+  if (access.round != null && (roundNum == null || !roundAllowed(access, roundNum))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  const types = Object.values(GrenadeType) as string[];
+  if (typeFilter && !types.includes(typeFilter)) {
+    return NextResponse.json({ error: "Invalid type" }, { status: 400 });
   }
 
   const match = await prisma.match.findFirst({
@@ -39,7 +50,7 @@ export async function GET(req: Request, { params }: Props) {
   const where: Record<string, unknown> = { round: { matchId } };
   if (typeFilter) where.grenadeType = typeFilter;
   if (playerFilter) where.throwerSteamId = playerFilter;
-  if (roundFilter) where.round = { matchId, number: parseInt(roundFilter, 10) };
+  if (roundNum != null) where.round = { matchId, number: roundNum };
 
   const grenades = await prisma.grenadeEvent.findMany({
     where,
@@ -95,9 +106,10 @@ export async function GET(req: Request, { params }: Props) {
     };
   }
 
-  // Use ALL grenades for stats (not filtered)
+  // Stats over every grenade of the match (not filtered), except for a
+  // moment link, which only sees its own round.
   const allGrenades = await prisma.grenadeEvent.findMany({
-    where: { round: { matchId } },
+    where: { round: access.round != null ? { matchId, number: access.round } : { matchId } },
     select: {
       throwerSteamId: true,
       grenadeType: true,

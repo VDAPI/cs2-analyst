@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { syncFaceitMatches } from "@/lib/faceit/sync";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -10,6 +11,8 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = await rateLimit("sync", session.user.id);
+  if (limited) return limited;
 
   // Check DB directly — session JWT may be stale
   const user = await prisma.user.findUnique({
@@ -40,10 +43,8 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[FACEIT Sync Route] Error:", err);
     return NextResponse.json(
-      {
-        error: "Sync failed",
-        message: err instanceof Error ? err.message : "Unknown error",
-      },
+      // Details stay in the server log.
+      { error: "Sync failed" },
       { status: 500 }
     );
   }

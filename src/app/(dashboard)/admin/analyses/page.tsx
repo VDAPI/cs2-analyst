@@ -4,6 +4,7 @@ import { AdminNav } from "@/components/admin/admin-nav";
 import { AdminAnalysesList } from "@/components/admin/admin-analyses-list";
 import { countAdminUploads, getAdminUploads, type AdminUploadFilter } from "@/lib/admin/data";
 import { cn } from "@/lib/utils/cn";
+import { requireAdminPage } from "@/lib/admin/session";
 
 const FILTERS: { key: AdminUploadFilter; label: string; empty: string }[] = [
   { key: "failed", label: "Nieudane", empty: "Brak nieudanych analiz" },
@@ -16,6 +17,7 @@ export default async function AdminAnalysesPage({
 }: {
   searchParams: Promise<{ filter?: string }>;
 }) {
+  await requireAdminPage();
   const { filter: raw } = await searchParams;
   const filter = FILTERS.find((f) => f.key === raw) ?? FILTERS[0];
   const [rows, counts] = await Promise.all([getAdminUploads(filter.key), countAdminUploads()]);

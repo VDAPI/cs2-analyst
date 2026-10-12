@@ -30,6 +30,30 @@ test("rejestracja", async ({ page }) => {
   await expect(page).toHaveScreenshot("rejestracja.png");
 });
 
+for (const doc of [
+  { path: "/privacy", heading: "Polityka prywatności", shot: "polityka-prywatnosci.png" },
+  { path: "/terms", heading: "Regulamin", shot: "regulamin.png" },
+]) {
+  test(`dokument: ${doc.heading}`, async ({ page }) => {
+    await page.goto(doc.path);
+    await expectScreen(page, doc.heading);
+    await expect(page.getByRole("note").filter({ hasText: /Szkic/ })).toBeVisible();
+    await settle(page);
+    await expectNoHorizontalScroll(page);
+    await expect(page).toHaveScreenshot(doc.shot, { fullPage: false });
+  });
+}
+
+test("nagłówki bezpieczeństwa", async ({ page }) => {
+  const res = await page.request.get("/");
+  const h = res.headers();
+  expect(h["content-security-policy"]).toContain("frame-ancestors 'none'");
+  expect(h["x-frame-options"]).toBe("DENY");
+  expect(h["x-content-type-options"]).toBe("nosniff");
+  expect(h["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+  expect(h["x-powered-by"]).toBeUndefined();
+});
+
 test("ekran offline", async ({ page }) => {
   await page.goto("/offline");
   await expectScreen(page);

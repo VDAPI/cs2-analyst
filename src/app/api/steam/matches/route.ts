@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { extractShareCode, parseReplayUrl, replayUrlMatchId, decodeShareCode } from "@/lib/steam/share-code";
 import { addSteamMatch } from "@/lib/steam/match-history";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 const Body = z.object({
   shareCode: z.string().max(200),
@@ -19,6 +20,8 @@ const Body = z.object({
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await rateLimit("write", session.user.id);
+  if (limited) return limited;
 
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

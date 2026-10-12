@@ -28,6 +28,7 @@ import { backfillNormSamples, refreshNorms, refreshNormsIfStale } from "../src/l
 import { backfillWinProb } from "../src/lib/winprob/persist";
 import { requestTraining } from "../src/lib/winprob/train-trigger";
 import { initWorkerSentry, reportJobFailure, reportWorkerError } from "../src/lib/monitoring/worker-sentry";
+import { checkDemoFile } from "../src/lib/security/demo-file";
 
 initWorkerSentry("worker-parse");
 
@@ -72,6 +73,13 @@ async function processDemo(job: Job<DemoParseJobData>) {
     });
     throw err;
   });
+  // Downloads (FACEIT, Premier) never passed the upload's header check.
+  const headerError = await checkDemoFile(demo.path).catch(() => "Demo file is missing");
+  if (headerError) {
+    await demo.cleanup();
+    await prisma.demoUpload.update({ where: { id: uploadId }, data: { status: "FAILED", error: headerError } });
+    throw new UnrecoverableError(headerError);
+  }
   let result;
   try {
     result = await parseAndPersistDemo(
@@ -85,7 +93,8 @@ async function processDemo(job: Job<DemoParseJobData>) {
       where: { id: uploadId },
       select: { deletedAt: true },
     });
-    if (cancelled?.deletedAt) await deleteStoredDemo(fileUrl).catch(() => {});
+    // Row gone too: the account was deleted meanwhile (S29).
+    if (!cancelled || cancelled.deletedAt) await deleteStoredDemo(fileUrl).catch(() => {});
     throw err;
   } finally {
     await demo.cleanup();
@@ -96,8 +105,9 @@ async function processDemo(job: Job<DemoParseJobData>) {
     where: { id: uploadId },
     select: { deletedAt: true },
   });
-  if (after?.deletedAt) {
-    await deleteAnalysis(prisma, uploadId);
+  if (!after || after.deletedAt) {
+    if (after) await deleteAnalysis(prisma, uploadId);
+    else await deleteStoredDemo(fileUrl).catch(() => {});
     return result;
   }
 

@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { MAX_GOALS, validTarget } from "@/lib/progress/goals";
 import { PROGRESS_METRIC_KEYS } from "@/lib/progress/metrics";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 const schema = z.object({
   metric: z.enum(PROGRESS_METRIC_KEYS as [string, ...string[]]),
@@ -15,6 +16,8 @@ const schema = z.object({
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await rateLimit("write", session.user.id);
+  if (limited) return limited;
   const userId = session.user.id;
 
   const body = schema.safeParse(await req.json().catch(() => null));

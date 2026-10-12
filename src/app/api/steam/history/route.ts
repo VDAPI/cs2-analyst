@@ -10,6 +10,7 @@ import {
   SteamHistoryError,
   syncSteamHistory,
 } from "@/lib/steam/match-history";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 const Body = z.object({ authCode: z.string().max(40), shareCode: z.string().max(200) });
 
@@ -21,6 +22,8 @@ const Body = z.object({ authCode: z.string().max(40), shareCode: z.string().max(
 export async function PUT(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await rateLimit("sync", session.user.id);
+  if (limited) return limited;
   const userId = session.user.id;
 
   const parsed = Body.safeParse(await req.json().catch(() => null));

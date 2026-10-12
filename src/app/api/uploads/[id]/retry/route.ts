@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { retryUpload } from "@/lib/retry";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 /**
  * POST /api/uploads/[id]/retry — run a failed analysis again: re-parse the
@@ -12,6 +13,8 @@ import { retryUpload } from "@/lib/retry";
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await rateLimit("analyze", session.user.id);
+  if (limited) return limited;
   const userId = session.user.id;
   const { id } = await params;
 

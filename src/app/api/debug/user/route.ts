@@ -3,7 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 
+/** Development only: what the session and the DB say about the signed-in user. */
 export async function GET() {
+  if (process.env.NODE_ENV !== "development") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {

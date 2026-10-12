@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getVapidKeys } from "@/lib/notifications/vapid";
 import { isAllowedPushEndpoint, MAX_PUSH_SUBSCRIPTIONS_PER_USER } from "@/lib/notifications/push-endpoint";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 /** GET /api/push/subscribe — the VAPID public key the browser subscribes with. */
 export async function GET() {
@@ -22,6 +23,8 @@ const Subscription = z.object({
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await rateLimit("write", session.user.id);
+  if (limited) return limited;
   const parsed = Subscription.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid subscription" }, { status: 400 });
   const { endpoint, keys } = parsed.data;

@@ -1,5 +1,7 @@
-import { withAuth, type NextRequestWithAuth } from "next-auth/middleware";
+import { NextResponse } from "next/server";
 import type { NextFetchEvent } from "next/server";
+import { withAuth, type NextRequestWithAuth } from "next-auth/middleware";
+import { bodyLimitFor } from "@/lib/security/body-limit";
 
 // getToken (inside withAuth) needs the session cookie's name. NextAuth names
 // it by the protocol of the address the user signed in on: on https
@@ -17,7 +19,25 @@ const SECURE = "__Secure-next-auth.session-token";
 const withPlainCookie = withAuth({ cookies: { sessionToken: { name: PLAIN } } });
 const withSecureCookie = withAuth({ cookies: { sessionToken: { name: SECURE } } });
 
+const BODY_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
 export default function middleware(req: NextRequestWithAuth, event: NextFetchEvent) {
+  if (req.nextUrl.pathname.startsWith("/api/")) {
+    // Route handlers read JSON bodies whole and have no size limit of their
+    // own (S29): refuse oversize or unsized bodies before they are read.
+    if (BODY_METHODS.has(req.method)) {
+      const limit = bodyLimitFor(req.nextUrl.pathname);
+      const length = req.headers.get("content-length");
+      if (length === null) {
+        if (req.headers.has("transfer-encoding")) {
+          return NextResponse.json({ error: "Missing Content-Length" }, { status: 411 });
+        }
+      } else if (!(Number(length) <= limit)) {
+        return NextResponse.json({ error: "Request body too large" }, { status: 413 });
+      }
+    }
+    return NextResponse.next();
+  }
   if (process.env.NODE_ENV === "development") return withPlainCookie(req, event);
   // Large sessions are split into SECURE.0, SECURE.1 … chunks.
   const secure = req.cookies.getAll().some((c) => c.name === SECURE || c.name.startsWith(`${SECURE}.`));
@@ -26,6 +46,9 @@ export default function middleware(req: NextRequestWithAuth, event: NextFetchEve
 
 export const config = {
   matcher: [
+    // Not the two demo upload routes: middleware tees the request body, and
+    // a 700 MB stream must reach the route handler untouched.
+    "/api/((?!uploads/?$|admin/pro/?$).*)",
     "/matches/:path*",
     "/upload/:path*",
     "/queue/:path*",
@@ -46,5 +69,6 @@ export const config = {
     "/lineups/:path*",
     "/training/:path*",
     "/pro/:path*",
+    "/coach/:path*",
   ],
 };

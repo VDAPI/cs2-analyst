@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { sharePath } from "@/lib/sharing/share";
 import { newShareToken } from "@/lib/sharing/token";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 const schema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("report"), matchId: z.string().min(1), steamId: z.string().min(1) }),
@@ -25,6 +26,8 @@ const schema = z.discriminatedUnion("kind", [
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await rateLimit("write", session.user.id);
+  if (limited) return limited;
   const userId = session.user.id;
 
   const body = schema.safeParse(await req.json().catch(() => null));

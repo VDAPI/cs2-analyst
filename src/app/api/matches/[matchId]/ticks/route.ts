@@ -89,14 +89,17 @@ export async function GET(req: Request, { params }: Props) {
         { status: 404 }
       );
     }
+    // Never finer than the stored replay data (every 4 ticks): a full-rate
+    // native parse per request is too easy to trigger through a share link.
+    const demoInterval = Math.max(4, interval);
     const parser = await getParser();
     const rows = parser.parseTicks(
       filePath,
       REPLAY_TICK_PROPS,
-      sampleTickList(round.startTick, round.endTick, interval)
+      sampleTickList(round.startTick, round.endTick, demoInterval)
     ) as Record<string, unknown>[];
-    frames = decodeRoundTicks(encodeRoundTicks(rows ?? [], round.startTick, round.endTick, interval));
-    storedInterval = interval;
+    frames = decodeRoundTicks(encodeRoundTicks(rows ?? [], round.startTick, round.endTick, demoInterval));
+    storedInterval = demoInterval;
     source = "demo";
   }
 

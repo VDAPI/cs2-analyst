@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 const MAX_BASE64_LENGTH = 4 * 1024 * 1024; // ~3MB base64 ≈ ~2MB image
 
@@ -11,6 +12,8 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = await rateLimit("avatar", session.user.id);
+  if (limited) return limited;
 
   let image: string;
   try {

@@ -10,6 +10,8 @@ import {
   withUploadSlots,
 } from "@/lib/limits";
 import { LOCAL_DEMO_DIR, storeDemoFile } from "@/lib/storage/demo-store";
+import { classifyDemoHeader, DEMO_HEADER_BYTES, demoHeaderError } from "@/lib/security/demo-file";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 import { activeUploadId, FACEIT_UPLOAD_INCLUDE, releaseFaceitMatch } from "@/lib/faceit/analyze";
 import { getQueueItems } from "@/lib/library";
 import { activeSteamUploadId, releaseSteamMatch, STEAM_UPLOAD_INCLUDE } from "@/lib/steam/premier";
@@ -43,6 +45,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const userId = session.user.id;
+  const limited = await rateLimit("upload", userId);
+  if (limited) return limited;
 
   // req.formData() buffers the whole body in memory, so refuse oversize (or
   // unsized, chunked) bodies before reading a byte. Node enforces the
@@ -76,6 +80,14 @@ export async function POST(req: Request) {
 
   if (file.size > MAX_FILE_SIZE) {
     return NextResponse.json({ error: "File too large (max 700MB)" }, { status: 400 });
+  }
+
+  // The name says .dem; the first bytes must say so too (CS2 magic), so a
+  // renamed archive or a CS:GO demo never reaches the disk or the parser.
+  const head = new Uint8Array(await file.slice(0, DEMO_HEADER_BYTES).arrayBuffer());
+  const headerError = demoHeaderError(classifyDemoHeader(head));
+  if (headerError) {
+    return NextResponse.json({ error: headerError }, { status: 400 });
   }
 
   // Optional link to a FACEIT history entry (upload fallback for "Analyze
@@ -200,7 +212,8 @@ export async function POST(req: Request) {
       where: { id: upload.id },
       data: {
         status: "FAILED",
-        error: `Storing the demo failed: ${err instanceof Error ? err.message : String(err)}`,
+        // Details (paths, R2 errors) stay in the server log above.
+        error: "Storing the demo failed",
       },
     });
     return NextResponse.json({ error: "Failed to store the demo" }, { status: 500 });

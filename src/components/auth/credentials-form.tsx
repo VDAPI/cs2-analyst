@@ -3,8 +3,12 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button, Input } from "@/components/ui";
 import { useT } from "@/lib/i18n/client";
+
+/** The error code authorize() throws when sign-ins hit the rate limit (src/lib/auth.ts). */
+const RATE_LIMITED = "RATE_LIMITED";
 
 interface CredentialsFormProps {
   mode: "login" | "register";
@@ -40,8 +44,8 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
         });
 
         if (!res.ok) {
-          const data = await res.json();
-          setError(data.error ?? t("auth.registerFailed"));
+          const data = await res.json().catch(() => ({}));
+          setError(res.status === 429 ? t("auth.tooManyAttempts") : (data.error ?? t("auth.registerFailed")));
           setLoading(false);
           return;
         }
@@ -54,7 +58,7 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
       });
 
       if (result?.error) {
-        setError(t("auth.invalidCredentials"));
+        setError(result.error === RATE_LIMITED ? t("auth.tooManyAttempts") : t("auth.invalidCredentials"));
         setLoading(false);
         return;
       }
@@ -131,6 +135,20 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
       {error && (
         <p role="alert" className="rounded-lg border-l-[3px] border-[var(--mistake)] bg-[var(--mistake-muted)] px-3 py-2 text-sm text-[var(--mistake)]">
           {error}
+        </p>
+      )}
+
+      {mode === "register" && (
+        <p className="text-xs leading-relaxed text-[var(--text-tertiary)]">
+          {t("auth.consentBefore")}{" "}
+          <Link href="/terms" className="font-medium text-[var(--accent)] hover:text-[var(--accent-hover)]">
+            {t("legal.termsLink")}
+          </Link>{" "}
+          {t("auth.consentAnd")}{" "}
+          <Link href="/privacy" className="font-medium text-[var(--accent)] hover:text-[var(--accent-hover)]">
+            {t("legal.privacyLink")}
+          </Link>
+          .
         </p>
       )}
 

@@ -32,6 +32,7 @@ import type { FaceitDemoDownloadJobData } from "../src/lib/queue";
 import { notifyUploadFinished } from "../src/lib/notifications/notify";
 import { refreshPlanAfterAnalysis } from "../src/lib/coach/persist";
 import { initWorkerSentry, reportJobFailure } from "../src/lib/monitoring/worker-sentry";
+import { checkDemoFile } from "../src/lib/security/demo-file";
 
 initWorkerSentry("worker-faceit");
 
@@ -92,6 +93,8 @@ async function processDownload(job: Job<FaceitDemoDownloadJobData>) {
     //    Exchange immediately before download — never persist the signed URL.
     const signedUrl = await getSignedDemoUrl(resourceUrl);
     await downloadAndDecompressDemo(signedUrl, destPath);
+    const headerError = await checkDemoFile(destPath);
+    if (headerError) throw new UnrecoverableError(headerError);
     const { size } = await stat(destPath);
     await prisma.demoUpload.update({
       where: { id: uploadId },

@@ -85,7 +85,8 @@ test("„zachowaj demo”, potem ręczne usunięcie pliku", async ({ page }, tes
 
 test("uszkodzone demo kończy się błędem w kolejce", async ({ page }, testInfo) => {
   const name = `e2e-zepsute-${testInfo.project.name}.dem`;
-  await uploadDemo(page, name, "to nie jest demo CS2");
+  // CS2 magic, so it passes the upload's header check and fails in the parser.
+  await uploadDemo(page, name, "PBDEMS2\0 to nie jest demo CS2");
   await expect(page.getByText("Demo file is corrupt or not a CS2 demo")).toBeVisible({ timeout: ANALYSIS_TIMEOUT });
 
   await page.goto("/queue");
@@ -93,4 +94,10 @@ test("uszkodzone demo kończy się błędem w kolejce", async ({ page }, testInf
   await expect(item).toBeVisible();
   await item.getByRole("button", { name: "Usuń" }).click();
   await expect(page.getByText(name)).toHaveCount(0);
+});
+
+test("plik, który nie jest demem CS2, jest odrzucony przy wysyłaniu", async ({ page }, testInfo) => {
+  const name = `e2e-nie-demo-${testInfo.project.name}.dem`;
+  await uploadDemo(page, name, "PK\u0003\u0004 archiwum zip z inną nazwą");
+  await expect(page.getByText("This file is not a CS2 demo")).toBeVisible();
 });

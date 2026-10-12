@@ -3,7 +3,7 @@ import { Button, Input, PageHeader } from "@/components/ui";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { AdminUsersList } from "@/components/admin/admin-users-list";
 import { countAdminUploads, getAdminUsers, planLimitLabels } from "@/lib/admin/data";
-import { getAdminUser } from "@/lib/admin/session";
+import { requireAdminPage } from "@/lib/admin/session";
 
 export default async function AdminUsersPage({
   searchParams,
@@ -11,7 +11,8 @@ export default async function AdminUsersPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const { q = "" } = await searchParams;
-  const [admin, users, counts] = await Promise.all([getAdminUser(), getAdminUsers(q), countAdminUploads()]);
+  const admin = await requireAdminPage();
+  const [users, counts] = await Promise.all([getAdminUsers(q), countAdminUploads()]);
 
   return (
     <div className="space-y-6">
@@ -38,7 +39,7 @@ export default async function AdminUsersPage({
         </Button>
       </form>
 
-      <AdminUsersList users={users} selfId={admin?.id ?? ""} planLimits={planLimitLabels()} />
+      <AdminUsersList users={users} selfId={admin.id} planLimits={planLimitLabels()} />
     </div>
   );
 }
