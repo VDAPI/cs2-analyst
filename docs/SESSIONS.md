@@ -9,7 +9,7 @@
 - **Niczego nie usuwamy.** Wszystkie obecne ekrany i funkcje zostają (mecze, gracze, porównanie, heatmapy, granaty, ekonomia, replay 2D, clutche, trade'y, multi-kille, FACEIT, Steam, upload). Przebudowujemy wygląd i dokładamy nowe funkcje.
 - **Kolorystyka: Violet Lime (Esport Neon).** Tło `#08070D`, panel `#100E19`, panel wyżej `#181528`, tekst `#F3F0FF`, akcent 1 fiolet `#9B6BFF`, akcent 2 limonka `#C6FF3D`, linie `rgba(190,160,255,0.12)`. Stałe znaczenia: CT `#5AA9FF`, T `#FFC23D`, błąd `#FF4D6A`, dobra decyzja `#3DF5A0`, ostrzeżenie `#FFB020`. Fonty: Chakra Petch (nagłówki), Geist (tekst), Geist Mono (liczby).
 - **Wersja mobilna obowiązkowa.** Każdy ekran działa od 360 px szerokości, bez poziomego scrolla strony.
-- **Dema:** gracz może wgrać dowolne demo (FACEIT, Premier, inne). Gdy analiza potrzebuje dema z FACEIT, pobieramy je przez Downloads API tylko na żądanie gracza (zaznaczone mecze), nigdy automatycznie w tle.
+- **Dema:** gracz może wgrać dowolne demo (FACEIT, Premier, inne). Gdy analiza potrzebuje dema z FACEIT, pobieramy je przez Downloads API tylko na żądanie gracza (zaznaczone mecze), nigdy automatycznie w tle. Według właściciela (12.10.2026) dostęp do Downloads API powinien już działać; jeśli pobieranie zwraca błąd uprawnień, pokaż graczowi upload jako zapasową drogę.
 - **Po analizie kasujemy plik .dem.** W bazie zostaje raport i próbkowane dane do replaya. Gracz może oznaczyć mecz „zachowaj demo”.
 - **Analiza jak najszczegółowsza:** mechanika i taktyka. Każdy wykryty błąd ma moment w rundzie, podgląd 2D, jedną radę i porównanie z pro.
 - **Rady oceniamy po tym, co gracz mógł wiedzieć** (dźwięk, widoczność, info od teamu), a nie po widoku „z góry” w demie.
@@ -77,7 +77,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Platforma | PWA, powiadomienia „analiza gotowa”, PL/EN | 🆕 | S18 |
 | Platforma | Storage R2, limity darmowego planu | 🆕 | S7 |
 | Jakość | Testy E2E (Playwright) głównych ścieżek, desktop i telefon, w CI | 🆕 | S19 |
-| Jakość | Środowisko testowe online (staging) z przykładowymi danymi | 🆕 | S20 |
+| Jakość | Lokalne środowisko testowe jednym poleceniem (Docker), dostęp z telefonu w sieci Wi-Fi | 🆕 | S20 |
 | Start | Demo bez logowania: przykładowa analiza meczu pro, przewodnik po aplikacji | 🆕 | S21 |
 | Trening | Generator treningu: mapy Workshop, configi .cfg, rutyna dnia | 🆕 | S22 |
 | Trening | Trener lineupów: komendy setpos/setang do skopiowania, config do ćwiczenia granatów | 🆕 | S22 |
@@ -196,10 +196,10 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Zakres:** Playwright z przykładowym demem (fixture) i seedem bazy: logowanie, upload, kolejka, raport, replay, porównanie, usuwanie dema. Każdy test na 1280 px i 390 px. Zrzuty ekranu do porównań wizualnych. Uruchamianie w CI (Postgres i Redis jako services). Napraw błędy, które testy znajdą.
 - **Gotowe, gdy:** CI uruchamia E2E na każdym PR i są zielone.
 
-### S20. Środowisko testowe online (staging)
-- **Wymaga:** S19. Hosting wybiera właściciel (pytanie w wątku planu).
-- **Zakres:** konfiguracja deployu aplikacji, workera, Postgresa, Redisa i R2 zgodnie z wyborem; zmienne środowiskowe opisane w `.env.example`; seed z kontem testowym i 3 przykładowymi analizami; automatyczny deploy z main; instrukcja w README.
-- **Gotowe, gdy:** właściciel może wejść na adres staging z telefonu i przetestować aplikację.
+### S20. Lokalne środowisko testowe jednym poleceniem
+- **Wymaga:** S19. Decyzja właściciela (12.10.2026): na razie bez hostingu, testy lokalnie.
+- **Zakres:** `docker compose up` stawia wszystko: aplikację, worker, Postgres, Redis i MinIO zamiast R2 (to samo API S3). Skrypt `npm run setup:local` (migracje, seed z kontem testowym i 3 przykładowymi analizami, przykładowe demo). Dostęp z telefonu w tej samej sieci Wi-Fi (adres IP komputera, bez problemów z HTTPS/cookies). Instrukcja po polsku krok po kroku w `docs/TESTOWANIE.md` (Windows i macOS), z listą rzeczy do sprawdzenia.
+- **Gotowe, gdy:** na czystym komputerze z Dockerem jedno polecenie uruchamia całą aplikację, a telefon w tej samej sieci ją otwiera.
 
 ### S21. Demo bez logowania i onboarding
 - **Wymaga:** S10.
@@ -247,7 +247,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Gotowe, gdy:** przegląd bezpieczeństwa nie ma otwartych krytycznych punktów.
 
 ### S30. Plan Pro i płatności
-- **Wymaga:** S27. Start tylko po decyzji właściciela o cenach.
+- **Wymaga:** S27. Decyzja właściciela (12.10.2026): budujemy teraz w trybie testowym Stripe, start publiczny dopiero po testach. Ceny startowe z `PLAN.md` (Pro ok. 6 USD/mies., Team ok. 15 USD/mies.), łatwe do zmiany w jednym miejscu.
 - **Zakres:** Stripe (subskrypcja miesięczna i roczna), strona cennika, limity Free vs Pro w `src/lib/limits.ts`, portal klienta, webhooki, faktury.
 - **Gotowe, gdy:** testowa płatność w trybie test Stripe podnosi limit.
 
@@ -261,5 +261,5 @@ S8 + S5 → S10 → S11, S12, S15, S16
 S12 → S17 · S7 → S18
 S10 → S19 → S20, S28, S29 · S10 → S21
 S11 + S15 → S22 · S7 → S23, S27 · S13 → S24
-S16 → S25 · S7 + S16 → S26 · S27 → S30 (po decyzji o cenach)
+S16 → S25 · S7 + S16 → S26 · S27 → S30
 ```
