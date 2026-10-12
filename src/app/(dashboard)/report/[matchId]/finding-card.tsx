@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Eye, Play, Sparkles } from "lucide-react";
+import { Eye, Play, Sparkles, Target } from "lucide-react";
 import { FindingTag, buttonVariants } from "@/components/ui";
 import { FindingClip } from "@/components/replay/finding-clip";
 import type { RadarConfig } from "@/lib/canvas/radar";
 import { fmtFindingValue, fmtRoundTime, replayHref, type FindingView } from "@/lib/findings/view";
+import { useT } from "@/lib/i18n/client";
+import { hasLineupPractice } from "@/lib/training/lineup-trainer";
 import { cn } from "@/lib/utils/cn";
 import { useT } from "@/lib/i18n/client";
 import { FindingImpact } from "@/components/winprob/finding-impact";
@@ -109,6 +111,15 @@ export function FindingCard({
           >
             <Play className="h-3.5 w-3.5" aria-hidden />
             W replayu
+          </Link>
+        )}
+        {!ctx.share && hasLineupPractice(f.type) && (
+          <Link
+            href={`/lineups?finding=${encodeURIComponent(f.id)}`}
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "flex-1 sm:flex-none")}
+          >
+            <Target className="h-3.5 w-3.5" aria-hidden />
+            {t("lineups.practiceButton")}
           </Link>
         )}
       </div>

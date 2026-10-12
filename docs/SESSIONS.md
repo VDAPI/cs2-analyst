@@ -77,10 +77,10 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Platforma | PWA, powiadomienia „analiza gotowa”, PL/EN | ✅ | S18 |
 | Platforma | Storage R2, limity darmowego planu | 🆕 | S7 |
 | Jakość | Testy E2E (Playwright) głównych ścieżek, desktop i telefon, w CI | ✅ | S19 |
-| Jakość | Lokalne środowisko testowe jednym poleceniem (Docker), dostęp z telefonu w sieci Wi-Fi | 🆕 | S20 |
+| Jakość | Lokalne środowisko testowe jednym poleceniem (Docker), dostęp z telefonu w sieci Wi-Fi | ✅ | S20 |
 | Start | Demo bez logowania: przykładowa analiza meczu pro, przewodnik po aplikacji | 🆕 | S21 |
-| Trening | Generator treningu: mapy Workshop, configi .cfg, rutyna dnia | 🆕 | S22 |
-| Trening | Trener lineupów: komendy setpos/setang do skopiowania, config do ćwiczenia granatów | 🆕 | S22 |
+| Trening | Generator treningu: mapy Workshop, configi .cfg, rutyna dnia | ✅ | S22 |
+| Trening | Trener lineupów: komendy setpos/setang do skopiowania, config do ćwiczenia granatów | ✅ | S22 |
 | Przed meczem | Scouting rywali z linku do pokoju FACEIT, sugestia veto map | 🆕 | S23 |
 | Pro | „Graj jak pro”: porównanie z wybranym zawodowcem per mapa i rola | 🆕 | S24 |
 | ML | Wykrywanie roli (entry, AWP, support, lurk, anchor) i rady pod rolę | 🆕 | S24 |
@@ -206,6 +206,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S19. Decyzja właściciela (12.10.2026): na razie bez hostingu, testy lokalnie.
 - **Zakres:** `docker compose up` stawia wszystko: aplikację, worker, Postgres, Redis i MinIO zamiast R2 (to samo API S3). Skrypt `npm run setup:local` (migracje, seed z kontem testowym i 3 przykładowymi analizami, przykładowe demo). Dostęp z telefonu w tej samej sieci Wi-Fi (adres IP komputera, bez problemów z HTTPS/cookies). Instrukcja po polsku krok po kroku w `docs/TESTOWANIE.md` (Windows i macOS), z listą rzeczy do sprawdzenia.
 - **Gotowe, gdy:** na czystym komputerze z Dockerem jedno polecenie uruchamia całą aplikację, a telefon w tej samej sieci ją otwiera.
+- **Status:** ✅ zrobione. `docker compose up -d --build` stawia aplikację, worker analizy, worker FACEIT, Postgres, Redis, MinIO (dema przez klienta R2, `R2_ENDPOINT`) i wejście HTTPS `https://localhost:3443` (Caddy, do łączenia FACEIT). Jednorazowy `setup` (`npm run setup:local`) aktualizuje schemat, tworzy konto `test@cs2analyst.local` / `test1234` (admin) z 3 przykładowymi analizami i pobiera prawdziwe demo do `data/przyklad/`. Telefon w tej samej sieci otwiera `http://<IP komputera>:3000`; logowanie działa na każdym adresie naraz (`AUTH_TRUST_HOST`, middleware czyta ciasteczko sesji z http i https). Instrukcja po polsku: `docs/TESTOWANIE.md` (Windows i macOS, klucze API, admin, FACEIT, lista rzeczy do sprawdzenia). CI (`local-env.yml`) buduje całość na czystej maszynie i sprawdza logowanie z adresu sieciowego oraz analizę prawdziwego dema przez MinIO.
 
 ### S21. Demo bez logowania i onboarding
 - **Wymaga:** S10.
@@ -216,6 +217,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S11, S15.
 - **Zakres:** na podstawie Findingów rutyna dnia (konkretne mapy Workshop, czas, cel liczbowy) i plik `.cfg` do pobrania. Trener lineupów: z bazy lineupów z S11 komendy `setpos`/`setang` do skopiowania jednym kliknięciem i config do ćwiczenia granatów (`sv_cheats`, `sv_infinite_ammo`, `sv_grenade_trajectory_prac_pipreview`). Zaznaczanie lineupów jako „opanowane”.
 - **Gotowe, gdy:** z karty błędu „smoke za wcześnie” da się przejść do ćwiczenia lepszego lineupu.
+- **Status:** ✅ zrobione. Ekran `/training` („Trening” w menu, link z Trenera): rutyna na dziś (albo dowolny dzień tygodnia) z planu S15 — każde ćwiczenie z konkretną mapą Workshop (link do wyszukiwarki Workshop), czasem i liczbą do osiągnięcia, mecze z celem liczbowym (momenty na mecz i metryka), odhaczanie dnia, lineupy dnia do nauki i plik `cs2a_routine.cfg` (wypisuje rutynę w konsoli, skróty `cs2a_practice`, `cs2a_1…`, `cs2a_rethrow`; bez bindów). Trener lineupów na `/lineups`: kopiowanie setpos/setang jednym kliknięciem, „Opanowany” przy każdym lineupie (filtr Do nauki / Opanowane, licznik %), plik `cs2a_lineups_<mapa>.cfg` z ustawieniami serwera do granatów (`sv_cheats 1`, `sv_infinite_ammo 1`, `sv_grenade_trajectory_prac_pipreview 1` i reszta) i aliasem na każdy nieopanowany lineup. Karta błędu „Smoke za wcześnie” (też smoke w próżnię, molotov bez efektu, lineup obok celu) w raporcie i w replayu ma przycisk „Ćwicz lineup”: otwiera lepsze lineupy na to miejsce z bazy, radar z miejscem twojego granatu i config z tymi lineupami. Test: `npm run test:training`.
 
 ### S23. Scouting rywali przed meczem
 - **Wymaga:** S7.
