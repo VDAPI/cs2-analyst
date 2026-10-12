@@ -44,6 +44,20 @@ for (const doc of [
   });
 }
 
+test("cennik", async ({ page }) => {
+  await page.goto("/pricing");
+  await expectScreen(page, "Cennik");
+  await expect(page.locator("[data-plan]")).toHaveCount(3);
+  // Signed out: buying starts with signing in.
+  await expect(page.getByRole("link", { name: "Zaloguj się, by kupić" }).first()).toBeVisible();
+  await page.getByRole("radio", { name: /Rocznie/ }).click();
+  await expect(page.locator('[data-plan="PRO"]')).toContainText("$60");
+  await page.getByRole("radio", { name: /Miesięcznie/ }).click();
+  await settle(page);
+  await expectNoHorizontalScroll(page);
+  await expect(page).toHaveScreenshot("cennik.png");
+});
+
 test("nagłówki bezpieczeństwa", async ({ page }) => {
   const res = await page.request.get("/");
   const h = res.headers();

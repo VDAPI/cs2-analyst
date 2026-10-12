@@ -6,6 +6,7 @@
  */
 import type { Plan, Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { effectivePlan, teamSeatPlan } from "@/lib/billing/state";
 
 /** The app client, or the transaction of withUploadSlots(). */
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -72,7 +73,7 @@ export async function checkMonthlyDemoLimit(userId: string, db: Db = prisma): Pr
     where: { id: userId },
     select: { plan: true, monthlyDemoLimit: true },
   });
-  const plan: Plan = user?.plan ?? "FREE";
+  const plan: Plan = effectivePlan(user?.plan ?? "FREE", await teamSeatFor(userId, db));
   const limit = effectiveMonthlyLimit(plan, user?.monthlyDemoLimit ?? null);
 
   const used = await db.demoUpload.count({
@@ -84,6 +85,28 @@ export async function checkMonthlyDemoLimit(userId: string, db: Db = prisma): Pr
   });
 
   return { allowed: used < limit, used, limit, remaining: Math.max(0, limit - used), plan };
+}
+
+/**
+ * Pro limits from a teammate's Team subscription (S30): the plan of a seat
+ * in a team whose owner is on the TEAM plan, null when there is none.
+ */
+export async function teamSeatFor(userId: string, db: Db = prisma): Promise<Plan | null> {
+  const teams = await db.team.findMany({
+    where: {
+      members: { some: { userId } },
+      AND: { members: { some: { role: "OWNER", user: { plan: "TEAM" } } } },
+    },
+    select: { members: { select: { userId: true, joinedAt: true, role: true, user: { select: { plan: true } } } } },
+    take: 10,
+  });
+  return teamSeatPlan(
+    userId,
+    teams.flatMap((t) => {
+      const owner = t.members.find((m) => m.role === "OWNER");
+      return owner ? [{ ownerId: owner.userId, ownerPlan: owner.user.plan, members: t.members }] : [];
+    })
+  );
 }
 
 /** Everything the UI shows about the plan: monthly usage and kept demos. */

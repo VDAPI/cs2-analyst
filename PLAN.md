@@ -130,7 +130,7 @@
 
 ### Phase 4 — Scale & Monetize
 - [ ] **API publiczne**: poza obecnym planem sesji
-- [~] **Subscription tiers**: plany FREE/PRO/TEAM i miesięczny limit dem (`src/lib/limits.ts`) są; płatności później, limity darmowego planu → S7
+- [x] **Subscription tiers**: plany FREE/PRO/TEAM, limity (`src/lib/limits.ts`), płatności Stripe w trybie testowym (S30, ceny w `src/lib/billing/prices.ts`)
 - [ ] **Batch processing**: upload wielu plików i „Analizuj zaznaczone” → S7
 - [ ] **Advanced ML**: model szansy wygranej i „co zrobiłby pro” → S14
 - [ ] **Mobile**: zamiast osobnej aplikacji — wersja mobilna każdego ekranu (od S2) i PWA → S18

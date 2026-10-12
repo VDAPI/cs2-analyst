@@ -68,6 +68,7 @@ const PRIVACY_PL: LegalDoc = {
       bullets: [
         "Dostawcom infrastruktury: hosting serwera i bazy danych; Cloudflare R2 do przechowywania dem, jeśli jest włączone.",
         "Anthropic (Claude), jeśli włączony jest trener AI: wysyłamy liczby z Twojej analizy (bez e-maila i hasła), a model pisze z nich porady.",
+        "Stripe, gdy kupujesz plan: e-mail, nazwa konta i dane płatności, które podajesz bezpośrednio Stripe (numeru karty nie widzimy). U nas zostaje status subskrypcji i lista faktur.",
         "Sentry, jeśli są włączone raporty błędów: dane techniczne błędu.",
         "Usługom push przeglądarki (np. Google, Mozilla, Apple): treść powiadomienia, gdy je włączysz.",
         "FACEIT i Steam: tylko zapytania, o które prosisz (połączenie konta, synchronizacja, pobranie dema, zwiad).",
@@ -146,6 +147,7 @@ const PRIVACY_EN: LegalDoc = {
       bullets: [
         "Infrastructure providers: server and database hosting; Cloudflare R2 for demo storage, when enabled.",
         "Anthropic (Claude), when the AI coach is enabled: we send the numbers from your analysis (no email or password) and the model writes advice from them.",
+        "Stripe, when you buy a plan: email, account name and the payment details you give Stripe directly (we never see the card number). We keep the subscription status and the list of invoices.",
         "Sentry, when error reporting is enabled: technical error data.",
         "Browser push services (e.g. Google, Mozilla, Apple): the notification text, when you switch notifications on.",
         "FACEIT and Steam: only the requests you ask for (linking, sync, demo download, scouting).",
@@ -192,7 +194,9 @@ const TERMS_PL: LegalDoc = {
       title: "2. Usługa",
       bullets: [
         "CS2 Analyst analizuje dema CS2 i pokazuje statystyki, błędy, powtórki 2D, porady i porównania z graczami pro.",
-        "Plan darmowy ma miesięczny limit analiz. Płatne plany i ich ceny zostaną opisane przed uruchomieniem płatności.",
+        "Plan darmowy ma miesięczny limit analiz. Plany Pro i Drużyna to subskrypcje miesięczne lub roczne z większymi limitami; aktualne ceny są w cenniku (/pricing).",
+        "Płatności obsługuje Stripe. Subskrypcja odnawia się automatycznie, anulujesz ją w każdej chwili w panelu płatności i działa do końca opłaconego okresu. Fakturę wystawia Stripe po każdej płatności.",
+        "Plan Drużyna daje limity Pro kolejnym członkom drużyny właściciela (według daty dołączenia), w liczbie podanej w cenniku.",
         "Analiza jest automatyczna i może zawierać błędy. Porady mają charakter treningowy.",
         "Projekt jest niezależny i nie jest związany z Valve Corporation ani FACEIT. Counter-Strike jest znakiem towarowym Valve Corporation.",
       ],
@@ -254,7 +258,9 @@ const TERMS_EN: LegalDoc = {
       title: "2. The service",
       bullets: [
         "CS2 Analyst analyses CS2 demos and shows stats, mistakes, 2D replays, advice and comparisons with pro players.",
-        "The free plan has a monthly analysis limit. Paid plans and their prices will be described before payments launch.",
+        "The free plan has a monthly analysis limit. Pro and Team are monthly or yearly subscriptions with higher limits; current prices are on the pricing page (/pricing).",
+        "Payments are handled by Stripe. A subscription renews automatically; cancel it any time in the billing portal and it runs to the end of the paid period. Stripe issues an invoice after every payment.",
+        "The Team plan gives Pro limits to the next members of the owner's team (by join date), as many as the pricing page says.",
         "The analysis is automatic and may contain errors. Advice is meant for practice.",
         "This is an independent project, not affiliated with Valve Corporation or FACEIT. Counter-Strike is a trademark of Valve Corporation.",
       ],

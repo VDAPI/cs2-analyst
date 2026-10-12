@@ -531,6 +531,9 @@ export function SettingsContent({ user, hasPassword, premierHistory, publicProfi
           ))}
         </dl>
         <div className="mt-4 flex flex-wrap gap-2">
+          <Link href="/billing" className={buttonVariants({ variant: "primary", size: "sm" })}>
+            {t("settings.billingLink")}
+          </Link>
           <Link href="/library" className={buttonVariants({ variant: "secondary", size: "sm" })}>
             {t("settings.library")}
           </Link>

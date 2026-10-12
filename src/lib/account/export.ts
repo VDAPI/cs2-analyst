@@ -32,6 +32,7 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
       lastSteamSync: true,
       publicProfile: true,
       publicSlug: true,
+      stripeCustomerId: true,
       createdAt: true,
       updatedAt: true,
       password: true,
@@ -58,6 +59,8 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     teams,
     tacticBoards,
     teamRivals,
+    subscriptions,
+    invoices,
   ] = await Promise.all([
     prisma.account.findMany({ where: { userId }, select: { provider: true, providerAccountId: true, type: true } }),
     prisma.demoUpload.findMany({
@@ -101,6 +104,8 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     prisma.teamMember.findMany({ where: { userId }, include: { team: { select: { id: true, name: true } } } }),
     prisma.tacticBoard.findMany({ where: { createdById: userId } }),
     prisma.teamRival.findMany({ where: { createdById: userId }, select: { id: true, teamId: true, name: true, steamIds: true, notes: true, createdAt: true } }),
+    prisma.billingSubscription.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
+    prisma.billingInvoice.findMany({ where: { userId }, orderBy: { created: "asc" } }),
   ]);
 
   // Findings about the player: in their own uploads, and wherever they
@@ -161,5 +166,6 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     coachTexts,
     coachFeedback,
     lineupMastery,
+    billing: { subscriptions, invoices },
   };
 }
