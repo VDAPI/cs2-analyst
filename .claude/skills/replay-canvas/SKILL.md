@@ -3,111 +3,62 @@ name: replay-canvas
 description: Canvas rendering patterns for the 2D replay viewer and heatmap visualizations. Covers coordinate transforms, player rendering, heatmap KDE, and playback architecture. Use when building or modifying any canvas-based feature.
 ---
 
-# Canvas Rendering — Replay & Heatmaps
+# Canvas Rendering — Replay, Heatmaps, Grenades
 
-> **Roadmap (`docs/SESSIONS.md`):** S5 restyles canvases to Violet Lime and makes replay controls touch-friendly (works at 360 px). Since S6 tick data comes from the DB (`RoundTicks`, every 4 ticks); the store's fetch contract (`/api/matches/[matchId]/ticks`) stayed the same. S10 adds FOV cones, utility timers, mistake markers on the timeline and jump-to-moment; S16 adds map notes and shareable moment links.
-> Colors below are today's code values. Target colors (CT `#5AA9FF`, T `#FFC23D`, mistake `#FF4D6A`, violet/lime heatmap gradient) are in `DESIGN.md` §7. Prefer reading team colors from CSS tokens (`getComputedStyle(document.documentElement).getPropertyValue("--ct-blue")`) over new hard-coded hex.
+> **Roadmap (`docs/SESSIONS.md`):** S5 moved all tool canvases to Violet Lime, shared helpers and touch controls (360 px). Since S6 tick data comes from the DB (`RoundTicks`, every 4 ticks); the store's fetch contract (`/api/matches/[matchId]/ticks`) stayed the same. S10 adds FOV cones, utility timers, mistake markers on the timeline and jump-to-moment; S16 adds map notes and shareable moment links.
 
-## Architecture
+## Shared building blocks (S5) — reuse, don't copy
 
-### Replay Viewer (`/replay/[matchId]`)
-- **State**: Zustand store (`src/stores/replay-store.ts`)
-  - Frames: `TickFrame[]` (each frame has `tick` + `PlayerSnapshot[]`)
-  - `loadRound(matchId, round)`: fetches from `/api/matches/[matchId]/ticks`
-  - `nextFrame()`: advances playback, stops at end
-- **Data**: Tick data loaded on-demand per round from the DB (`RoundTicks`); the viewer requests `interval=32` (~110 frames/round)
-- **Render loop**: `requestAnimationFrame` driven by playback speed (0.5x–4x)
+| What | Where |
+| --- | --- |
+| Canvas colors mirroring the tokens (`CANVAS_COLORS`, `GRENADE_STYLE`, `healthColor`) | `src/lib/canvas/palette.ts` |
+| `makeWorldToCanvas`, `drawRadarBackground`, `drawEmptyHint`, `TOOL_CANVAS_SIZE`, `RadarConfig` | `src/lib/canvas/radar.ts` |
+| Heatmap KDE layer + legend gradient | `src/lib/canvas/heatmap-layer.ts` |
+| Replay drawing (players, kills, smokes, fires, HE, flash, trajectories, bomb + `activeBomb`) | `src/lib/canvas/replay-draw.ts` |
+| `MapViewport`: square canvas with pinch / Ctrl+wheel zoom, drag pan, double-tap reset, +/− buttons, `onTap` in canvas coords, overlays as children | `src/components/maps/map-viewport.tsx` |
+| `useRadarImage(src)`, `useCanvasUiScale(canvasRef, zoom)` | `src/components/maps/use-canvas.ts` |
+| One heatmap screen for a match or a whole map (`source.kind`) | `src/components/maps/heatmap-explorer.tsx` |
+| `ToolHeader` (PageHeader + score), `Segmented`, `ControlGroup`, `ToggleRow`, `ToolSelect`, `ToolMatchGrid` / `ToolEmptyState` pickers | `src/components/tools/` |
 
-### Heatmap Viewer (`/heatmaps/[matchId]` and `/heatmaps/map/[mapName]`)
-- Single-match: fetches from `/api/matches/[matchId]/heatmap`
-- Cross-match: fetches from `/api/heatmap?map=...&matches=...`
-- Static render — no animation, re-renders on filter change
+Rules:
+- Canvas 2D and SVG attributes can't read CSS vars: use `CANVAS_COLORS` / `GRENADE_STYLE.line`; DOM uses `var(--token)` (`GRENADE_STYLE.token`).
+- Markers and labels are multiplied by `ui = useCanvasUiScale(canvasRef, zoom)` so they keep a readable on-screen size on phones and don't balloon when zoomed. Game-world sizes (smoke radius) are not scaled.
+- Tap targets on the canvas: pick the nearest object within `radius * ui` from `MapViewport`'s `onTap`.
+- At 1× the viewport keeps `touch-action: pan-y` so the page still scrolls over the map; zoomed it is `none`.
+- No full-map flash under `prefers-reduced-motion`; heatmaps are never animated.
 
-## Coordinate Transform
+## Replay viewer (`/replay/[matchId]`)
+- **State**: Zustand store `src/stores/replay-store.ts` — `loadRound`, `nextFrame`, `seekSeconds(±s)`, `selectPlayer(id)` (toggle), `togglePlay` (restarts at round end), `TICK_RATE`.
+- **Data**: per round from the DB; the viewer requests `interval=32` (~2 frames/s of game time).
+- **Loop**: `requestAnimationFrame`, ms per frame from the frame tick spacing and speed (0.5×–4×); pauses when the tab is hidden.
+- **Controls** (`playback-controls.tsx`): scrubber with kill (mistake) and bomb (T gold) marks you can tap, ±5 s, prev/next round, 56px play, speed `Segmented`, layer toggles, scrollable round strip (bottom border = round winner, half-time divider).
+- **Keys**: Space play/pause, ←/→ 5 s, Shift+←/→ round, Esc clears selection.
+- **Deep link**: `?round=N&tick=T` starts 2 s before T (used by mechanics, grenades, economy).
+
+### Layer order (back to front)
+1. `--canvas` fill + radar (grayscale, 30%) or grid fallback
+2. Smokes, fires, grenade trajectories
+3. Kill × markers (mistake; glow for 2 s after the kill)
+4. Planted bomb (pulsing T gold, site letter) + timer bar on the bottom edge
+5. HE blasts
+6. Players: view line, team-color body with light outline, health bar, name; selected player last with a pulsing violet ring
+7. Flash pop (full-map white only without reduced motion)
+
+## Coordinate transform
 
 ```typescript
-// Game world → canvas pixel
-function worldToCanvas(gameX: number, gameY: number): { x: number; y: number } {
-  return {
-    x: ((gameX - mapConfig.posX) / mapConfig.scale) * (CANVAS_SIZE / mapConfig.width),
-    y: ((mapConfig.posY - gameY) / mapConfig.scale) * (CANVAS_SIZE / mapConfig.height),
-  };
-}
+const worldToCanvas = makeWorldToCanvas(mapConfig); // memoize per mapConfig
+// x = (gameX - posX) / scale * (1024 / width);  y = (posY - gameY) / scale * (1024 / height)
 ```
+Y is inverted (posY - gameY). Map configs: `src/lib/utils/maps.ts`. Unknown maps fall back to Mirage's numbers.
 
-- `CANVAS_SIZE = 1024` (matches radar image dimensions)
-- Map configs: `src/lib/utils/maps.ts` — posX, posY, scale per map
-- Note: Y-axis is inverted (posY - gameY, not gameY - posY)
+## Heatmap rendering (Gaussian KDE)
+1. White radial gradients per point (radius 35) on an offscreen canvas
+2. Alpha → intensity `min(alpha / 180, 1)`
+3. Colorize with `HEATMAP_STOPS`: transparent → violet 0.25 → lime 0.45 → warning 0.6 → mistake 0.8
+4. Draw with `blur(6px)`; radar grayscale at 50%
+5. Dots: kills mistake, deaths `deathGray`, headshot ring lime (`--headshot-gold`)
 
-## Replay Rendering
-
-### Layer Order (back to front)
-1. Background fill (`#0a0a12`)
-2. Radar image (30% opacity, grayscale)
-3. Dead player X markers (faded)
-4. Kill X markers (red, at victim positions)
-5. Alive player circles (12px, team color + white outline)
-6. Direction indicators (line from center, yaw angle)
-7. Health bars (below players)
-8. Player name labels (Geist Mono, white with black outline)
-
-### Player Rendering
-```typescript
-// Alive player
-ctx.beginPath();
-ctx.arc(x, y, 12, 0, Math.PI * 2);
-ctx.fillStyle = team === "CT" ? "#60a5fa" : "#fbbf24";
-ctx.fill();
-ctx.strokeStyle = "white";
-ctx.lineWidth = 1;
-ctx.stroke();
-
-// Direction indicator
-const rad = (yaw * Math.PI) / 180;
-ctx.beginPath();
-ctx.moveTo(x, y);
-ctx.lineTo(x + Math.cos(rad) * 18, y - Math.sin(rad) * 18);
-ctx.strokeStyle = "rgba(255,255,255,0.5)";
-ctx.lineWidth = 1.5;
-ctx.stroke();
-```
-
-### Health Bar
-- Width: 20px, centered below player
-- Height: 3px
-- Background: `rgba(0,0,0,0.5)`
-- Fill: team color, width proportional to HP (0–100)
-
-## Heatmap Rendering (Gaussian KDE)
-
-### Process
-1. Create offscreen canvas (`OffscreenCanvas`)
-2. Draw white radial gradients at each point (radius=35px)
-   - Center: `rgba(255,255,255,0.4)`
-   - Edge: transparent
-3. Read pixel data — alpha channel = intensity
-4. Colorize: map intensity (0–1) to DESIGN.md gradient
-5. Apply `blur(6px)` filter when drawing to main canvas
-
-### Color Interpolation
-```
-Stops: 0.00 → blue (59,130,246) α=0
-       0.25 → blue (59,130,246) α=0.2
-       0.50 → green (34,197,94) α=0.4
-       0.75 → gold (251,191,36) α=0.6
-       1.00 → red (239,68,68)   α=0.8
-```
-
-Normalize intensity: `Math.min(alpha / 180, 1)`
-
-### Dot Overlay (optional)
-- Kill dots: `rgba(239,68,68,0.7)`, radius 3.5px (headshot: 5px + gold stroke)
-- Death dots: `rgba(107,114,128,0.7)`
-
-## File Locations
-- Replay viewer: `src/app/(dashboard)/replay/[matchId]/replay-viewer.tsx`
-- Playback controls: `src/app/(dashboard)/replay/[matchId]/playback-controls.tsx`
-- Replay store: `src/stores/replay-store.ts`
-- Single-match heatmap: `src/app/(dashboard)/heatmaps/[matchId]/heatmap-viewer.tsx`
-- Cross-match heatmap: `src/app/(dashboard)/heatmaps/map/[mapName]/cross-match-viewer.tsx`
-- Map configs: `src/lib/utils/maps.ts`
+## Grenades (`/grenades/[matchId]`)
+- Side filter uses the thrower's side **in that round** (`playerSideAtRound`), not `MatchPlayer.team`.
+- Tap a landing spot or a list row to select; the selected grenade links to the replay at its tick.

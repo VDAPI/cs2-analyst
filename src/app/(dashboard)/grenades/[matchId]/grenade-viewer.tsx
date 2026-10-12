@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-
-interface MapConfigData {
-  posX: number;
-  posY: number;
-  scale: number;
-  width: number;
-  height: number;
-  radarImage: string;
-}
+import { Play, X } from "lucide-react";
+import { Card, buttonVariants } from "@/components/ui";
+import { MapViewport } from "@/components/maps/map-viewport";
+import { useCanvasUiScale, useRadarImage } from "@/components/maps/use-canvas";
+import { ToolHeader } from "@/components/tools/tool-header";
+import { ControlGroup, Segmented, ToolSelect } from "@/components/tools/segmented";
+import { CANVAS_COLORS, GRENADE_STYLE, grenadeStyle } from "@/lib/canvas/palette";
+import { drawEmptyHint, drawRadarBackground, makeWorldToCanvas, TOOL_CANVAS_SIZE, type RadarConfig } from "@/lib/canvas/radar";
+import { playerSideAtRound } from "@/lib/utils/sideSplit";
+import { cn } from "@/lib/utils/cn";
 
 interface PlayerInfo {
   steamId: string;
@@ -49,23 +49,17 @@ interface GrenadeViewerProps {
   matchId: string;
   mapName: string;
   mapRaw: string;
-  mapConfig: MapConfigData | null;
+  mapConfig: RadarConfig | null;
   players: PlayerInfo[];
   totalRounds: number;
   scoreCT: number;
   scoreT: number;
 }
 
-const CANVAS_SIZE = 1024;
+type SideFilter = "all" | "CT" | "T";
 
-const GRENADE_COLORS: Record<string, { line: string; fill: string; label: string }> = {
-  SMOKE: { line: "#A9A3C4", fill: "rgba(148,163,184,0.3)", label: "Smoke" },
-  FLASH: { line: "#FFF27A", fill: "rgba(253,224,71,0.25)", label: "Flash" },
-  HE: { line: "#FF4D6A", fill: "rgba(255,77,106,0.25)", label: "HE" },
-  MOLOTOV: { line: "#FF7A33", fill: "rgba(255,122,51,0.25)", label: "Molotov" },
-  INCENDIARY: { line: "#FF7A33", fill: "rgba(255,122,51,0.25)", label: "Incendiary" },
-  DECOY: { line: "#a78bfa", fill: "rgba(167,139,250,0.2)", label: "Decoy" },
-};
+const TYPE_FILTERS = ["SMOKE", "FLASH", "HE", "MOLOTOV"] as const;
+type TypeFilter = (typeof TYPE_FILTERS)[number];
 
 const GRENADE_RADIUS: Record<string, number> = {
   SMOKE: 20,
@@ -75,6 +69,13 @@ const GRENADE_RADIUS: Record<string, number> = {
   INCENDIARY: 18,
   DECOY: 8,
 };
+
+const TAP_RADIUS = 30;
+
+function filterKey(type: string): TypeFilter | null {
+  if (type === "INCENDIARY") return "MOLOTOV";
+  return (TYPE_FILTERS as readonly string[]).includes(type) ? (type as TypeFilter) : null;
+}
 
 export function GrenadeViewer({
   matchId,
@@ -87,30 +88,23 @@ export function GrenadeViewer({
   scoreT,
 }: GrenadeViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [radarImage, setRadarImage] = useState<HTMLImageElement | null>(null);
+  const radar = useRadarImage(mapConfig?.radarImage ?? `/maps/${mapRaw}_radar.png`);
+  const worldToCanvas = useMemo(() => makeWorldToCanvas(mapConfig), [mapConfig]);
+  const [zoom, setZoom] = useState(1);
+  const ui = useCanvasUiScale(canvasRef, zoom);
+
   const [grenades, setGrenades] = useState<GrenadeEvent[]>([]);
   const [stats, setStats] = useState<PlayerStats[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Filters
-  const [showTypes, setShowTypes] = useState<Set<string>>(
-    () => new Set(["SMOKE", "FLASH", "HE", "MOLOTOV"])
-  );
-  const [roundFilter, setRoundFilter] = useState<string>("all");
-  const [playerFilter, setPlayerFilter] = useState<string>("all");
-  const [sideFilter, setSideFilter] = useState<string>("all");
-  const [selectedGrenade, setSelectedGrenade] = useState<string | null>(null);
+  const [showTypes, setShowTypes] = useState<Set<TypeFilter>>(() => new Set(TYPE_FILTERS));
+  const [roundFilter, setRoundFilter] = useState("all");
+  const [playerFilter, setPlayerFilter] = useState("all");
+  const [sideFilter, setSideFilter] = useState<SideFilter>("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // Load radar image
   useEffect(() => {
-    const src = mapConfig?.radarImage ?? `/maps/${mapRaw}_radar.png`;
-    const img = new Image();
-    img.src = src;
-    img.onload = () => setRadarImage(img);
-  }, [mapConfig?.radarImage, mapRaw]);
-
-  // Fetch grenade data
-  useEffect(() => {
+    let cancelled = false;
     setIsLoading(true);
     const params = new URLSearchParams();
     if (roundFilter !== "all") params.set("round", roundFilter);
@@ -118,151 +112,116 @@ export function GrenadeViewer({
     fetch(`/api/matches/${matchId}/grenades?${params}`)
       .then((r) => r.json())
       .then((data) => {
-        const g = data.grenades ?? [];
-        console.log(`[Grenades] Loaded ${g.length} events (round=${roundFilter})`, g.length > 0 ? g[0] : "empty");
-        setGrenades(g);
+        if (cancelled) return;
+        setGrenades(data.grenades ?? []);
         setStats(data.stats ?? []);
-        setIsLoading(false);
       })
-      .catch(() => setIsLoading(false));
+      .catch(() => {
+        if (!cancelled) setGrenades([]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [matchId, roundFilter]);
 
-  // World → canvas coordinates
-  const worldToCanvas = useCallback(
-    (gameX: number, gameY: number): { x: number; y: number } => {
-      if (!mapConfig) {
-        return {
-          x: ((gameX + 3230) / 5120) * CANVAS_SIZE,
-          y: ((1713 - gameY) / 5120) * CANVAS_SIZE,
-        };
-      }
-      return {
-        x: ((gameX - mapConfig.posX) / mapConfig.scale) * (CANVAS_SIZE / mapConfig.width),
-        y: ((mapConfig.posY - gameY) / mapConfig.scale) * (CANVAS_SIZE / mapConfig.height),
-      };
-    },
-    [mapConfig]
+  const teamById = useMemo(() => new Map(players.map((p) => [p.steamId, p.team])), [players]);
+
+  // Sides swap at half time: compare against the side the thrower played in that round.
+  const filtered = useMemo(
+    () =>
+      grenades.filter((g) => {
+        const key = filterKey(g.type);
+        if (!key || !showTypes.has(key)) return false;
+        if (playerFilter !== "all" && g.throwerSteamId !== playerFilter) return false;
+        if (sideFilter !== "all") {
+          const team = teamById.get(g.throwerSteamId);
+          if (team && playerSideAtRound(team, g.round) !== sideFilter) return false;
+        }
+        return true;
+      }),
+    [grenades, showTypes, playerFilter, sideFilter, teamById]
   );
 
-  // Filter grenades client-side
-  const filteredGrenades = grenades.filter((g) => {
-    if (!showTypes.has(g.type) && g.type !== "INCENDIARY") return false;
-    if (g.type === "INCENDIARY" && !showTypes.has("MOLOTOV")) return false;
-    if (playerFilter !== "all" && g.throwerSteamId !== playerFilter) return false;
-    if (sideFilter !== "all") {
-      const player = players.find((p) => p.steamId === g.throwerSteamId);
-      if (player && player.team !== sideFilter) return false;
-    }
-    return true;
-  });
+  const selected = filtered.find((g) => g.id === selectedId) ?? null;
 
-  // Draw canvas
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
 
-    const w = canvas.width;
-    const h = canvas.height;
-
-    // Background
-    ctx.fillStyle = "#08070D";
-    ctx.fillRect(0, 0, w, h);
-
-    // Radar
-    if (radarImage) {
-      ctx.save();
-      ctx.globalAlpha = 0.5;
-      ctx.filter = "grayscale(100%)";
-      ctx.drawImage(radarImage, 0, 0, w, h);
-      ctx.restore();
-    }
-    // Explicitly reset state after radar draw to prevent filter/alpha leaking
-    ctx.filter = "none";
-    ctx.globalAlpha = 1;
-
-    console.log(`[Grenades] Drawing ${filteredGrenades.length} grenades on canvas`);
-
-    if (filteredGrenades.length === 0) {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
-      ctx.font = '16px "Geist Mono", monospace';
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("No grenades for current filters", w / 2, h / 2);
+    drawRadarBackground(ctx, radar, 0.5, mapName);
+    if (filtered.length === 0) {
+      drawEmptyHint(ctx, isLoading ? "Ładowanie…" : "Brak granatów dla tych filtrów");
       return;
     }
 
-    // Draw grenades
-    for (const g of filteredGrenades) {
-      const isSelected = selectedGrenade === g.id;
-      const colors = GRENADE_COLORS[g.type] ?? GRENADE_COLORS.DECOY;
+    // Selected last so it sits on top
+    const ordered = selected ? [...filtered.filter((g) => g.id !== selected.id), selected] : filtered;
+    for (const g of ordered) {
+      const isSel = g.id === selected?.id;
+      const dim = selected && !isSel;
+      const style = grenadeStyle(g.type);
       const radius = GRENADE_RADIUS[g.type] ?? 10;
-
       const from = worldToCanvas(g.throwPos.x, g.throwPos.y);
       const to = worldToCanvas(g.landPos.x, g.landPos.y);
 
-      const alpha = isSelected ? 1 : 0.6;
-
-      // Trajectory line (dashed)
       ctx.save();
-      ctx.globalAlpha = alpha;
+      ctx.globalAlpha = isSel ? 1 : dim ? 0.2 : 0.6;
       ctx.setLineDash([6, 4]);
-      ctx.strokeStyle = colors.line;
-      ctx.lineWidth = isSelected ? 2.5 : 1.5;
+      ctx.strokeStyle = style.line;
+      ctx.lineWidth = (isSel ? 3 : 2) * ui;
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
       ctx.lineTo(to.x, to.y);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.restore();
 
-      // Landing circle
-      ctx.save();
-      ctx.globalAlpha = isSelected ? 0.8 : 0.4;
+      ctx.globalAlpha = isSel ? 0.9 : dim ? 0.15 : 0.45;
       ctx.beginPath();
-      ctx.arc(to.x, to.y, isSelected ? radius * 1.4 : radius, 0, Math.PI * 2);
-      ctx.fillStyle = colors.fill;
+      ctx.arc(to.x, to.y, isSel ? radius * 1.4 : radius, 0, Math.PI * 2);
+      ctx.fillStyle = style.fill;
       ctx.fill();
-      ctx.strokeStyle = colors.line;
-      ctx.lineWidth = isSelected ? 2 : 1;
+      ctx.strokeStyle = style.line;
+      ctx.lineWidth = isSel ? 2 : 1;
       ctx.stroke();
-      ctx.restore();
 
-      // Throw position dot
-      ctx.save();
-      ctx.globalAlpha = alpha * 0.7;
+      ctx.globalAlpha = isSel ? 1 : dim ? 0.2 : 0.5;
       ctx.beginPath();
-      ctx.arc(from.x, from.y, 3, 0, Math.PI * 2);
-      ctx.fillStyle = colors.line;
+      ctx.arc(from.x, from.y, (isSel ? 5 : 3) * ui, 0, Math.PI * 2);
+      ctx.fillStyle = style.line;
       ctx.fill();
+
+      if (isSel) {
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.arc(to.x, to.y, radius * 1.4 + 6 * ui, 0, Math.PI * 2);
+        ctx.strokeStyle = CANVAS_COLORS.accent;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = CANVAS_COLORS.accent;
+        ctx.shadowBlur = 12;
+        ctx.stroke();
+      }
       ctx.restore();
+    }
+  }, [filtered, selected, radar, worldToCanvas, mapName, isLoading, ui]);
 
-      // Selected: show label
-      if (isSelected) {
-        const label = `${g.throwerName} — ${colors.label}`;
-        const detail = g.damageDealt > 0 ? `${g.damageDealt} dmg` : g.playersFlashed > 0 ? `${g.playersFlashed} flashed` : "";
-
-        ctx.font = '12px "Geist Mono", monospace';
-        ctx.textAlign = "center";
-
-        // Label background
-        const labelWidth = ctx.measureText(label).width + 12;
-        ctx.fillStyle = "rgba(16,14,25,0.9)";
-        ctx.fillRect(to.x - labelWidth / 2, to.y - radius * 1.4 - 28, labelWidth, detail ? 28 : 18);
-
-        ctx.fillStyle = colors.line;
-        ctx.fillText(label, to.x, to.y - radius * 1.4 - 16);
-        if (detail) {
-          ctx.font = '10px "Geist Mono", monospace';
-          ctx.fillStyle = "#F3F0FF";
-          ctx.fillText(detail, to.x, to.y - radius * 1.4 - 4);
-        }
+  const onTap = ({ x, y }: { x: number; y: number }) => {
+    let best: GrenadeEvent | null = null;
+    let bestDist = TAP_RADIUS * ui;
+    for (const g of filtered) {
+      const to = worldToCanvas(g.landPos.x, g.landPos.y);
+      const d = Math.hypot(to.x - x, to.y - y);
+      if (d < bestDist) {
+        bestDist = d;
+        best = g;
       }
     }
-  }, [filteredGrenades, radarImage, worldToCanvas, selectedGrenade]);
+    setSelectedId(best?.id ?? null);
+  };
 
-  const toggleType = (type: string) => {
+  const toggleType = (type: TypeFilter) => {
     setShowTypes((prev) => {
       const next = new Set(prev);
       if (next.has(type)) next.delete(type);
@@ -271,290 +230,283 @@ export function GrenadeViewer({
     });
   };
 
+  const countByType = (type: TypeFilter) => filtered.filter((g) => filterKey(g.type) === type).length;
+  const totalFlashed = filtered.filter((g) => g.type === "FLASH").reduce((s, g) => s + g.playersFlashed, 0);
+  const totalDamage = filtered.reduce((s, g) => s + g.damageDealt, 0);
+
   const ctPlayers = players.filter((p) => p.team === "CT");
   const tPlayers = players.filter((p) => p.team === "T");
+  const sortedStats = [...stats].sort(
+    (a, b) => b.utilDamage + b.flashEnemies * 10 - (a.utilDamage + a.flashEnemies * 10)
+  );
 
   return (
-    <div className="flex h-full flex-col gap-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/grenades"
-            className="inline-flex items-center gap-1.5 text-sm text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Link>
-          <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-            {mapName} — Grenades
-          </h1>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-lg font-bold text-[var(--ct-blue)]">{scoreCT}</span>
-            <span className="text-[var(--text-disabled)]">:</span>
-            <span className="font-mono text-lg font-bold text-[var(--t-gold)]">{scoreT}</span>
-          </div>
-        </div>
-        {isLoading && (
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
-            <span className="text-xs text-[var(--text-tertiary)]">Loading...</span>
-          </div>
-        )}
-      </div>
+    <div className="flex flex-col gap-4">
+      <ToolHeader
+        backHref="/grenades"
+        backLabel="Granaty"
+        overline="Granaty i utility"
+        title={mapName}
+        scoreCT={scoreCT}
+        scoreT={scoreT}
+        loading={isLoading}
+      />
 
-      <div className="flex flex-1 gap-4 overflow-hidden">
-        {/* Filter Sidebar */}
-        <div className="flex w-[220px] flex-shrink-0 flex-col gap-3 overflow-y-auto">
-          {/* Grenade type toggles */}
-          <ControlPanel label="Grenade Types">
-            <div className="space-y-1.5">
-              {(["SMOKE", "FLASH", "HE", "MOLOTOV"] as const).map((type) => {
-                const colors = GRENADE_COLORS[type];
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,720px)_minmax(260px,1fr)] lg:items-start">
+        <div className="min-w-0 space-y-2">
+          <MapViewport onZoomChange={setZoom} canvasRef={canvasRef} size={TOOL_CANVAS_SIZE} onTap={onTap} label={`Granaty na mapie ${mapName}`} />
+
+          {selected ? (
+            <SelectedGrenade grenade={selected} matchId={matchId} onClose={() => setSelectedId(null)} />
+          ) : (
+            <p className="text-[13px] text-[var(--text-tertiary)]">
+              Dotknij miejsca lądowania granatu albo wybierz go z listy niżej.
+            </p>
+          )}
+        </div>
+
+        <Card className="space-y-5">
+          <ControlGroup label="Typy granatów">
+            <div className="grid grid-cols-2 gap-1.5">
+              {TYPE_FILTERS.map((type) => {
+                const style = GRENADE_STYLE[type];
                 const active = showTypes.has(type);
                 return (
                   <button
                     key={type}
+                    type="button"
+                    aria-pressed={active}
                     onClick={() => toggleType(type)}
-                    className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-150 ${
+                    className={cn(
+                      "flex min-h-10 items-center gap-2 rounded-lg border px-2.5 text-[13px] font-semibold transition-colors duration-150",
                       active
-                        ? "bg-[var(--surface-2)] text-[var(--text-primary)]"
-                        : "text-[var(--text-disabled)] line-through"
-                    }`}
+                        ? "border-[var(--border-hover)] bg-[var(--surface-2)] text-[var(--text-primary)]"
+                        : "border-transparent text-[var(--text-disabled)] line-through"
+                    )}
                   >
-                    <div
-                      className="h-3 w-3 rounded-full"
-                      style={{ backgroundColor: active ? colors.line : "var(--surface-3)" }}
+                    <span
+                      className="h-3 w-3 shrink-0 rounded-full"
+                      style={{ backgroundColor: active ? style.token : "var(--surface-4)" }}
                     />
-                    {colors.label}
-                    <span className="ml-auto font-mono text-[10px] text-[var(--text-tertiary)]">
-                      {filteredGrenades.filter((g) => g.type === type || (type === "MOLOTOV" && g.type === "INCENDIARY")).length}
+                    {style.label}
+                    <span className="ml-auto font-mono text-xs tabular-nums text-[var(--text-tertiary)]">
+                      {countByType(type)}
                     </span>
                   </button>
                 );
               })}
             </div>
-          </ControlPanel>
+          </ControlGroup>
 
-          {/* Round selector */}
-          <ControlPanel label="Round">
-            <select
-              value={roundFilter}
-              onChange={(e) => setRoundFilter(e.target.value)}
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
-            >
-              <option value="all">All Rounds</option>
+          <ControlGroup label="Runda">
+            <ToolSelect value={roundFilter} onChange={(e) => setRoundFilter(e.target.value)} aria-label="Runda">
+              <option value="all">Wszystkie rundy</option>
               {Array.from({ length: totalRounds }, (_, i) => i + 1).map((r) => (
                 <option key={r} value={r}>
-                  Round {r}
+                  Runda {r}
                 </option>
               ))}
-            </select>
-          </ControlPanel>
+            </ToolSelect>
+          </ControlGroup>
 
-          {/* Side filter */}
-          <ControlPanel label="Side">
-            <div className="flex gap-1">
-              {(["all", "CT", "T"] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSideFilter(s)}
-                  className={`flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-all duration-150 ${
-                    sideFilter === s
-                      ? s === "CT"
-                        ? "bg-[var(--ct-blue-muted)] text-[var(--ct-blue)]"
-                        : s === "T"
-                          ? "bg-[var(--t-gold-muted)] text-[var(--t-gold)]"
-                          : "bg-[var(--accent-muted)] text-[var(--accent)]"
-                      : "text-[var(--text-tertiary)] hover:bg-[var(--surface-2)]"
-                  }`}
-                >
-                  {s === "all" ? "All" : s}
-                </button>
-              ))}
-            </div>
-          </ControlPanel>
+          <ControlGroup label="Strona w rundzie">
+            <Segmented<SideFilter>
+              label="Strona"
+              value={sideFilter}
+              onChange={setSideFilter}
+              options={[
+                { value: "all", label: "Obie" },
+                { value: "CT", label: "CT", tone: "ct" },
+                { value: "T", label: "T", tone: "t" },
+              ]}
+            />
+          </ControlGroup>
 
-          {/* Player filter */}
-          <ControlPanel label="Player">
-            <select
-              value={playerFilter}
-              onChange={(e) => setPlayerFilter(e.target.value)}
-              className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text-primary)] focus:border-[var(--accent)] focus:outline-none"
-            >
-              <option value="all">All Players</option>
+          <ControlGroup label="Gracz">
+            <ToolSelect value={playerFilter} onChange={(e) => setPlayerFilter(e.target.value)} aria-label="Gracz">
+              <option value="all">Wszyscy gracze</option>
               {ctPlayers.length > 0 && (
-                <optgroup label="CT">
+                <optgroup label="Drużyna kończąca jako CT">
                   {ctPlayers.map((p) => (
                     <option key={p.steamId} value={p.steamId}>{p.name}</option>
                   ))}
                 </optgroup>
               )}
               {tPlayers.length > 0 && (
-                <optgroup label="T">
+                <optgroup label="Drużyna kończąca jako T">
                   {tPlayers.map((p) => (
                     <option key={p.steamId} value={p.steamId}>{p.name}</option>
                   ))}
                 </optgroup>
               )}
-            </select>
-          </ControlPanel>
+            </ToolSelect>
+          </ControlGroup>
 
-          {/* Summary */}
-          <ControlPanel label="Summary">
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-[var(--text-secondary)]">Total grenades</span>
-                <span className="font-mono text-[var(--text-primary)]">{filteredGrenades.length}</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-[var(--text-secondary)]">Enemies flashed</span>
-                <span className="font-mono text-[#FFF27A]">
-                  {filteredGrenades.filter((g) => g.type === "FLASH").reduce((s, g) => s + g.playersFlashed, 0)}
-                </span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-[var(--text-secondary)]">Utility damage</span>
-                <span className="font-mono text-[#FF4D6A]">
-                  {filteredGrenades.reduce((s, g) => s + g.damageDealt, 0)}
-                </span>
-              </div>
-            </div>
-          </ControlPanel>
-        </div>
-
-        {/* Canvas */}
-        <div className="relative aspect-square max-h-[700px] max-w-[700px] flex-shrink-0 overflow-hidden rounded-xl border border-[var(--border)] shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
-          <canvas
-            ref={canvasRef}
-            width={CANVAS_SIZE}
-            height={CANVAS_SIZE}
-            className="h-full w-full"
-          />
-        </div>
-
-        {/* Right panel: Stats + Event list */}
-        <div className="flex min-w-[280px] flex-1 flex-col gap-3 overflow-hidden">
-          {/* Per-player stats */}
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-4">
-            <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
-              Player Utility Stats
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-[rgba(190,160,255,0.04)] text-[var(--text-tertiary)]">
-                    <th className="pb-1.5 text-left font-medium">Player</th>
-                    <th className="pb-1.5 text-right font-medium" style={{ color: "#A9A3C4" }}>S</th>
-                    <th className="pb-1.5 text-right font-medium" style={{ color: "#FFF27A" }}>F</th>
-                    <th className="pb-1.5 text-right font-medium" style={{ color: "#FF4D6A" }}>HE</th>
-                    <th className="pb-1.5 text-right font-medium" style={{ color: "#FF7A33" }}>M</th>
-                    <th className="pb-1.5 text-right font-medium">Flsh</th>
-                    <th className="pb-1.5 text-right font-medium">Dmg</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats
-                    .filter((s) => sideFilter === "all" || s.team === sideFilter)
-                    .sort((a, b) => (b.utilDamage + b.flashEnemies * 10) - (a.utilDamage + a.flashEnemies * 10))
-                    .map((s) => (
-                      <tr
-                        key={s.steamId}
-                        className={`border-b border-[rgba(190,160,255,0.04)] transition-colors ${
-                          playerFilter === s.steamId
-                            ? "bg-[rgba(190,160,255,0.08)] border-l-2 border-l-[#F3F0FF]"
-                            : "hover:bg-[rgba(190,160,255,0.02)]"
-                        }`}
-                      >
-                        <td className="py-1.5">
-                          <button
-                            onClick={() => setPlayerFilter(playerFilter === s.steamId ? "all" : s.steamId)}
-                            className={`text-left transition-colors ${
-                              playerFilter === s.steamId
-                                ? "text-white font-semibold"
-                                : s.team === "CT"
-                                  ? "text-[var(--ct-blue)] hover:text-[var(--text-primary)]"
-                                  : "text-[var(--t-gold)] hover:text-[var(--text-primary)]"
-                            }`}
-                          >
-                            {s.name}
-                          </button>
-                        </td>
-                        <td className="py-1.5 text-right font-mono">{s.smokes}</td>
-                        <td className="py-1.5 text-right font-mono">{s.flashes}</td>
-                        <td className="py-1.5 text-right font-mono">{s.hes}</td>
-                        <td className="py-1.5 text-right font-mono">{s.molotovs}</td>
-                        <td className="py-1.5 text-right font-mono text-[#FFF27A]">{s.flashEnemies}</td>
-                        <td className="py-1.5 text-right font-mono text-[#FF4D6A]">{s.utilDamage}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
+          <div className="grid grid-cols-3 gap-2 border-t border-[var(--divider)] pt-4">
+            <SummaryStat label="Granaty" value={filtered.length} />
+            <SummaryStat label="Oślepieni" value={totalFlashed} color="var(--flash)" />
+            <SummaryStat label="Obrażenia" value={totalDamage} color="var(--he)" />
           </div>
+        </Card>
+      </div>
 
-          {/* Grenade event list */}
-          <div className="flex-1 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-1)]">
-            <div className="p-4 pb-2">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
-                Events ({filteredGrenades.length})
-              </p>
-            </div>
-            <div className="max-h-[400px] overflow-y-auto px-4 pb-4">
-              <div className="space-y-1">
-                {filteredGrenades.map((g) => {
-                  const colors = GRENADE_COLORS[g.type] ?? GRENADE_COLORS.DECOY;
-                  const isSelected = selectedGrenade === g.id;
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card className="p-0 md:p-0">
+          <div className="px-4 pt-4 md:px-5 md:pt-5">
+            <h2 className="label-overline text-[var(--text-tertiary)]">Utility graczy (cały mecz)</h2>
+          </div>
+          <div className="mt-3 overflow-x-auto pb-2">
+            <table className="w-full min-w-[440px] text-sm">
+              <thead>
+                <tr className="bg-[rgba(190,160,255,0.03)] text-left text-[var(--text-tertiary)]">
+                  <th className="sticky left-0 z-10 bg-[var(--surface-1)] px-4 py-2 font-semibold">Gracz</th>
+                  <th className="px-2 py-2 text-right font-semibold" style={{ color: "var(--smoke)" }} title="Smoke">S</th>
+                  <th className="px-2 py-2 text-right font-semibold" style={{ color: "var(--flash)" }} title="Flash">F</th>
+                  <th className="px-2 py-2 text-right font-semibold" style={{ color: "var(--he)" }} title="HE">HE</th>
+                  <th className="px-2 py-2 text-right font-semibold" style={{ color: "var(--molotov)" }} title="Molotov">M</th>
+                  <th className="px-2 py-2 text-right font-semibold" title="Oślepieni wrogowie">Oślep.</th>
+                  <th className="px-4 py-2 text-right font-semibold" title="Obrażenia z utility">Obr.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedStats.map((s) => {
+                  const active = playerFilter === s.steamId;
                   return (
-                    <button
-                      key={g.id}
-                      onClick={() => setSelectedGrenade(isSelected ? null : g.id)}
-                      className={`flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs transition-all duration-150 ${
-                        isSelected
-                          ? "bg-[var(--surface-3)] ring-1 ring-[var(--accent)]"
-                          : "hover:bg-[var(--surface-2)]"
-                      }`}
+                    <tr
+                      key={s.steamId}
+                      className={cn(
+                        "border-t border-[var(--divider)] transition-colors",
+                        active ? "bg-[var(--accent-muted)]" : "hover:bg-[var(--surface-2)]"
+                      )}
                     >
-                      <div
-                        className="h-2 w-2 flex-shrink-0 rounded-full"
-                        style={{ backgroundColor: colors.line }}
-                      />
-                      <span className="font-mono text-[10px] text-[var(--text-disabled)]">R{g.round}</span>
-                      <span className="truncate text-[var(--text-secondary)]">{g.throwerName}</span>
-                      <span className="ml-auto flex-shrink-0 text-[var(--text-tertiary)]">
-                        {colors.label}
-                      </span>
-                      {g.damageDealt > 0 && (
-                        <span className="flex-shrink-0 font-mono text-[10px] text-[#FF4D6A]">
-                          {g.damageDealt}
-                        </span>
-                      )}
-                      {g.playersFlashed > 0 && (
-                        <span className="flex-shrink-0 font-mono text-[10px] text-[#FFF27A]">
-                          {g.playersFlashed}
-                        </span>
-                      )}
-                    </button>
+                      <td
+                        className={cn(
+                          "sticky left-0 z-10 max-w-[150px] border-l-2 px-4 py-1",
+                          active ? "bg-[var(--surface-3)]" : "bg-[var(--surface-1)]",
+                          s.team === "CT" ? "border-l-[rgba(90,169,255,0.6)]" : "border-l-[rgba(255,194,61,0.6)]"
+                        )}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setPlayerFilter(active ? "all" : s.steamId)}
+                          className={cn(
+                            "min-h-9 w-full truncate text-left font-mono transition-colors",
+                            active ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                          )}
+                        >
+                          {s.name}
+                        </button>
+                      </td>
+                      <td className="px-2 py-1 text-right font-mono tabular-nums">{s.smokes}</td>
+                      <td className="px-2 py-1 text-right font-mono tabular-nums">{s.flashes}</td>
+                      <td className="px-2 py-1 text-right font-mono tabular-nums">{s.hes}</td>
+                      <td className="px-2 py-1 text-right font-mono tabular-nums">{s.molotovs}</td>
+                      <td className="px-2 py-1 text-right font-mono tabular-nums text-[var(--flash)]">{s.flashEnemies}</td>
+                      <td className="px-4 py-1 text-right font-mono tabular-nums text-[var(--he)]">{s.utilDamage}</td>
+                    </tr>
                   );
                 })}
-              </div>
-            </div>
+              </tbody>
+            </table>
           </div>
-        </div>
+        </Card>
+
+        <Card className="p-0 md:p-0">
+          <div className="px-4 pt-4 md:px-5 md:pt-5">
+            <h2 className="label-overline text-[var(--text-tertiary)]">
+              Rzuty <span className="font-mono tabular-nums">({filtered.length})</span>
+            </h2>
+          </div>
+          <ul className="mt-2 max-h-[420px] space-y-0.5 overflow-y-auto px-2 pb-3 md:px-3">
+            {filtered.map((g) => {
+              const style = grenadeStyle(g.type);
+              const isSel = g.id === selectedId;
+              return (
+                <li key={g.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(isSel ? null : g.id)}
+                    aria-pressed={isSel}
+                    className={cn(
+                      "flex min-h-10 w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] transition-colors duration-150",
+                      isSel ? "bg-[var(--surface-3)] ring-1 ring-[var(--accent)]" : "hover:bg-[var(--surface-2)]"
+                    )}
+                  >
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: style.token }} />
+                    <span className="w-8 shrink-0 font-mono tabular-nums text-[var(--text-tertiary)]">R{g.round}</span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-[var(--text-secondary)]">{g.throwerName}</span>
+                    <span className="shrink-0 text-[var(--text-tertiary)]">{style.label}</span>
+                    {g.damageDealt > 0 && (
+                      <span className="w-9 shrink-0 text-right font-mono tabular-nums text-[var(--he)]">{g.damageDealt}</span>
+                    )}
+                    {g.playersFlashed > 0 && (
+                      <span className="w-9 shrink-0 text-right font-mono tabular-nums text-[var(--flash)]">×{g.playersFlashed}</span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </Card>
       </div>
     </div>
   );
 }
 
-function ControlPanel({ label, children }: { label: string; children: React.ReactNode }) {
+function SummaryStat({ label, value, color }: { label: string; value: number; color?: string }) {
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-4">
-      {label && (
-        <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
-          {label}
-        </p>
-      )}
-      {children}
+    <div className="min-w-0">
+      <p className="label-overline truncate text-[var(--text-tertiary)]">{label}</p>
+      <p className="font-mono text-xl font-bold tabular-nums" style={{ color: color ?? "var(--text-primary)" }}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function SelectedGrenade({
+  grenade,
+  matchId,
+  onClose,
+}: {
+  grenade: GrenadeEvent;
+  matchId: string;
+  onClose: () => void;
+}) {
+  const style = grenadeStyle(grenade.type);
+  const effect =
+    grenade.damageDealt > 0
+      ? `${grenade.damageDealt} obrażeń`
+      : grenade.playersFlashed > 0
+        ? `oślepił ${grenade.playersFlashed}`
+        : grenade.type === "SMOKE"
+          ? "zasłona"
+          : "bez efektu";
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-[var(--border-active)] bg-[var(--surface-2)] px-3 py-2 text-sm">
+      <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: style.token }} />
+      <span className="font-semibold text-[var(--text-primary)]">{style.label}</span>
+      <span className="truncate font-mono text-[var(--text-secondary)]">{grenade.throwerName}</span>
+      <span className="font-mono tabular-nums text-[var(--text-tertiary)]">R{grenade.round}</span>
+      <span className="text-[var(--text-tertiary)]">{effect}</span>
+      <div className="ml-auto flex items-center gap-1">
+        <Link
+          href={`/replay/${matchId}?round=${grenade.round}&tick=${grenade.tick}`}
+          className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}
+        >
+          <Play className="h-3.5 w-3.5" />
+          W replayu
+        </Link>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Zamknij"
+          className="flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
     </div>
   );
 }

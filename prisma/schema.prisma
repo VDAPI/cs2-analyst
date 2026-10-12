@@ -648,3 +648,14 @@ enum TeamRole {
   COACH
   PLAYER
 }
+
+/// Cached FACEIT Data API responses (S23 scouting). Keyed by request, e.g.
+/// "player-stats:<id>"; rows past `expiresAt` are refetched and overwritten.
+model FaceitApiCache {
+  key       String   @id
+  body      Json
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
+}

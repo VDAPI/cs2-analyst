@@ -24,7 +24,8 @@
     "test:library": "tsx --tsconfig tsconfig.json scripts/test-library.ts",
     "test:mechanics": "tsx --tsconfig tsconfig.json scripts/test-movement.ts",
     "test:aim": "tsx --tsconfig tsconfig.json scripts/test-aim.ts",
-    "test:platform": "tsx --tsconfig tsconfig.json scripts/test-platform.ts"
+    "test:platform": "tsx --tsconfig tsconfig.json scripts/test-platform.ts",
+    "test:scouting": "tsx --tsconfig tsconfig.json scripts/test-scouting.ts"
   },
   "dependencies": {
     "@laihoe/demoparser2": "^0.41.3",

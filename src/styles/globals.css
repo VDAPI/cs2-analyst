@@ -292,37 +292,68 @@ h1, h2, h3, .font-display {
   appearance: none;
   height: 6px;
   border-radius: 3px;
-  background: var(--surface-3);
+  /* Filled part in violet up to --progress (set inline by the controls). */
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--progress, 0%),
+    var(--surface-4) var(--progress, 0%),
+    var(--surface-4) 100%
+  );
   outline: none;
   cursor: pointer;
+  touch-action: pan-y;
 }
 
 .replay-scrubber::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--text-primary);
+  border: 3px solid var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-muted);
   cursor: pointer;
   transition: transform 100ms;
 }
 
 .replay-scrubber::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
+  transform: scale(1.15);
 }
 
 .replay-scrubber::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  background: var(--accent);
-  border: none;
+  background: var(--text-primary);
+  border: 3px solid var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-muted);
   cursor: pointer;
+}
+
+.replay-scrubber:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px var(--accent-glow);
 }
 
 .replay-scrubber:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+/* Thumb ≥ 24px on touch screens (DESIGN.md §7). */
+@media (pointer: coarse) {
+  .replay-scrubber {
+    height: 8px;
+    margin: 10px 0;
+  }
+  .replay-scrubber::-webkit-slider-thumb {
+    width: 26px;
+    height: 26px;
+  }
+  .replay-scrubber::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+  }
 }
 
 /* ─── Violet Lime extras ───────────────────────────────── */

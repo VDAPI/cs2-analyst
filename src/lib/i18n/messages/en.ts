@@ -37,6 +37,7 @@ export const en: Messages = {
     heatmaps: "Heatmaps",
     grenades: "Grenades",
     economy: "Economy",
+    scouting: "Opponent scouting",
     pro: "Pro",
     team: "Team",
     settings: "Settings",

@@ -38,6 +38,7 @@ export const pl = {
     heatmaps: "Heatmapy",
     grenades: "Granaty",
     economy: "Ekonomia",
+    scouting: "Scouting rywali",
     pro: "Pro",
     team: "Drużyna",
     settings: "Ustawienia",

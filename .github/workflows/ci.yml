@@ -69,3 +69,7 @@ jobs:
       - name: Platform regression tests (Premier, PL/EN, notifications)
         if: ${{ !cancelled() }}
         run: npm run test:platform
+
+      - name: Scouting and veto regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:scouting

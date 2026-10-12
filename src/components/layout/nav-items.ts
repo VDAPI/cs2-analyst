@@ -13,6 +13,7 @@ import {
   ListOrdered,
   Library,
   Gamepad2,
+  Binoculars,
   type LucideIcon,
 } from "lucide-react";
 import type { MessageKey } from "@/lib/i18n/translate";
@@ -55,6 +56,7 @@ export const navGroups: NavGroup[] = [
       { href: "/heatmaps", labelKey: "nav.heatmaps", icon: Flame },
       { href: "/grenades", labelKey: "nav.grenades", icon: Crosshair },
       { href: "/economy", labelKey: "nav.economy", icon: DollarSign },
+      { href: "/scouting", labelKey: "nav.scouting", icon: Binoculars },
     ],
   },
   {

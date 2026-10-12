@@ -66,3 +66,62 @@ export interface FaceitRosterPlayer {
   game_player_id: string;
   game_player_name: string;
 }
+
+/** A map offered in the match room's veto (`voting.map.entities`). */
+export interface FaceitVotingMapEntity {
+  name?: string;
+  class_name?: string;
+  game_map_id?: string;
+  guid?: string;
+  image_sm?: string;
+  image_lg?: string;
+}
+
+/** `teams.factionN.roster[]` in a match room — carries the level the player had in that match. */
+export interface FaceitRoomRosterPlayer extends FaceitRosterPlayer {
+  game_skill_level?: number;
+}
+
+/**
+ * The room as GET /matches/{id} returns it before, during and after a match.
+ * Looser than `FaceitMatchDetail`: a room in veto has no results or demo yet.
+ */
+export interface FaceitMatchRoom {
+  match_id: string;
+  status: string;
+  competition_name?: string;
+  faceit_url?: string;
+  started_at?: number;
+  configured_at?: number;
+  teams?: Partial<
+    Record<
+      "faction1" | "faction2",
+      { faction_id?: string; name?: string; avatar?: string; roster?: FaceitRoomRosterPlayer[] }
+    >
+  >;
+  voting?: { map?: { entities?: FaceitVotingMapEntity[]; pick?: string[] } };
+}
+
+/** GET /players/{id} — only the fields scouting reads. */
+export interface FaceitPlayer {
+  player_id: string;
+  nickname: string;
+  avatar?: string;
+  country?: string;
+  games?: { cs2?: { skill_level?: number; faceit_elo?: number } };
+}
+
+/** FACEIT sends every stat as a string ("52", "1.12"). */
+export type FaceitStatBag = Record<string, string | string[] | undefined>;
+
+/** GET /players/{id}/stats/cs2 — lifetime totals plus one segment per map. */
+export interface FaceitPlayerStats {
+  player_id: string;
+  lifetime?: FaceitStatBag;
+  segments?: { label: string; type: string; mode?: string; stats: FaceitStatBag }[];
+}
+
+/** GET /players/{id}/games/cs2/stats — one item per recent match. */
+export interface FaceitPlayerGames {
+  items?: { stats: FaceitStatBag }[];
+}
