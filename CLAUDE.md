@@ -28,6 +28,7 @@ npm run db:generate  # Generate Prisma client
 npm run db:studio    # Open Prisma Studio
 npm run test:clutches # Parser regression test (no demo file needed)
 npm run test:replay   # Replay-data encoding regression test (no demo file needed)
+npm run test:mechanics # Movement/counter-strafe analysis regression test (no demo file needed)
 npm run backfill:replay # Store replay data for old matches whose .dem is still on disk (the parse worker also does this on startup)
 ```
 
@@ -115,6 +116,7 @@ Revisit once demoparser2 ships correct `optionalDependencies` (0.41.3 is the lat
 - **`assists` and `flashAssists` are disjoint**: a flash-assisted kill increments `flashAssists` only, never both. This is a deliberate divergence from HLTV (which folds flash assists into assists) — do not "unify" them. Add the columns together at the call site when comparing against HLTV numbers.
 - Parser invariants that are easy to break have a no-demo regression test: `npm run test:clutches`
 - **Replay data lives in the DB, not the .dem**: the parse pipeline stores sampled player state per round (`RoundTicks`, every 4 ticks, format in `src/lib/replay/round-ticks.ts`) plus every `weapon_fire` (`ShotEvent`) and `player_hurt` (`DamageEvent`). `/api/matches/[matchId]/ticks` reads `RoundTicks` and only falls back to parsing the .dem for old matches. Never delete a .dem unless `parseAndPersistDemo` returned `replayStored: true`. Changing the blob layout means bumping `REPLAY_FORMAT_VERSION`.
+- **Mechanics stats are derived from DB replay data, never the .dem**: `src/lib/analysis/movement.ts` (pure) computes `MechanicsStats` from `ShotEvent` / `DamageEvent` / `RoundTicks`; the parse pipeline stores them and `/mechanics/[matchId]` recomputes rows that are missing or older than `MECHANICS_VERSION`. Changing the analysis means bumping `MECHANICS_VERSION`.
 - Tailwind v4 uses `@import "tailwindcss"` syntax (no config file needed)
 - Settings page is a server component (queries DB directly for linked account status, not session JWT)
 - FACEIT OAuth uses popup window + `postMessage` for cross-window communication

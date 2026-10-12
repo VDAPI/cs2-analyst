@@ -53,3 +53,7 @@ jobs:
       - name: Replay data regression tests
         if: ${{ !cancelled() }}
         run: npm run test:replay
+
+      - name: Mechanics analysis regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:mechanics
