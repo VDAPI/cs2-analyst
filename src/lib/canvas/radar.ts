@@ -32,6 +32,19 @@ export function makeWorldToCanvas(config: RadarConfig | null, size = TOOL_CANVAS
   });
 }
 
+export type CanvasToWorld = (canvasX: number, canvasY: number) => { x: number; y: number };
+
+/** Inverse of `makeWorldToCanvas`: a canvas pixel back to game-world units (map notes, S16). */
+export function makeCanvasToWorld(config: RadarConfig | null, size = TOOL_CANVAS_SIZE): CanvasToWorld {
+  if (!config) {
+    return (cx, cy) => ({ x: (cx / size) * 5120 - 3230, y: 1713 - (cy / size) * 5120 });
+  }
+  return (cx, cy) => ({
+    x: (cx / (size / config.width)) * config.scale + config.posX,
+    y: config.posY - (cy / (size / config.height)) * config.scale,
+  });
+}
+
 /** Clears to `--canvas` and draws the radar desaturated, or a grid + map name when it's missing. */
 export function drawRadarBackground(
   ctx: CanvasRenderingContext2D,

@@ -13,6 +13,8 @@ export interface ClipContext {
   matchId: string;
   mapName: string;
   mapConfig: RadarConfig | null;
+  /** Public link token: read-only view, clips load through the link (S16). */
+  share?: string | null;
 }
 
 /** One mistake: when, what, the numbers, the advice, a 2D clip on demand and a jump into the replay. */
@@ -67,6 +69,7 @@ export function FindingCard({
           targetSteamId={f.targetSteamId}
           severity={f.severity}
           clip={clip}
+          share={ctx.share}
           autoLoad
           label={`${f.label}, runda ${f.roundNumber}, ${fmtRoundTime(f.roundTime)}`}
         />
@@ -81,13 +84,15 @@ export function FindingCard({
           <Eye className="h-3.5 w-3.5" aria-hidden />
           {open ? "Ukryj 2D" : "Podgląd 2D"}
         </button>
-        <Link
-          href={replayHref(ctx.matchId, f)}
-          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "flex-1 sm:flex-none")}
-        >
-          <Play className="h-3.5 w-3.5" aria-hidden />
-          W replayu
-        </Link>
+        {!ctx.share && (
+          <Link
+            href={replayHref(ctx.matchId, f)}
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "flex-1 sm:flex-none")}
+          >
+            <Play className="h-3.5 w-3.5" aria-hidden />
+            W replayu
+          </Link>
+        )}
       </div>
     </div>
   );

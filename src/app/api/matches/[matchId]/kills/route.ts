@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getMatchAccess, roundAllowed } from "@/lib/sharing/access";
 import { prisma } from "@/lib/db/prisma";
 
 interface Props {
@@ -13,14 +12,17 @@ interface Props {
  * Returns kill events for a round (used by replay viewer for kill markers).
  */
 export async function GET(req: Request, { params }: Props) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { matchId } = await params;
+  // The uploader, or a share link of this match (S16).
+  const access = await getMatchAccess(req, matchId);
+  if (!access) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const url = new URL(req.url);
   const roundNum = parseInt(url.searchParams.get("round") ?? "1", 10);
+  if (!roundAllowed(access, roundNum)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   const round = await prisma.round.findUnique({
     where: { matchId_number: { matchId, number: roundNum } },

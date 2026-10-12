@@ -19,6 +19,7 @@ import { AlertCircle, Camera, Check, CheckCircle, Gamepad2, Link2, Unlink } from
 import { useT } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/translate";
 import { InstallCard, LanguageCard, PushCard } from "./platform-cards";
+import { PublicProfileCard, SharesCard, type ShareRow } from "./sharing-cards";
 
 interface SettingsContentProps {
   user: {
@@ -32,6 +33,10 @@ interface SettingsContentProps {
   };
   /** Premier / Steam match history is switched on (opt-in, S18). */
   premierHistory: boolean;
+  /** Public profile (S16): on/off and its address (a suggestion until first saved). */
+  publicProfile: { enabled: boolean; slug: string };
+  /** Live public links to reports and replay moments (S16). */
+  shares: ShareRow[];
   /** Plan usage this month; null limits mean unlimited. */
   usage: {
     used: number;
@@ -74,7 +79,7 @@ function Notice({ tone, children }: { tone: "good" | "mistake"; children: React.
   );
 }
 
-export function SettingsContent({ user, premierHistory, usage }: SettingsContentProps) {
+export function SettingsContent({ user, premierHistory, publicProfile, shares, usage }: SettingsContentProps) {
   const t = useT();
   const { update } = useSession();
   const toast = useToast();
@@ -480,6 +485,9 @@ export function SettingsContent({ user, premierHistory, usage }: SettingsContent
           </li>
         </ul>
       </Card>
+
+      <PublicProfileCard enabled={publicProfile.enabled} slug={publicProfile.slug} />
+      <SharesCard shares={shares} />
 
       <LanguageCard />
       <PushCard />

@@ -38,18 +38,24 @@ interface BombJson {
 export async function fetchRoundData(
   matchId: string,
   round: number,
-  opts: { interval?: number; from?: number; to?: number; signal?: AbortSignal } = {}
+  /** `share`: a public link's token, for viewers who don't own the match (S16). */
+  opts: { interval?: number; from?: number; to?: number; signal?: AbortSignal; share?: string | null } = {}
 ): Promise<RoundData> {
   const q = new URLSearchParams({ round: String(round), interval: String(opts.interval ?? 32) });
   if (opts.from != null) q.set("from", String(Math.round(opts.from)));
   if (opts.to != null) q.set("to", String(Math.round(opts.to)));
   const { signal } = opts;
+  const rq = new URLSearchParams({ round: String(round) });
+  if (opts.share) {
+    q.set("share", opts.share);
+    rq.set("share", opts.share);
+  }
 
   const [ticksRes, killsRes, grenadesRes, bombsRes] = await Promise.all([
     fetch(`/api/matches/${matchId}/ticks?${q}`, { signal }),
-    fetch(`/api/matches/${matchId}/kills?round=${round}`, { signal }),
-    fetch(`/api/matches/${matchId}/grenades?round=${round}`, { signal }),
-    fetch(`/api/matches/${matchId}/bombs?round=${round}`, { signal }),
+    fetch(`/api/matches/${matchId}/kills?${rq}`, { signal }),
+    fetch(`/api/matches/${matchId}/grenades?${rq}`, { signal }),
+    fetch(`/api/matches/${matchId}/bombs?${rq}`, { signal }),
   ]);
   if (!ticksRes.ok) throw new Error("Failed to load tick data");
 

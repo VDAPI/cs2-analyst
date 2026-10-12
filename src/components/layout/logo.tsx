@@ -6,13 +6,15 @@ export function Logo({
   compact,
   className,
   onClick,
+  href = "/matches",
 }: {
   compact?: boolean;
   className?: string;
   onClick?: () => void;
+  href?: string;
 }) {
   return (
-    <Link href="/matches" onClick={onClick} aria-label="CS2 Analyst" className={cn("flex min-w-0 items-center gap-2.5", className)}>
+    <Link href={href} onClick={onClick} aria-label="CS2 Analyst" className={cn("flex min-w-0 items-center gap-2.5", className)}>
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] shadow-[0_0_16px_var(--accent-glow)]">
         <Crosshair className="h-4 w-4 text-[var(--on-accent)]" strokeWidth={2.5} />
       </span>
