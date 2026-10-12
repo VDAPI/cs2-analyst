@@ -1,11 +1,10 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { Upload } from "lucide-react";
-import { Card, EmptyState, buttonVariants } from "@/components/ui";
+import { Card, EmptyState } from "@/components/ui";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { getMapConfig } from "@/lib/utils/maps";
-import { cn } from "@/lib/utils/cn";
 import { formatDate } from "@/lib/utils/formatters";
+import { StartActions } from "@/components/onboarding/getting-started";
 
 export interface ToolMatch {
   id: string;
@@ -75,19 +74,14 @@ export function ToolMatchGrid({
   );
 }
 
-/** Empty state shared by the tool pickers: one lime CTA to upload a demo. */
+/** Empty state shared by the tool pickers: upload a demo (the lime CTA) or see the example report. */
 export function ToolEmptyState({ icon, title, text }: { icon?: LucideIcon; title: string; text: string }) {
   return (
     <EmptyState
       icon={icon}
       title={title}
       description={text}
-      action={
-        <Link href="/upload" className={cn(buttonVariants({ variant: "cta" }))}>
-          <Upload className="h-4 w-4" />
-          Wgraj pierwsze demo
-        </Link>
-      }
+      action={<StartActions faceit={false} />}
     />
   );
 }

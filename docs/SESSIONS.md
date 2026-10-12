@@ -78,7 +78,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Platforma | Storage R2, limity darmowego planu | 🆕 | S7 |
 | Jakość | Testy E2E (Playwright) głównych ścieżek, desktop i telefon, w CI | ✅ | S19 |
 | Jakość | Lokalne środowisko testowe jednym poleceniem (Docker), dostęp z telefonu w sieci Wi-Fi | ✅ | S20 |
-| Start | Demo bez logowania: przykładowa analiza meczu pro, przewodnik po aplikacji | 🆕 | S21 |
+| Start | Demo bez logowania: przykładowa analiza meczu pro, przewodnik po aplikacji | ✅ | S21 |
 | Trening | Generator treningu: mapy Workshop, configi .cfg, rutyna dnia | ✅ | S22 |
 | Trening | Trener lineupów: komendy setpos/setang do skopiowania, config do ćwiczenia granatów | ✅ | S22 |
 | Przed meczem | Scouting rywali z linku do pokoju FACEIT, sugestia veto map | 🆕 | S23 |
@@ -212,6 +212,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S10.
 - **Zakres:** publiczna przykładowa analiza (mecz pro lub własny mecz właściciela za zgodą), przycisk „Zobacz przykład” na stronie głównej, przewodnik po raporcie przy pierwszym logowaniu, puste stany z instrukcją.
 - **Gotowe, gdy:** nowa osoba widzi pełny raport bez zakładania konta.
+- **Status:** ✅ zrobione. Strona `/demo` („Zobacz przykład” w hero strony głównej, link w menu strony i pod przykładowym raportem) pokazuje pełny raport meczu bez konta: wybór każdego z 10 graczy, rola w meczu, podsumowanie, Top 3 z radą, ćwiczeniem i klipem 2D, „Ty vs pro”, wszystkie błędy według kategorii. Tylko do odczytu (bez replaya, trenera AI i notatek właściciela). Mecz wybiera admin w `/admin/pro` („Ustaw jako przykład” przy demie pro albo ID własnego meczu, za zgodą graczy); bez wyboru jest to najnowsze demo z puli pro, a w lokalnym środowisku pierwsza przykładowa analiza konta testowego. Przewodnik po raporcie (8 kroków: gracz, podsumowanie, Top 3, rada, podgląd 2D, Ty vs pro, wszystkie momenty, replay i udostępnianie) otwiera się sam przy pierwszym raporcie gracza i przy pierwszej wizycie na `/demo`, zawsze z przycisku „Jak czytać raport”; ukończenie zapamiętuje konto (`User.reportTourAt`) i przeglądarka. Nowe konto zaczyna na ekranie Mecze od „Zacznij w trzech krokach” (dodaj mecz, poczekaj na analizę, otwórz raport), a puste stany (biblioteka, gracze, porównanie, postęp, trener, trening, raporty, replay, heatmapy, granaty, ekonomia) mają wgranie dema, połączenie FACEIT i link do przykładu. Test: `npm run test:onboarding`.
 
 ### S22. Trening: generator rutyny i trener lineupów
 - **Wymaga:** S11, S15.

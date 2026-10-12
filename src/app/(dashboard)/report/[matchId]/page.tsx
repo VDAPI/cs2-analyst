@@ -19,6 +19,7 @@ import { loadFeedbackWeights, loadRatings, matchCoachText } from "@/lib/coach/pe
 import { loadReportNorms } from "@/lib/norms/report-norms";
 import { loadReportRole } from "@/lib/roles/report-role";
 import { RoleCard } from "@/components/roles/role-card";
+import { ReportTour } from "@/components/onboarding/report-tour";
 import { ReportBody } from "./report-body";
 import { loadReportWinProb } from "@/lib/winprob/report";
 
@@ -77,6 +78,9 @@ export default async function ReportPage({ params, searchParams }: Props) {
   const role =
     selected && loaded?.hasData ? await loadReportRole(prisma, { matchId, steamId: selected.steamId, map: match.map }) : null;
   const ctx = reportClipContext(matchId, match.map);
+  // The report guide (S21) opens by itself until the player finishes or skips it once.
+  const tourDone =
+    (await prisma.user.findUnique({ where: { id: session.user.id }, select: { reportTourAt: true } }))?.reportTourAt != null;
   const winprob = hasData && selected ? await loadReportWinProb(prisma, matchId, selected.steamId, t, locale) : null;
 
   // AI coach (S15): cached notes or the standard text now; the client asks
@@ -127,7 +131,8 @@ export default async function ReportPage({ params, searchParams }: Props) {
         }
         actions={
           selected && (
-            <>
+            <div data-tour="actions" className="flex flex-wrap gap-2">
+              {hasData && <ReportTour context="app" autoStart={!tourDone} persist />}
               {hasData && <ShareButton request={{ kind: "report", matchId, steamId: selected.steamId }} />}
               <Link
               href={`/replay/${matchId}?player=${selected.steamId}`}
@@ -136,13 +141,13 @@ export default async function ReportPage({ params, searchParams }: Props) {
               <Play className="h-3.5 w-3.5" aria-hidden />
                 Replay z błędami
               </Link>
-            </>
+            </div>
           )
         }
       />
 
       {/* Player picker */}
-      <nav aria-label="Gracz" className="-mx-4 md:mx-0">
+      <nav aria-label="Gracz" data-tour="player" className="-mx-4 md:mx-0">
         <div className="flex gap-2 overflow-x-auto px-4 pb-1 md:flex-wrap md:overflow-visible md:px-0">
           {players.map((p) => {
             const active = p.steamId === selected?.steamId;

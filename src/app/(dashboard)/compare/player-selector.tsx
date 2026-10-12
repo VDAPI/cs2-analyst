@@ -1,21 +1,20 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Card,
   Button,
-  buttonVariants,
   InitialsAvatar,
   Input,
   PageHeader,
   EmptyState,
 } from "@/components/ui";
-import { Search, GitCompare, X, Users, Upload } from "lucide-react";
+import { Search, GitCompare, X, Users } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { PLAYER_COLORS, PLAYER_MUTED, matchesLabel } from "./compare-ui";
 import type { PlayerSummary } from "./types";
+import { StartActions } from "@/components/onboarding/getting-started";
 
 interface PlayerSelectorProps {
   players: PlayerSummary[];
@@ -140,12 +139,7 @@ export function PlayerSelector({ players, initialSteamId }: PlayerSelectorProps)
             icon={Users}
             title="Brak danych o graczach"
             description="Wgraj dema, aby zacząć porównywać graczy."
-            action={
-              <Link href="/upload" className={buttonVariants({ variant: "secondary", size: "md" })}>
-                <Upload className="h-4 w-4" aria-hidden />
-                Wgraj demo
-              </Link>
-            }
+            action={<StartActions faceit={false} />}
           />
         ) : (
           <EmptyState

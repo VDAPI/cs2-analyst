@@ -178,7 +178,8 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 **Konto i nawigacja**
 
 - [ ] Strona główna: animacja biegnących żołnierzy, sekcje, FAQ, przyciski
-- [ ] Rejestracja nowego konta, wylogowanie, logowanie
+- [ ] „Zobacz przykład” na stronie głównej: pełny raport bez logowania (http://localhost:3000/demo), przewodnik po raporcie przy pierwszej wizycie
+- [ ] Rejestracja nowego konta (ekran Mecze zaczyna od „Zacznij w trzech krokach”), wylogowanie, logowanie
 - [ ] Menu boczne (komputer), szuflada i dolny pasek (telefon), żadna strona nie przewija się w bok
 - [ ] Ustawienia: zmiana nazwy i avatara, język PL/EN
 
@@ -187,7 +188,7 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 - [ ] Lista meczów, biblioteka analiz, kolejka analiz
 - [ ] Wgranie przykładowego dema z `data/przyklad`, postęp w kolejce, gotowa analiza
 - [ ] Mecz: scoreboard, rundy, oś czasu, clutche, trade'y, multi-kille
-- [ ] Raport (`Raport` przy meczu): 3 najważniejsze błędy, karty błędów z klipem 2D, „Ty vs pro”
+- [ ] Raport (`Raport` przy meczu): przewodnik przy pierwszym raporcie (i z przycisku „Jak czytać raport”), 3 najważniejsze błędy, karty błędów z klipem 2D, „Ty vs pro”
 - [ ] Replay 2D: odtwarzanie, przewijanie, zoom i przesuwanie palcami na telefonie, znaczniki błędów, notatki na mapie
 - [ ] Mechanika: strzały w ruchu, counter-strafe, celowanie, reakcja, spray
 - [ ] Granaty, lineupy (kopiowanie `setpos`), heatmapy, ekonomia
