@@ -42,6 +42,7 @@ npm run db:studio    # Open Prisma Studio
 npm run test:clutches # Parser regression test (no demo file needed)
 npm run test:replay   # Replay-data encoding regression test (no demo file needed)
 npm run test:mechanics # Movement/counter-strafe analysis regression test (no demo file needed)
+npm run test:aim     # Aim/duels analysis regression test (no demo file needed)
 npm run backfill:replay # Store replay data for old matches whose .dem is still on disk (the parse worker also does this on startup)
 ```
 
@@ -134,6 +135,7 @@ Revisit once demoparser2 ships correct `optionalDependencies` (0.41.3 is the lat
 - Parser invariants that are easy to break have a no-demo regression test: `npm run test:clutches`
 - **Replay data lives in the DB, not the .dem**: the parse pipeline stores sampled player state per round (`RoundTicks`, every 4 ticks, format in `src/lib/replay/round-ticks.ts`) plus every `weapon_fire` (`ShotEvent`) and `player_hurt` (`DamageEvent`). `/api/matches/[matchId]/ticks` reads `RoundTicks` and only falls back to parsing the .dem for old matches. Never delete a .dem unless `parseAndPersistDemo` returned `replayStored: true`. Changing the blob layout means bumping `REPLAY_FORMAT_VERSION`.
 - **Mechanics stats are derived from DB replay data, never the .dem**: `src/lib/analysis/movement.ts` (pure) computes `MechanicsStats` from `ShotEvent` / `DamageEvent` / `RoundTicks`; the parse pipeline stores them and `/mechanics/[matchId]` recomputes rows that are missing or older than `MECHANICS_VERSION`. Changing the analysis means bumping `MECHANICS_VERSION`.
+- **Aim and duels (S9) follow the same pattern**: `src/lib/analysis/aim.ts` (pure) → `AimStats`, version `AIM_VERSION`, recomputed lazily by `/mechanics/[matchId]`. "When did the player see the enemy" comes from the game's own spotting (`approximate_spotted_by`, stored in `RoundTicks` format v2 as a bitmask over the blob's player list); v1 blobs (older matches, or a parser that can't read the prop) fall back to a FOV approximation with no reaction time. Reloads come from `ReloadEvent`. Advice only counts noise/jumps near enemies the player's team had seen (or that cost a hit).
 - Tailwind v4 uses `@import "tailwindcss"` syntax (no config file needed)
 - Settings page is a server component (queries DB directly for linked account status, not session JWT)
 - FACEIT OAuth uses popup window + `postMessage` for cross-window communication

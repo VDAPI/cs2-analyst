@@ -9,6 +9,8 @@
  * 2. subsampleFrames() — the replay's interval=32 view keeps the last frame.
  * 3. roundForTick() / shotsFromEvents() / damagesFromEvents() — events land in
  *    the right round, warmup and post-match are dropped, world damage is kept.
+ * 1b. Format v2 extras (clip, spotted-by) round-trip; v1 blobs still decode;
+ *    lossy numeric SteamIDs still match the right player.
  * 4. Storage size for a synthetic full match (printed, with a loose budget).
  *
  * No demo file or database required — everything here is pure.
@@ -17,6 +19,9 @@ import {
   decodeRoundTicks,
   encodeRoundTicks,
   sampleTickList,
+  spottedMask,
+  REPLAY_BASE_VERSION,
+  REPLAY_FORMAT_VERSION,
   subsampleFrames,
   REPLAY_SAMPLE_INTERVAL,
 } from "@/lib/replay/round-ticks";
@@ -104,6 +109,34 @@ try {
   threw = true;
 }
 check("size mismatch throws", threw);
+
+// ─── 1b. Format v2: clip and spotted-by ──────────────────
+
+check("default encode is the v1 base format", enc.version === REPLAY_BASE_VERSION && a(0).spottedBy === undefined && a(0).ammo === undefined);
+
+const v2rows: Record<string, unknown>[] = [];
+for (const t of sampleTickList(START, START + 40, IV)) {
+  const f = (t - START) / IV;
+  // a is seen by b on frames ≥ 5; b by a always (SteamIDs as strings).
+  v2rows.push(row(t, "76561198000000001", { active_weapon_ammo: 30 - f, approximate_spotted_by: f >= 5 ? ["76561198000000002"] : [] }));
+  // Numbers that lost precision (> 2^53) and a bigint must still match.
+  v2rows.push(row(t, "76561198000000002", { active_weapon_ammo: null, approximate_spotted_by: f % 2 ? [76561198000000001] : [BigInt("76561198000000001")] }));
+}
+const enc2 = encodeRoundTicks(v2rows, START, START + 40, IV, true);
+const fr2 = decodeRoundTicks(enc2);
+const p1 = (f: number) => fr2[f].players.find((p) => p.steamId === "76561198000000001")!;
+const p2 = (f: number) => fr2[f].players.find((p) => p.steamId === "76561198000000002")!;
+check("extras encode as the current format", enc2.version === REPLAY_FORMAT_VERSION);
+check("clip round-trips, no clip = -1", p1(0).ammo === 30 && p1(7).ammo === 23 && p2(3).ammo === -1);
+check("spotted-by follows the frames", p1(4).spottedBy!.length === 0 && p1(5).spottedBy![0] === "76561198000000002");
+check("spotted-by with lossy numbers / bigint", p2(0).spottedBy![0] === "76561198000000001" && p2(1).spottedBy![0] === "76561198000000001");
+check("v2 base columns unchanged", near(p1(3).x, row(START + 12, "x").X, 0.5) && p1(3).weapon === "Glock-18");
+check("v1 blob still decodes after the format bump", decodeRoundTicks(enc).length === 101);
+check(
+  "spottedMask: unknown ids ignored, bits per player index",
+  spottedMask(["1", "b"], [{ steamId: "a", name: "" }, { steamId: "b", name: "" }]) === 2 &&
+    spottedMask(null, []) === 0
+);
 
 // ─── 2. Subsampling for interval=32 ──────────────────────
 

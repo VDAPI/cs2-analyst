@@ -10,6 +10,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { parseDemoFile } from "./demo-parser";
 import { formatReplayStats, parseAndPersistReplayData } from "./persist-replay";
 import { computeAndPersistMechanics } from "../analysis/persist-mechanics";
+import { computeAndPersistAim } from "../analysis/persist-aim";
 
 interface PersistArgs {
   uploadId: string;
@@ -205,6 +206,12 @@ export async function parseAndPersistDemo(
         console.log(`[persist-demo] mechanics match=${match.id}: ${players} players`);
       } catch (error) {
         console.error(`[persist-demo] mechanics FAILED match=${match.id}:`, error);
+      }
+      try {
+        const players = await computeAndPersistAim(prisma, match.id);
+        console.log(`[persist-demo] aim match=${match.id}: ${players} players`);
+      } catch (error) {
+        console.error(`[persist-demo] aim FAILED match=${match.id}:`, error);
       }
     }
     await onProgress?.(98);

@@ -123,6 +123,7 @@ model Match {
   rounds    Round[]
   players   MatchPlayer[]
   mechanics MechanicsStats[]
+  aim       AimStats[]
 }
 
 model MatchPlayer {
@@ -186,6 +187,7 @@ model Round {
   ticks    RoundTicks?
   shots    ShotEvent[]
   damages  DamageEvent[]
+  reloads  ReloadEvent[]
 
   @@unique([matchId, number])
 }
@@ -381,6 +383,24 @@ model DamageEvent {
   @@index([victimSteamId])
 }
 
+// Every weapon_reload (reload at a bad moment, S9). clip = rounds left when the
+// reload started.
+model ReloadEvent {
+  id      String @id @default(cuid())
+  roundId String
+  tick    Int
+  steamId String
+  weapon  String
+  clip    Int?
+  x       Float
+  y       Float
+  z       Float
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@index([roundId])
+}
+
 // ─── Mechanics analysis ─────────────────────────────────
 
 // Per player per match: movement while shooting, counter-strafe, first-bullet
@@ -409,6 +429,58 @@ model MechanicsStats {
 
   weapons Json // WeaponMechanics[]
   moments Json // MovementMoment[] — moving first shots
+
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, steamId])
+  @@index([steamId])
+}
+
+// Per player per match: aim and duels (src/lib/analysis/aim.ts) — crosshair
+// placement, reaction, time to damage, spray, flick/tracking, peeks, noise,
+// jumps, reloads. Computed from the stored replay data, never the .dem.
+model AimStats {
+  id      String @id @default(cuid())
+  matchId String
+  steamId String
+  version Int // AIM_VERSION; older rows are recomputed
+
+  visibility String // "spotted" (game line of sight) | "fov" (approximation) | "mixed"
+
+  duels              Int
+  duelsUnseen        Int // duels opened by an enemy the player could not see
+  crosshairSamples   Int
+  crosshairAvgDeg    Float?
+  crosshairMedianDeg Float?
+  crosshairBad       Int
+  reactionSamples    Int
+  reactionMedianMs   Float?
+  ttdSamples         Int
+  ttdMedianMs        Float?
+  sprays             Int
+  sprayBullets       Int // bullets 4+ of engagement sprays
+  sprayHits          Int
+  flicks             Int
+  trackings          Int
+  preaims            Int
+  overflicks         Int
+  peeks              Int
+  peeksWon           Int
+  dryPeeks           Int
+  dryPeeksLost       Int
+  noiseEpisodes      Int
+  noiseCostly        Int
+  jumps              Int
+  jumpsNearEnemy     Int
+  airShots           Int
+  reloads            Int
+  badReloads         Int
+  reloadData         Boolean
+
+  peekTypes Json // Record<PeekType, { count, won, lost }>
+  moments   Json // AimMoment[]
 
   createdAt DateTime @default(now())
 

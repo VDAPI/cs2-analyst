@@ -16,6 +16,12 @@
  * A player with no row on a frame (not connected, spectating) is stored with
  * team 0 and is left out of that frame on decode.
  *
+ * Version 2 appends EXTRA_COLUMNS (props REPLAY_EXTRA_PROPS): the active weapon's clip and who can
+ * see the player (`approximate_spotted_by` = CCSPlayerPawn.m_bSpottedByMask,
+ * the game's own line-of-sight spotting) as a bitmask over this blob's player
+ * list, 15 bits per column. Version 1 blobs (stored before S9, or when the
+ * parser could not read those props) decode without them.
+ *
  * Pure module — no parser, no DB — so it is covered by `npm run test:replay`.
  */
 import { gunzipSync, gzipSync } from "zlib";
@@ -23,7 +29,9 @@ import { gunzipSync, gzipSync } from "zlib";
 /** Ticks between stored frames. 4 ticks = 16 frames/s on 64-tick demos. */
 export const REPLAY_SAMPLE_INTERVAL = 4;
 
-export const REPLAY_FORMAT_VERSION = 1;
+export const REPLAY_FORMAT_VERSION = 2;
+/** Blobs without the extra columns (ammo, spotted-by). */
+export const REPLAY_BASE_VERSION = 1;
 
 /** demoparser2 props needed to build a RoundTicks blob. */
 export const REPLAY_TICK_PROPS = [
@@ -43,18 +51,34 @@ export const REPLAY_TICK_PROPS = [
   "flash_duration",
 ];
 
+/**
+ * Extra props for format version 2. Requested separately so a parser that
+ * cannot read them still stores a version 1 blob instead of no replay at all.
+ */
+export const REPLAY_EXTRA_PROPS = ["active_weapon_ammo", "approximate_spotted_by"];
+
 type TickRow = Record<string, unknown>;
 
-type ColumnKey = Exclude<keyof ReplaySample, "steamId" | "name">;
+type ColumnKey =
+  | Exclude<keyof ReplaySample, "steamId" | "name" | "ammo" | "spottedBy">
+  | "ammo"
+  | "spottedLo"
+  | "spottedHi";
+
+/** Per-row context for reading a column: weapon table and spotted-by mask. */
+interface ReadCtx {
+  weaponIndex: (name: string) => number;
+  spottedMask: number;
+}
 
 interface Column {
   key: ColumnKey;
   /** Stored value = round(raw * scale). */
   scale: number;
-  read: (row: TickRow, weaponIndex: (name: string) => number) => number;
+  read: (row: TickRow, ctx: ReadCtx) => number;
 }
 
-const COLUMNS: Column[] = [
+const BASE_COLUMNS: Column[] = [
   { key: "x", scale: 1, read: (r) => num(r.X) },
   { key: "y", scale: 1, read: (r) => num(r.Y) },
   { key: "z", scale: 1, read: (r) => num(r.Z) },
@@ -67,11 +91,24 @@ const COLUMNS: Column[] = [
   { key: "armor", scale: 1, read: (r) => num(r.armor_value) },
   { key: "isAlive", scale: 1, read: (r) => (bool(r.is_alive) ? 1 : 0) },
   { key: "team", scale: 1, read: (r) => num(r.team_num) },
-  { key: "weapon", scale: 1, read: (r, w) => w(str(r.active_weapon_name)) },
+  { key: "weapon", scale: 1, read: (r, ctx) => ctx.weaponIndex(str(r.active_weapon_name)) },
   { key: "flashDuration", scale: 100, read: (r) => num(r.flash_duration) },
 ];
 
-const COL = Object.fromEntries(COLUMNS.map((c, i) => [c.key, i])) as Record<ColumnKey, number>;
+/** Bits per spotted-by column (Int16 keeps 15 clean bits). */
+const SPOT_BITS = 15;
+
+const EXTRA_COLUMNS: Column[] = [
+  // -1 = no clip (knife, grenade, unknown).
+  { key: "ammo", scale: 1, read: (r) => (r.active_weapon_ammo == null ? -1 : num(r.active_weapon_ammo)) },
+  { key: "spottedLo", scale: 1, read: (_r, ctx) => ctx.spottedMask & ((1 << SPOT_BITS) - 1) },
+  { key: "spottedHi", scale: 1, read: (_r, ctx) => (ctx.spottedMask >>> SPOT_BITS) & ((1 << SPOT_BITS) - 1) },
+];
+
+const COLUMNS_V2 = [...BASE_COLUMNS, ...EXTRA_COLUMNS];
+const columnsFor = (version: number) => (version >= 2 ? COLUMNS_V2 : BASE_COLUMNS);
+const colIndex = (cols: Column[]) =>
+  Object.fromEntries(cols.map((c, i) => [c.key, i])) as Partial<Record<ColumnKey, number>>;
 
 export interface ReplayPlayer {
   steamId: string;
@@ -97,6 +134,10 @@ export interface ReplaySample {
   isAlive: boolean;
   weapon: string;
   flashDuration: number;
+  /** Rounds in the active weapon's clip; -1 when it has none. Absent in version 1. */
+  ammo?: number;
+  /** Players who can see this player (game spotting). Absent in version 1. */
+  spottedBy?: string[];
 }
 
 export interface ReplayFrame {
@@ -125,13 +166,17 @@ export function sampleTickList(startTick: number, endTick: number, interval: num
 /**
  * Build the stored blob for one round from raw parseTicks rows.
  * Rows outside the round's sample grid, and spectators (team_num < 2), are ignored.
+ * `withExtras` writes version 2 (rows carry REPLAY_EXTRA_PROPS); otherwise version 1.
  */
 export function encodeRoundTicks(
   rows: TickRow[],
   startTick: number,
   endTick: number,
-  interval: number
+  interval: number,
+  withExtras = false
 ): EncodedRoundTicks {
+  const version = withExtras ? REPLAY_FORMAT_VERSION : REPLAY_BASE_VERSION;
+  const COLUMNS = columnsFor(version);
   const frameCount = Math.floor((endTick - startTick) / interval) + 1;
 
   const players: ReplayPlayer[] = [];
@@ -170,9 +215,13 @@ export function encodeRoundTicks(
   const C = COLUMNS.length;
   const values = new Int16Array(players.length * C * frameCount);
   for (const { p, f, row } of placed) {
+    const ctx: ReadCtx = {
+      weaponIndex,
+      spottedMask: withExtras ? spottedMask(row.approximate_spotted_by, players) : 0,
+    };
     for (let c = 0; c < C; c++) {
       const col = COLUMNS[c];
-      values[(p * C + c) * frameCount + f] = clampInt16(col.read(row, weaponIndex) * col.scale);
+      values[(p * C + c) * frameCount + f] = clampInt16(col.read(row, ctx) * col.scale);
     }
   }
 
@@ -188,7 +237,7 @@ export function encodeRoundTicks(
   }
 
   return {
-    version: REPLAY_FORMAT_VERSION,
+    version,
     startTick,
     interval,
     frameCount,
@@ -208,13 +257,16 @@ export function decodeRoundTicks(rec: {
   weapons: unknown;
   data: Uint8Array;
 }): ReplayFrame[] {
-  if (rec.version !== REPLAY_FORMAT_VERSION) {
+  if (rec.version !== REPLAY_FORMAT_VERSION && rec.version !== REPLAY_BASE_VERSION) {
     throw new Error(`Unsupported RoundTicks version ${rec.version}`);
   }
   const players = rec.players as ReplayPlayer[];
   const weapons = rec.weapons as string[];
   const F = rec.frameCount;
+  const COLUMNS = columnsFor(rec.version);
+  const COL = colIndex(COLUMNS);
   const C = COLUMNS.length;
+  const extras = rec.version >= 2;
 
   const raw = gunzipSync(rec.data);
   if (raw.length !== players.length * C * F * 2) {
@@ -234,7 +286,7 @@ export function decodeRoundTicks(rec: {
   }
 
   const at = (p: number, key: ColumnKey, f: number) =>
-    values[(p * C + COL[key]) * F + f] / COLUMNS[COL[key]].scale;
+    values[(p * C + COL[key]!) * F + f] / COLUMNS[COL[key]!].scale;
 
   const frames: ReplayFrame[] = [];
   for (let f = 0; f < F; f++) {
@@ -242,7 +294,7 @@ export function decodeRoundTicks(rec: {
     for (let p = 0; p < players.length; p++) {
       const team = at(p, "team", f);
       if (team !== 2 && team !== 3) continue;
-      samples.push({
+      const sample: ReplaySample = {
         steamId: players[p].steamId,
         name: players[p].name,
         team: team === 2 ? "T" : "CT",
@@ -259,7 +311,16 @@ export function decodeRoundTicks(rec: {
         isAlive: at(p, "isAlive", f) === 1,
         weapon: weapons[at(p, "weapon", f)] ?? "",
         flashDuration: at(p, "flashDuration", f),
-      });
+      };
+      if (extras) {
+        sample.ammo = at(p, "ammo", f);
+        const mask = at(p, "spottedLo", f) | (at(p, "spottedHi", f) << SPOT_BITS);
+        sample.spottedBy = [];
+        for (let i = 0; i < players.length && i < 2 * SPOT_BITS; i++) {
+          if (mask & (1 << i)) sample.spottedBy.push(players[i].steamId);
+        }
+      }
+      samples.push(sample);
     }
     frames.push({ tick: rec.startTick + f * rec.interval, players: samples });
   }
@@ -279,6 +340,36 @@ export function subsampleFrames<T>(frames: T[], step: number): T[] {
 }
 
 // ─── helpers ─────────────────────────────────────────────
+
+/**
+ * `approximate_spotted_by` (a list of SteamIDs) → bitmask over `players`.
+ * SteamID64s exceed 2^53, so the binding may hand them over as numbers that
+ * lost their last digits: match each to the nearest known player within a
+ * small tolerance instead of by string equality.
+ */
+export function spottedMask(raw: unknown, players: ReplayPlayer[]): number {
+  if (!Array.isArray(raw) || raw.length === 0) return 0;
+  let mask = 0;
+  for (const v of raw) {
+    const s = str(v);
+    let idx = players.findIndex((p) => p.steamId === s);
+    if (idx === -1) {
+      const n = Number(s);
+      if (!Number.isFinite(n) || n === 0) continue;
+      let best = Infinity;
+      players.forEach((p, i) => {
+        const d = Math.abs(Number(p.steamId) - n);
+        if (d < best) {
+          best = d;
+          idx = i;
+        }
+      });
+      if (best > 1024) idx = -1;
+    }
+    if (idx >= 0 && idx < 2 * SPOT_BITS) mask |= 1 << idx;
+  }
+  return mask;
+}
 
 function clampInt16(v: number): number {
   if (!Number.isFinite(v)) return 0;

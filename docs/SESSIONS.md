@@ -46,13 +46,13 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Mechanika | Strzał w ruchu (counter-strafe) per broń | 🆕 | S8 |
 | Mechanika | Czas counter-strafe | 🆕 | S8 |
 | Mechanika | Celność pierwszej kuli, HS% per broń | 🆕 | S8 |
-| Mechanika | Crosshair placement (kąt do głowy przy pojawieniu się wroga) | 🆕 | S9 |
-| Mechanika | Time to damage, czas reakcji | 🆕 | S9 |
-| Mechanika | Spray control (rozrzut w serii) | 🆕 | S9 |
-| Mechanika | Flick vs tracking, overflick | 🆕 | S9 |
-| Mechanika | Rodzaje peeków (wide, jiggle, shoulder, dry peek) | 🆕 | S9 |
-| Mechanika | Ruch i dźwięk (bieganie przy wrogu, zbędne skoki) | 🆕 | S9 |
-| Mechanika | Reload w złym momencie | 🆕 | S9 |
+| Mechanika | Crosshair placement (kąt do głowy przy pojawieniu się wroga) | ✅ | S9 |
+| Mechanika | Time to damage, czas reakcji | ✅ | S9 |
+| Mechanika | Spray control (rozrzut w serii) | ✅ | S9 |
+| Mechanika | Flick vs tracking, overflick | ✅ | S9 |
+| Mechanika | Rodzaje peeków (wide, jiggle, shoulder, dry peek) | ✅ | S9 |
+| Mechanika | Ruch i dźwięk (bieganie przy wrogu, zbędne skoki) | ✅ | S9 |
+| Mechanika | Reload w złym momencie | ✅ | S9 |
 | Taktyka | Smoke za wcześnie / w próżnię | 🆕 | S11 |
 | Taktyka | Flash: czas oślepienia wrogów, flashe w swoich, flash bez peeka | 🆕 | S11 |
 | Taktyka | Molotov i HE bez efektu | 🆕 | S11 |

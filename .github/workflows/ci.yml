@@ -57,3 +57,7 @@ jobs:
       - name: Mechanics analysis regression tests
         if: ${{ !cancelled() }}
         run: npm run test:mechanics
+
+      - name: Aim and duels analysis regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:aim
