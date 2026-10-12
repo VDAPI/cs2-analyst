@@ -101,3 +101,28 @@ jobs:
       - name: AI coach (plan, ratings, grounding) regression tests
         if: ${{ !cancelled() }}
         run: npm run test:coach
+
+      - name: Win probability (features, scoring, impact, pro situations) regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:winprob
+
+  ml:
+    # The Python trainer (S14): synthetic-data tests, export parity with
+    # LightGBM, and the committed fixture the TypeScript scorer is tested on.
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ml/requirements-dev.txt
+
+      - name: Install trainer dependencies
+        run: python -m pip install -r ml/requirements-dev.txt
+
+      - name: Trainer tests
+        working-directory: ml
+        run: python -m pytest -q

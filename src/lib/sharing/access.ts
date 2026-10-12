@@ -2,7 +2,8 @@
  * Who may read a match's replay data (ticks, kills, grenades, bombs, notes):
  * the uploader, or anyone holding a live share link of that match (S16). A
  * moment link only opens its own round. Route handlers take the token from
- * `?share=`.
+ * `?share=`. Pro demos (the pro pool, S13) are readable by every signed-in
+ * player: "co zrobiłby pro" shows their rounds as 2D clips (S14).
  */
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -23,13 +24,16 @@ export interface MatchAccess {
 export async function getMatchAccess(req: Request, matchId: string): Promise<MatchAccess | null> {
   const upload = await prisma.demoUpload.findFirst({
     where: { matchId, deletedAt: null },
-    select: { userId: true },
+    select: { userId: true, pro: true },
   });
   if (!upload) return null;
 
   const session = await getServerSession(authOptions);
   if (session?.user?.id && session.user.id === upload.userId) {
     return { ownerId: upload.userId, round: null, shareId: null, uploaderId: upload.userId };
+  }
+  if (upload.pro && session?.user?.id) {
+    return { ownerId: null, round: null, shareId: null, uploaderId: upload.userId };
   }
 
   const token = new URL(req.url).searchParams.get("share");

@@ -18,6 +18,22 @@ services:
     volumes:
       - redis_data:/data
 
+  # Retrains the round win-probability model as matches come in (S14). The
+  # app works without it (it scores with the shipped prior); set
+  # ML_SERVICE_URL=http://localhost:8765 for the parse worker to ping it.
+  ml:
+    build:
+      context: .
+      dockerfile: ml/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://cs2analyst:cs2analyst@postgres:5432/cs2analyst
+      ML_TRAIN_INTERVAL_S: "1800"
+    ports:
+      - "8765:8765"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:

@@ -53,3 +53,9 @@ data/demos/*.dem
 temp/
 
 certificatesdata/pro-demos/
+
+# python (ml/)
+__pycache__/
+.pytest_cache/
+*.pyc
+ml/.venv/

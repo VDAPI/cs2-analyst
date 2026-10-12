@@ -19,6 +19,8 @@ import { computeAndPersistTactics } from "../analysis/persist-tactics";
 import { parsePlayerRanks } from "./ranks";
 import { persistMatchRanks } from "../norms/ranks";
 import { computeAndPersistNormSamples, refreshNorms, refreshNormsIfStale } from "../norms/persist";
+import { computeAndPersistWinProb } from "../winprob/persist";
+import { requestTraining } from "../winprob/train-trigger";
 
 interface PersistArgs {
   uploadId: string;
@@ -285,6 +287,15 @@ export async function parseAndPersistDemo(
         console.log(`[persist-demo] norm samples match=${match.id}: ${samples}`);
       } catch (error) {
         console.error(`[persist-demo] norms FAILED match=${match.id}:`, error);
+      }
+      // Win-probability training data (and pro situations) (S14); then ask for a
+      // retrain in the background. Neither may fail the analysis.
+      try {
+        const snapshots = await computeAndPersistWinProb(prisma, match.id);
+        console.log(`[persist-demo] win-prob snapshots match=${match.id}: ${snapshots}`);
+        void requestTraining().catch(() => {});
+      } catch (error) {
+        console.error(`[persist-demo] win-prob FAILED match=${match.id}:`, error);
       }
     }
     await onProgress?.(98);

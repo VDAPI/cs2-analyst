@@ -1,0 +1,6 @@
+# Build context is the repo root; send only what the trainer image needs.
+*
+!ml/requirements.txt
+!ml/cs2ml/
+!src/lib/winprob/prior-model.json
+**/__pycache__

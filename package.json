@@ -34,7 +34,12 @@
     "pro:import": "tsx --tsconfig tsconfig.json scripts/import-pro-demos.ts",
     "norms:refresh": "tsx --tsconfig tsconfig.json scripts/refresh-norms.ts",
     "test:progress": "tsx --tsconfig tsconfig.json scripts/test-progress.ts",
-    "test:coach": "tsx --tsconfig tsconfig.json scripts/test-coach.ts"
+    "test:coach": "tsx --tsconfig tsconfig.json scripts/test-coach.ts",
+    "test:winprob": "tsx --tsconfig tsconfig.json scripts/test-winprob.ts",
+    "ml:install": "python3 -m pip install -r ml/requirements.txt",
+    "ml:train": "cd ml && python3 -m cs2ml.train",
+    "ml:serve": "cd ml && python3 -m cs2ml.server",
+    "ml:test": "cd ml && python3 -m pytest -q"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
