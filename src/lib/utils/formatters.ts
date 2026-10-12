@@ -134,3 +134,27 @@ export function weaponDisplayName(weapon: string): string {
   };
   return names[weapon.toLowerCase()] ?? weapon;
 }
+
+const dateFmt = new Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "short", year: "numeric" });
+const shortDateFmt = new Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "short" });
+const dateTimeFmt = new Intl.DateTimeFormat("pl-PL", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/** "12 paź 2026" — Polish date, same output on server and client. */
+export function formatDate(d: Date | string): string {
+  return dateFmt.format(new Date(d));
+}
+
+/** "12 paź" — for charts and compact rows. */
+export function formatShortDate(d: Date | string): string {
+  return shortDateFmt.format(new Date(d));
+}
+
+/** "12 paź, 15:44". */
+export function formatDateTime(d: Date | string): string {
+  return dateTimeFmt.format(new Date(d));
+}

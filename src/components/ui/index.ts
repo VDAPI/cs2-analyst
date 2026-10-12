@@ -10,3 +10,6 @@ export { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
 export { Progress } from "./progress";
 export { FindingTag, type FindingSeverity } from "./finding-tag";
 export { ToastProvider, useToast } from "./toast";
+export { PageHeader } from "./page-header";
+export { EmptyState } from "./empty-state";
+export { SectionTitle } from "./section-title";

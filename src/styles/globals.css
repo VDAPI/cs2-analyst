@@ -70,6 +70,10 @@
   --he: #FF4D6A;
   --decoy: #9B6BFF;
 
+  /* Brands (only for the brand's own badge/button) */
+  --faceit: #FF5500;
+  --faceit-muted: rgba(255, 85, 0, 0.15);
+
   /* Borders */
   --border: rgba(190, 160, 255, 0.12);
   --border-hover: rgba(190, 160, 255, 0.22);
@@ -353,6 +357,76 @@ h1, h2, h3, .font-display {
 
 .animate-progress-indeterminate {
   animation: progress-indeterminate 1.4s ease-in-out infinite;
+}
+
+/* ─── Data tables (scoreboards, stat lists) ────────────── */
+
+/* Wrap in .table-scroll so wide tables scroll inside their card, never the page. */
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+}
+
+.data-table thead th {
+  background: rgba(190, 160, 255, 0.03);
+  color: var(--text-tertiary);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 10px 12px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table tbody td {
+  padding: 10px 12px;
+  text-align: center;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--divider);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tbody tr:hover td {
+  background-color: rgba(190, 160, 255, 0.03);
+}
+
+/* First column: name, left-aligned, sticky while the numbers scroll on phones. */
+.data-table th:first-child,
+.data-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: left;
+  font-family: var(--font-sans);
+  background-color: var(--surface-1);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.data-table thead th:first-child {
+  background-color: #120F1D;
+}
+
+.data-table tbody tr:hover td:first-child {
+  background-color: #14111F;
 }
 
 @media (prefers-reduced-motion: reduce) {
