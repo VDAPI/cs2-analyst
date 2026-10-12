@@ -27,7 +27,7 @@ CS2 demo analysis SaaS for FACEIT (and any other) players. Users upload .dem fil
 - **Storage**: demos are written to local disk (`data/demos/`). Cloudflare R2 is planned (session S7), not implemented yet.
 - **Charts**: Recharts
 - **2D Replay**: HTML5 Canvas API
-- **Fonts**: Geist Sans + Geist Mono today; Chakra Petch for headings arrives with the Violet Lime redesign (session S2)
+- **Fonts**: Chakra Petch (headings, `font-display`, via `next/font/google`) + Geist Sans (`font-sans`) + Geist Mono (`font-mono`)
 
 ## Commands
 
@@ -94,7 +94,9 @@ docs/                 — SESSIONS.md (roadmap)
 
 - Dark-mode only — no light theme
 - **Target palette: Violet Lime (Esport Neon).** Background `#08070D`, panel `#100E19`, raised panel `#181528`, text `#F3F0FF`, accent 1 violet `#9B6BFF`, accent 2 lime `#C6FF3D`, lines `rgba(190,160,255,0.12)`. Fixed meanings: CT `#5AA9FF`, T `#FFC23D`, mistake `#FF4D6A`, good decision `#3DF5A0`, warning `#FFB020`. Fonts: Chakra Petch (headings), Geist (text), Geist Mono (numbers).
-- Design tokens are CSS custom properties in `src/styles/globals.css`. **They still hold the old blue palette** (`--accent: #3b82f6`, CT `#60a5fa`, T `#fbbf24`) until session S2 migrates them. New UI should use the token names (`var(--accent)`, `var(--ct-blue)` …), never hard-coded hex, so S2 can recolor everything in one place.
+- Design tokens are CSS custom properties in `src/styles/globals.css` and hold the Violet Lime values (migrated in S2). Style through the token names (`var(--accent)`, `var(--accent-2)`, `var(--ct-blue)`, `var(--mistake)` …), never hard-coded hex. Text on violet/lime/CT fills is `var(--on-accent)` (dark), never white. Canvas code that can't read CSS vars uses the same hex values as the tokens.
+- UI kit (`src/components/ui/`, barrel `index.ts`): `Button` (variants `cta` lime — one per screen, `primary` violet, `secondary`, `ghost`, `danger`), `Card` + `CardHeader`, `StatCard` (`highlight` = lime best stat), `Badge`, `Input`, `Checkbox`, `Tabs*`, `Progress`, `FindingTag` (severity high/medium/low/good), `useToast()` (provider in the root layout). Uppercase labels use the `label-overline` class (not `overline`, which is Tailwind's text-decoration utility).
+- Navigation lives in `src/components/layout/`: `AppShell` (used by `(dashboard)/layout.tsx` and `upload/layout.tsx`), grouped `Sidebar` ≥1024px (collapsible), `Topbar` + `MobileDrawer` below 1024px, `BottomNav` below 768px. Add new screens to `nav-items.ts` (groups Analiza / Narzędzia / Pro i drużyna; `soon: true` for planned ones).
 - Full spec: `DESIGN.md`; quick reference: `.claude/skills/design-system/SKILL.md`
 
 ## FACEIT Integration

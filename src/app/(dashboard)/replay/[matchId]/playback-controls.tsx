@@ -57,7 +57,7 @@ export function PlaybackControls({ matchId, rounds }: PlaybackControlsProps) {
   };
 
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[rgba(15,15,18,0.80)] p-4 backdrop-blur-xl">
+    <div className="rounded-xl border border-[var(--border)] bg-[rgba(16,14,25,0.80)] p-4 backdrop-blur-xl">
       {/* Timeline scrubber */}
       <div className="mb-3">
         <input
@@ -82,7 +82,7 @@ export function PlaybackControls({ matchId, rounds }: PlaybackControlsProps) {
           <button
             onClick={handlePrevRound}
             disabled={currentRound <= 1 || isLoading}
-            className="rounded-md p-1.5 text-[var(--text-tertiary)] transition-colors hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--text-secondary)] disabled:opacity-30"
+            className="rounded-md p-1.5 text-[var(--text-tertiary)] transition-colors hover:bg-[rgba(190,160,255,0.06)] hover:text-[var(--text-secondary)] disabled:opacity-30"
           >
             <SkipBack className="h-4 w-4" />
           </button>
@@ -103,7 +103,7 @@ export function PlaybackControls({ matchId, rounds }: PlaybackControlsProps) {
           <button
             onClick={handleNextRound}
             disabled={currentRound >= rounds.length || isLoading}
-            className="rounded-md p-1.5 text-[var(--text-tertiary)] transition-colors hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--text-secondary)] disabled:opacity-30"
+            className="rounded-md p-1.5 text-[var(--text-tertiary)] transition-colors hover:bg-[rgba(190,160,255,0.06)] hover:text-[var(--text-secondary)] disabled:opacity-30"
           >
             <SkipForward className="h-4 w-4" />
           </button>
@@ -113,7 +113,7 @@ export function PlaybackControls({ matchId, rounds }: PlaybackControlsProps) {
         <button
           onClick={togglePlay}
           disabled={totalFrames === 0}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-white transition-all hover:bg-[var(--accent-hover)] disabled:opacity-30"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--on-accent)] transition-all hover:bg-[var(--accent-hover)] disabled:opacity-30"
         >
           {isPlaying ? (
             <Pause className="h-5 w-5" />
@@ -133,7 +133,7 @@ export function PlaybackControls({ matchId, rounds }: PlaybackControlsProps) {
                 className={`rounded-md px-2 py-1 text-xs font-mono transition-colors ${
                   playbackSpeed === speed
                     ? "bg-[var(--accent-muted)] text-[var(--accent)]"
-                    : "text-[var(--text-tertiary)] hover:bg-[rgba(255,255,255,0.06)] hover:text-[var(--text-secondary)]"
+                    : "text-[var(--text-tertiary)] hover:bg-[rgba(190,160,255,0.06)] hover:text-[var(--text-secondary)]"
                 }`}
               >
                 {speed}x

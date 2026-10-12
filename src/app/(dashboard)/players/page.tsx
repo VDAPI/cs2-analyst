@@ -115,7 +115,7 @@ export default async function PlayersPage() {
             </p>
             <Link
               href="/upload"
-              className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--accent)] px-5 text-sm font-medium text-white transition-all hover:bg-[var(--accent-hover)]"
+              className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--accent)] px-5 text-sm font-medium text-[var(--on-accent)] transition-all hover:bg-[var(--accent-hover)]"
             >
               Upload Demo
             </Link>
@@ -143,7 +143,7 @@ export default async function PlayersPage() {
                 {players.map((p) => (
                   <tr
                     key={p.steamId}
-                    className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(255,255,255,0.04)]"
+                    className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(190,160,255,0.04)]"
                   >
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">

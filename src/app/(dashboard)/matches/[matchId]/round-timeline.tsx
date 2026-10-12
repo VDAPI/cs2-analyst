@@ -117,8 +117,8 @@ export function RoundTimeline({ rounds, multiKillMap, clutchMap }: RoundTimeline
                     : "animate-pulse-gold bg-[var(--t-gold-muted)] text-[var(--t-gold)] hover:bg-[var(--t-gold)] hover:text-black"
                   : r.winner === "CT"
                     ? isSelected
-                      ? "bg-[var(--ct-blue)] text-white ring-2 ring-[var(--ct-blue)] ring-offset-1 ring-offset-[var(--surface-1)]"
-                      : "bg-[var(--ct-blue-muted)] text-[var(--ct-blue)] hover:bg-[var(--ct-blue)] hover:text-white"
+                      ? "bg-[var(--ct-blue)] text-[var(--on-accent)] ring-2 ring-[var(--ct-blue)] ring-offset-1 ring-offset-[var(--surface-1)]"
+                      : "bg-[var(--ct-blue-muted)] text-[var(--ct-blue)] hover:bg-[var(--ct-blue)] hover:text-[var(--on-accent)]"
                     : isSelected
                       ? "bg-[var(--t-gold)] text-black ring-2 ring-[var(--t-gold)] ring-offset-1 ring-offset-[var(--surface-1)]"
                       : "bg-[var(--t-gold-muted)] text-[var(--t-gold)] hover:bg-[var(--t-gold)] hover:text-black"
@@ -241,7 +241,7 @@ function ClutchBanner({ clutch }: { clutch: ClutchInfo }) {
       className={`mb-3 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium ${
         clutch.won
           ? "bg-[var(--success-muted)] text-[var(--success)]"
-          : "bg-[rgba(255,255,255,0.04)] text-[var(--text-secondary)]"
+          : "bg-[rgba(190,160,255,0.04)] text-[var(--text-secondary)]"
       }`}
     >
       <Zap className="h-3.5 w-3.5" />
@@ -284,8 +284,8 @@ function MultiKillBanner({ multiKill }: { multiKill: MultiKill }) {
     <div
       className={`mb-3 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium ${
         isAce
-          ? "bg-[rgba(251,191,36,0.1)] text-[var(--t-gold)]"
-          : "bg-[rgba(59,130,246,0.08)] text-[var(--ct-blue)]"
+          ? "bg-[rgba(255,194,61,0.1)] text-[var(--t-gold)]"
+          : "bg-[rgba(155,107,255,0.08)] text-[var(--ct-blue)]"
       }`}
     >
       <span className="text-base">{isAce ? "\u{1F525}" : "\u{1F3AF}"}</span>

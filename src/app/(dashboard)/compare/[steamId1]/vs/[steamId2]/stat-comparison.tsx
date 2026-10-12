@@ -45,7 +45,7 @@ export function StatComparison({
 
           return (
             <div key={stat.label} className="group">
-              <div className="flex items-center rounded-lg px-2 py-2 transition-colors hover:bg-[rgba(255,255,255,0.02)]">
+              <div className="flex items-center rounded-lg px-2 py-2 transition-colors hover:bg-[rgba(190,160,255,0.02)]">
                 {/* P1 value */}
                 <span
                   className={`stat-inline flex-1 text-right text-sm font-semibold ${

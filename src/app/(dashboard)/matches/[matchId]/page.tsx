@@ -220,7 +220,7 @@ export default async function MatchDetailPage({ params }: Props) {
             className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-all duration-150 hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
           >
             <Footprints className="h-3.5 w-3.5" />
-            Movement
+            Mechanika
           </Link>
         </div>
 
@@ -302,7 +302,7 @@ function ScoreboardTable({
             {players.map((p) => (
               <tr
                 key={p.name}
-                className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(255,255,255,0.02)]"
+                className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(190,160,255,0.02)]"
               >
                 <td className="px-5 py-3 font-medium text-[var(--text-primary)]">
                   {p.name}

@@ -47,11 +47,11 @@ interface ReplayViewerProps {
 /** Seconds of lead-in shown before a deep-linked tick. */
 const DEEP_LINK_LEAD_S = 2;
 
-const CT_COLOR = "#60a5fa";
-const T_COLOR = "#fbbf24";
-const CT_COLOR_DEAD = "rgba(96, 165, 250, 0.3)";
-const T_COLOR_DEAD = "rgba(251, 191, 36, 0.3)";
-const KILL_MARKER_COLOR = "#ef4444";
+const CT_COLOR = "#5AA9FF";
+const T_COLOR = "#FFC23D";
+const CT_COLOR_DEAD = "rgba(90, 169, 255, 0.3)";
+const T_COLOR_DEAD = "rgba(255, 194, 61, 0.3)";
+const KILL_MARKER_COLOR = "#FF4D6A";
 const CANVAS_SIZE = 1024;
 const PLAYER_RADIUS = 12;
 
@@ -137,7 +137,7 @@ export function ReplayViewer({
       const height = ctx.canvas.height;
 
       // Clear with dark background
-      ctx.fillStyle = "#0a0a12";
+      ctx.fillStyle = "#08070D";
       ctx.fillRect(0, 0, width, height);
 
       // Draw radar image (desaturated, ~30% opacity per DESIGN.md)
@@ -305,7 +305,7 @@ export function ReplayViewer({
             className="h-full w-full"
           />
           {/* Round info overlay */}
-          <div className="absolute left-3 top-3 rounded-lg bg-[rgba(15,15,18,0.8)] px-3 py-1.5 backdrop-blur-sm">
+          <div className="absolute left-3 top-3 rounded-lg bg-[rgba(16,14,25,0.8)] px-3 py-1.5 backdrop-blur-sm">
             <span className="font-mono text-xs text-[var(--text-secondary)]">
               R{currentRound}
             </span>
@@ -320,7 +320,7 @@ export function ReplayViewer({
         {/* Player list sidebar */}
         <div className="flex min-w-[220px] flex-col rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-4">
           {/* CT players */}
-          <div className="mb-1 flex items-center gap-2 rounded px-2 py-1 bg-[rgba(96,165,250,0.1)]">
+          <div className="mb-1 flex items-center gap-2 rounded px-2 py-1 bg-[rgba(90,169,255,0.1)]">
             <div className="h-1.5 w-1.5 rounded-full bg-[var(--ct-blue)]" />
             <span className="text-xs font-medium uppercase tracking-wider text-[var(--ct-blue)]">
               Counter-Terrorists
@@ -346,7 +346,7 @@ export function ReplayViewer({
           <div className="my-3 border-t border-[var(--border)]" />
 
           {/* T players */}
-          <div className="mb-1 flex items-center gap-2 rounded px-2 py-1 bg-[rgba(251,191,36,0.1)]">
+          <div className="mb-1 flex items-center gap-2 rounded px-2 py-1 bg-[rgba(255,194,61,0.1)]">
             <div className="h-1.5 w-1.5 rounded-full bg-[var(--t-gold)]" />
             <span className="text-xs font-medium uppercase tracking-wider text-[var(--t-gold)]">
               Terrorists
@@ -434,7 +434,7 @@ function PlayerListItem({ player }: { player: PlayerSnapshot }) {
             style={{
               width: `${player.health}%`,
               backgroundColor:
-                player.health > 50 ? "#22c55e" : player.health > 25 ? "#eab308" : "#ef4444",
+                player.health > 50 ? "#3DF5A0" : player.health > 25 ? "#FFB020" : "#FF4D6A",
             }}
           />
         </div>
@@ -456,7 +456,7 @@ function drawPlayer(
   const isDead = !player.isAlive;
 
   if (isDead) {
-    // Death X marker (per DESIGN.md: × in #ef4444, 16px)
+    // Death X marker (per DESIGN.md: × in #FF4D6A, 16px)
     ctx.strokeStyle = isCT ? CT_COLOR_DEAD : T_COLOR_DEAD;
     ctx.lineWidth = 2;
     const s = 8;
@@ -502,7 +502,7 @@ function drawPlayer(
     const barY = y + PLAYER_RADIUS + 5;
     ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
     ctx.fillRect(x - barWidth / 2, barY, barWidth, barHeight);
-    ctx.fillStyle = player.health > 50 ? "#22c55e" : player.health > 25 ? "#eab308" : "#ef4444";
+    ctx.fillStyle = player.health > 50 ? "#3DF5A0" : player.health > 25 ? "#FFB020" : "#FF4D6A";
     ctx.fillRect(x - barWidth / 2, barY, barWidth * (player.health / 100), barHeight);
   }
 
@@ -539,11 +539,11 @@ function drawKillMarker(ctx: CanvasRenderingContext2D, x: number, y: number) {
 // ─── Grenade drawing helpers ──────────────────────────────
 
 const GRENADE_COLORS: Record<string, string> = {
-  SMOKE: "#94a3b8",
-  FLASH: "#fde047",
-  HE: "#ef4444",
-  MOLOTOV: "#f97316",
-  INCENDIARY: "#f97316",
+  SMOKE: "#A9A3C4",
+  FLASH: "#FFF27A",
+  HE: "#FF4D6A",
+  MOLOTOV: "#FF7A33",
+  INCENDIARY: "#FF7A33",
 };
 
 const TICK_RATE = 64;
@@ -848,14 +848,14 @@ function drawBombMarker(
   ctx.save();
   ctx.beginPath();
   ctx.arc(pos.x, pos.y, pulseRadius, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(251, 191, 36, 0.4)";
+  ctx.strokeStyle = "rgba(255, 194, 61, 0.4)";
   ctx.lineWidth = 2;
   ctx.stroke();
 
   // Inner filled circle
   ctx.beginPath();
   ctx.arc(pos.x, pos.y, 8, 0, Math.PI * 2);
-  ctx.fillStyle = "rgba(251, 191, 36, 0.7)";
+  ctx.fillStyle = "rgba(255, 194, 61, 0.7)";
   ctx.fill();
 
   // Site label

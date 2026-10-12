@@ -2,70 +2,89 @@
 
 /* ─── CS2 Analyst Design System Tokens ─────────────────── */
 
+@theme inline {
+  --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), "SF Mono", "Roboto Mono", monospace;
+  --font-display: var(--font-chakra-petch), var(--font-geist-sans), sans-serif;
+}
+
 :root {
   /* Surfaces */
-  --canvas: #09090b;
-  --surface-1: #0f0f12;
-  --surface-2: #16161a;
-  --surface-3: #1c1c22;
-  --surface-4: #24242e;
+  --canvas: #08070D;
+  --surface-1: #100E19;
+  --surface-2: #181528;
+  --surface-3: #211C36;
+  --surface-4: #2A2442;
 
   /* Text */
-  --text-primary: #fafafa;
-  --text-secondary: #a1a1aa;
-  --text-tertiary: #71717a;
-  --text-disabled: #3f3f46;
+  --text-primary: #F3F0FF;
+  --text-secondary: #B9B2D6;
+  --text-tertiary: #8A83A8;
+  --text-disabled: #4A4560;
 
-  /* Brand */
-  --accent: #3b82f6;
-  --accent-hover: #60a5fa;
-  --accent-active: #2563eb;
-  --accent-muted: rgba(59, 130, 246, 0.15);
-  --accent-glow: rgba(59, 130, 246, 0.25);
+  /* Accent 1 — violet: interactive, active, focus */
+  --accent: #9B6BFF;
+  --accent-hover: #B08CFF;
+  --accent-active: #8150F0;
+  --accent-muted: rgba(155, 107, 255, 0.15);
+  --accent-glow: rgba(155, 107, 255, 0.35);
 
-  /* Game Colors */
-  --ct-blue: #60a5fa;
-  --ct-blue-muted: rgba(96, 165, 250, 0.15);
-  --t-gold: #fbbf24;
-  --t-gold-muted: rgba(251, 191, 36, 0.15);
-  --kill-red: #ef4444;
-  --kill-red-muted: rgba(239, 68, 68, 0.15);
-  --death-gray: #6b7280;
-  --headshot-gold: #f59e0b;
-  --flash-white: #e2e8f0;
+  /* Accent 2 — lime: the one primary CTA / "best" value on a screen */
+  --accent-2: #C6FF3D;
+  --accent-2-hover: #D6FF73;
+  --accent-2-muted: rgba(198, 255, 61, 0.14);
+  --accent-2-glow: rgba(198, 255, 61, 0.35);
 
-  /* Status */
-  --success: #22c55e;
-  --success-muted: rgba(34, 197, 94, 0.15);
-  --warning: #f59e0b;
-  --warning-muted: rgba(245, 158, 11, 0.15);
-  --error: #ef4444;
-  --error-muted: rgba(239, 68, 68, 0.15);
-  --info: #06b6d4;
-  --info-muted: rgba(6, 182, 212, 0.15);
+  /* Text on violet / lime / CT fills (white on violet fails contrast) */
+  --on-accent: #08070D;
+
+  /* Game Colors (fixed meaning) */
+  --ct-blue: #5AA9FF;
+  --ct-blue-muted: rgba(90, 169, 255, 0.15);
+  --t-gold: #FFC23D;
+  --t-gold-muted: rgba(255, 194, 61, 0.15);
+  --kill-red: #FF4D6A;
+  --kill-red-muted: rgba(255, 77, 106, 0.15);
+  --death-gray: #6E6890;
+  --headshot-gold: #C6FF3D;
+  --flash-white: #F3F0FF;
+
+  /* Meaning / status */
+  --mistake: #FF4D6A;
+  --mistake-muted: rgba(255, 77, 106, 0.15);
+  --good: #3DF5A0;
+  --good-muted: rgba(61, 245, 160, 0.15);
+  --success: #3DF5A0;
+  --success-muted: rgba(61, 245, 160, 0.15);
+  --warning: #FFB020;
+  --warning-muted: rgba(255, 176, 32, 0.15);
+  --error: #FF4D6A;
+  --error-muted: rgba(255, 77, 106, 0.15);
+  --info: #4DE1FF;
+  --info-muted: rgba(77, 225, 255, 0.15);
 
   /* Grenades */
-  --smoke: #94a3b8;
-  --molotov: #f97316;
-  --flash: #fde047;
-  --he: #ef4444;
-  --decoy: #a78bfa;
+  --smoke: #A9A3C4;
+  --molotov: #FF7A33;
+  --flash: #FFF27A;
+  --he: #FF4D6A;
+  --decoy: #9B6BFF;
 
   /* Borders */
-  --border: rgba(255, 255, 255, 0.06);
-  --border-hover: rgba(255, 255, 255, 0.10);
-  --border-active: rgba(59, 130, 246, 0.40);
-  --divider: rgba(255, 255, 255, 0.04);
+  --border: rgba(190, 160, 255, 0.12);
+  --border-hover: rgba(190, 160, 255, 0.22);
+  --border-active: rgba(155, 107, 255, 0.55);
+  --divider: rgba(190, 160, 255, 0.06);
 
   /* Overlay */
-  --overlay: rgba(0, 0, 0, 0.80);
-  --glass-bg: rgba(15, 15, 18, 0.80);
+  --overlay: rgba(4, 3, 8, 0.80);
+  --glass-bg: rgba(16, 14, 25, 0.80);
 
   /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.7);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.7);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.75);
 
   /* Radius */
   --radius-sm: 6px;
@@ -73,10 +92,11 @@
   --radius-lg: 12px;
   --radius-full: 9999px;
 
-  /* Sidebar */
+  /* Layout */
   --sidebar-width: 240px;
   --sidebar-collapsed: 64px;
   --topbar-height: 56px;
+  --bottom-nav-height: 64px;
 }
 
 /* ─── Base Resets ──────────────────────────────────────── */
@@ -106,6 +126,7 @@
 
 html {
   color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -113,6 +134,12 @@ body {
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.3px;
 }
 
 ::selection {
@@ -123,7 +150,7 @@ body {
 /* ─── Typography Utilities ─────────────────────────────── */
 
 .stat-number {
-  font-family: var(--font-geist-mono), "SF Mono", "Fira Code", monospace;
+  font-family: var(--font-mono);
   font-weight: 700;
   font-size: 28px;
   line-height: 1.1;
@@ -132,7 +159,7 @@ body {
 }
 
 .stat-small {
-  font-family: var(--font-geist-mono), "SF Mono", "Fira Code", monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
   font-size: 16px;
   line-height: 1.2;
@@ -140,7 +167,7 @@ body {
 }
 
 .stat-inline {
-  font-family: var(--font-geist-mono), "SF Mono", "Fira Code", monospace;
+  font-family: var(--font-mono);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
@@ -188,7 +215,7 @@ body {
 }
 
 .glow-kill {
-  box-shadow: 0 0 30px rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 30px rgba(255, 77, 106, 0.45);
 }
 
 /* ─── Animations ───────────────────────────────────────── */
@@ -235,8 +262,8 @@ body {
 }
 
 @keyframes pulse-gold {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
-  50% { box-shadow: 0 0 6px 2px rgba(251, 191, 36, 0.3); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 194, 61, 0); }
+  50% { box-shadow: 0 0 6px 2px rgba(255, 194, 61, 0.3); }
 }
 
 .animate-pulse-gold {
@@ -289,4 +316,49 @@ body {
 .replay-scrubber:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+/* ─── Violet Lime extras ───────────────────────────────── */
+
+.label-overline {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.glow-lime {
+  box-shadow: 0 0 24px var(--accent-2-glow);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slide-up 200ms ease-out;
+}
+
+@keyframes progress-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+.animate-progress-indeterminate {
+  animation: progress-indeterminate 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

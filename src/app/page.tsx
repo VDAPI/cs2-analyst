@@ -16,8 +16,8 @@ export default function HomePage() {
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6">
       {/* Subtle gradient mesh background */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-1/2 left-1/4 h-[800px] w-[800px] rounded-full bg-[rgba(59,130,246,0.04)] blur-[120px]" />
-        <div className="absolute -bottom-1/2 right-1/4 h-[600px] w-[600px] rounded-full bg-[rgba(251,191,36,0.03)] blur-[100px]" />
+        <div className="absolute -top-1/2 left-1/4 h-[800px] w-[800px] rounded-full bg-[rgba(155,107,255,0.04)] blur-[120px]" />
+        <div className="absolute -bottom-1/2 right-1/4 h-[600px] w-[600px] rounded-full bg-[rgba(255,194,61,0.03)] blur-[100px]" />
       </div>
 
       {/* Hero */}
@@ -44,7 +44,7 @@ export default function HomePage() {
         <div className="mt-12 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
           <Link
             href="/register"
-            className="inline-flex h-12 items-center justify-center rounded-lg bg-[var(--accent)] px-8 text-sm font-medium text-white transition-all duration-150 hover:bg-[var(--accent-hover)] hover:shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+            className="inline-flex h-12 items-center justify-center rounded-lg bg-[var(--accent-2)] px-8 text-sm font-semibold text-[var(--on-accent)] transition-all duration-150 hover:bg-[var(--accent-2-hover)] hover:shadow-[0_0_24px_var(--accent-2-glow)]"
           >
             Get Started
           </Link>
@@ -69,9 +69,9 @@ export default function HomePage() {
             return (
               <div
                 key={f.title}
-                className="group rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-6 transition-all duration-150 hover:border-[var(--border-hover)] hover:shadow-[0_0_30px_rgba(59,130,246,0.06)]"
+                className="group rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-6 transition-all duration-150 hover:border-[var(--border-hover)] hover:shadow-[0_0_30px_rgba(155,107,255,0.06)]"
               >
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent-muted)] transition-colors duration-150 group-hover:bg-[rgba(59,130,246,0.2)]">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent-muted)] transition-colors duration-150 group-hover:bg-[rgba(155,107,255,0.2)]">
                   <Icon className="h-5 w-5 text-[var(--accent)]" />
                 </div>
                 <h3 className="text-base font-semibold text-[var(--text-primary)]">

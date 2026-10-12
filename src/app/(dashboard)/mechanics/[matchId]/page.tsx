@@ -32,9 +32,9 @@ const fmtPct = (v: number | null) => (v == null ? "–" : `${v.toFixed(0)}%`);
 /** Share of engagement first shots fired while moving: lower is better. */
 function movingTone(v: number | null): string {
   if (v == null) return "text-[var(--text-tertiary)]";
-  if (v <= 10) return "text-[var(--success)]";
+  if (v <= 10) return "text-[var(--good)]";
   if (v <= 25) return "text-[var(--warning)]";
-  return "text-[var(--error)]";
+  return "text-[var(--mistake)]";
 }
 
 function fmtRoundTime(s: number): string {
@@ -91,41 +91,41 @@ export default async function MechanicsPage({ params, searchParams }: Props) {
         className="inline-flex items-center gap-1.5 text-sm text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]"
       >
         <ArrowLeft className="h-4 w-4" />
-        Back to match
+        Wróć do meczu
       </Link>
 
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
-          Movement &amp; counter-strafe
+          Ruch przy strzale
         </h1>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
           {mapDisplayName(match.map)} <span className="font-mono">{match.scoreCT}:{match.scoreT}</span>
-          {" — "}was the player still when the duel&apos;s first bullet left the gun?
+          {" — "}czy gracz stał, gdy padła pierwsza kula w pojedynku?
         </p>
       </div>
 
       {rows.length === 0 ? (
         <Card className="p-6 text-sm text-[var(--text-secondary)]">
-          No shot data for this match yet. It appears once the replay data is stored (re-upload
-          the demo if this match was analysed before replay data existed).
+          Brak danych o strzałach dla tego meczu. Pojawią się, gdy zapiszą się dane replaya
+          (wgraj demo ponownie, jeśli mecz był analizowany wcześniej).
         </Card>
       ) : (
         <>
           <Card className="overflow-hidden p-0">
             <div className="px-4 py-3 sm:px-5">
-              <h2 className="text-sm font-semibold text-[var(--text-primary)]">All players</h2>
-              <p className="text-xs text-[var(--text-tertiary)]">Tap a player for weapons and moments.</p>
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">Wszyscy gracze</h2>
+              <p className="text-xs text-[var(--text-tertiary)]">Dotknij gracza, żeby zobaczyć bronie i momenty.</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-t border-[var(--border)] text-left text-xs font-medium uppercase text-[var(--text-tertiary)]">
-                    <th className="px-4 py-2.5 sm:px-5">Player</th>
-                    <th className="px-3 py-2.5 text-center" title="First shots of duels fired while moving">Moving 1st</th>
-                    <th className="px-3 py-2.5 text-center" title="Spray shots fired while moving">Moving spray</th>
-                    <th className="px-3 py-2.5 text-center" title="Average counter-strafe time">Strafe</th>
-                    <th className="px-3 py-2.5 text-center" title="First-bullet hit rate in duels">1st hit</th>
-                    <th className="px-3 py-2.5 text-center" title="Headshot share of hits">HS</th>
+                    <th className="px-4 py-2.5 sm:px-5">Gracz</th>
+                    <th className="px-3 py-2.5 text-center" title="Pierwsze strzały pojedynków oddane w ruchu">1. w ruchu</th>
+                    <th className="px-3 py-2.5 text-center" title="Strzały w serii oddane w ruchu">Seria w ruchu</th>
+                    <th className="px-3 py-2.5 text-center" title="Średni czas counter-strafe">Strafe</th>
+                    <th className="px-3 py-2.5 text-center" title="Celność pierwszej kuli w pojedynkach">1. kula</th>
+                    <th className="px-3 py-2.5 text-center" title="Odsetek trafień w głowę">HS</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -175,11 +175,11 @@ export default async function MechanicsPage({ params, searchParams }: Props) {
           {selected && <PlayerDetail matchId={matchId} p={selected} />}
 
           <p className="text-xs text-[var(--text-tertiary)]">
-            A shot counts as moving above 34% of the weapon&apos;s max speed (where CS2 adds movement
-            inaccuracy) or in the air. Duels are bursts where you hit an enemy or were hit up to 2 s
-            before; spam into nothing is left out. Counter-strafe is the time from running speed
-            (60% of max) to accurate speed, from 4-tick samples, so it is precise to roughly ±20 ms.
-            Scoped AWP/SSG use the unscoped threshold.
+            Strzał jest „w ruchu”, gdy prędkość przekracza 34% maksymalnej prędkości broni (od tego
+            progu CS2 dodaje rozrzut za ruch) albo gracz jest w powietrzu. Pojedynek to seria, w której
+            trafiłeś wroga albo wróg trafił ciebie do 2 s wcześniej; strzały w próżnię są pomijane.
+            Counter-strafe to czas od prędkości biegu (60% maks.) do prędkości celnej, liczony z próbek
+            co 4 ticki, więc dokładność to ok. ±20 ms. AWP i SSG ze scope&apos;em mają próg jak bez scope&apos;a.
           </p>
         </>
       )}
@@ -212,9 +212,9 @@ function PlayerDetail({
 }) {
   const tiles = [
     {
-      label: "Moving first shots",
+      label: "Pierwsze strzały w ruchu",
       value: fmtPct(p.movingFirstPct),
-      sub: `${p.firstShotsMoving} of ${p.firstShots} duels`,
+      sub: `${p.firstShotsMoving} z ${p.firstShots} pojedynków`,
       tone: movingTone(p.movingFirstPct),
     },
     {
@@ -222,20 +222,20 @@ function PlayerDetail({
       value: p.counterStrafeAvgMs == null ? "–" : `${Math.round(p.counterStrafeAvgMs)} ms`,
       sub:
         p.counterStrafeMedianMs == null
-          ? "no stops measured"
-          : `median ${Math.round(p.counterStrafeMedianMs)} ms · ${p.counterStrafes} stops`,
+          ? "brak zmierzonych zatrzymań"
+          : `mediana ${Math.round(p.counterStrafeMedianMs)} ms · ${p.counterStrafes} zatrzymań`,
       tone: "text-[var(--text-primary)]",
     },
     {
-      label: "Shot before stopping",
+      label: "Strzał przed zatrzymaniem",
       value: String(p.shotBeforeStop),
-      sub: "fired while still braking",
+      sub: "strzał w trakcie hamowania",
       tone: p.shotBeforeStop > 0 ? "text-[var(--warning)]" : "text-[var(--text-primary)]",
     },
     {
-      label: "First-bullet hits",
+      label: "Celność 1. kuli",
       value: fmtPct(p.firstAccPct),
-      sub: `HS of hits ${fmtPct(p.hsPct)}`,
+      sub: `HS z trafień ${fmtPct(p.hsPct)}`,
       tone: "text-[var(--text-primary)]",
     },
   ];
@@ -246,7 +246,7 @@ function PlayerDetail({
         <h2 className="text-lg font-semibold text-[var(--text-primary)]">{p.name}</h2>
         <Badge variant={p.team === "CT" ? "ct" : "t"}>{p.team}</Badge>
         <span className="font-mono text-xs text-[var(--text-tertiary)]">
-          {p.shots} shots · {fmtPct(pct(p.movingShots, p.shots))} moving overall
+          {p.shots} strzałów · {fmtPct(pct(p.movingShots, p.shots))} w ruchu łącznie
         </span>
       </div>
 
@@ -262,18 +262,18 @@ function PlayerDetail({
 
       <Card className="overflow-hidden p-0">
         <div className="px-4 py-3 sm:px-5">
-          <h3 className="text-sm font-semibold text-[var(--text-primary)]">Per weapon</h3>
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">Według broni</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-t border-[var(--border)] text-left text-xs font-medium uppercase text-[var(--text-tertiary)]">
-                <th className="px-4 py-2.5 sm:px-5">Weapon</th>
-                <th className="px-3 py-2.5 text-center">Shots</th>
-                <th className="px-3 py-2.5 text-center">Moving</th>
-                <th className="px-3 py-2.5 text-center">Moving 1st</th>
-                <th className="px-3 py-2.5 text-center">1st hit</th>
-                <th className="px-3 py-2.5 text-center">Hit</th>
+                <th className="px-4 py-2.5 sm:px-5">Broń</th>
+                <th className="px-3 py-2.5 text-center">Strzały</th>
+                <th className="px-3 py-2.5 text-center">W ruchu</th>
+                <th className="px-3 py-2.5 text-center">1. w ruchu</th>
+                <th className="px-3 py-2.5 text-center">1. kula</th>
+                <th className="px-3 py-2.5 text-center">Celność</th>
                 <th className="px-3 py-2.5 text-center">HS</th>
               </tr>
             </thead>
@@ -311,11 +311,11 @@ function PlayerDetail({
 
       <div>
         <h3 className="mb-2 text-sm font-semibold text-[var(--text-primary)]">
-          Duels opened while moving <span className="font-mono text-[var(--text-tertiary)]">({p.momentRows.length})</span>
+          Pojedynki zaczęte w ruchu <span className="font-mono text-[var(--text-tertiary)]">({p.momentRows.length})</span>
         </h3>
         {p.momentRows.length === 0 ? (
           <Card className="p-4 text-sm text-[var(--text-secondary)]">
-            Every duel opened standing still. Nice.
+            Każdy pojedynek zaczęty w miejscu. Tak trzymaj.
           </Card>
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -334,15 +334,15 @@ function PlayerDetail({
                     {weaponLabel(m.weapon)}
                   </p>
                   <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-                    <span className="font-mono text-[var(--error)]">{m.speed}</span>
+                    <span className="font-mono text-[var(--mistake)]">{m.speed}</span>
                     <span className="font-mono"> / {m.threshold} u/s</span>
-                    {m.airborne && " · in the air"}
+                    {m.airborne && " · w powietrzu"}
                     {m.strafeMs != null && m.strafeMs > 0 && (
-                      <span className="font-mono"> · {m.strafeMs} ms into the stop</span>
+                      <span className="font-mono"> · {m.strafeMs} ms hamowania</span>
                     )}
                     {" · "}
-                    <span className={m.hit ? "text-[var(--success)]" : "text-[var(--text-tertiary)]"}>
-                      {m.hit ? "hit" : "miss"}
+                    <span className={m.hit ? "text-[var(--good)]" : "text-[var(--text-tertiary)]"}>
+                      {m.hit ? "trafienie" : "pudło"}
                     </span>
                   </p>
                 </div>

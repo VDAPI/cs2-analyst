@@ -59,7 +59,7 @@ export default async function HeatmapsListPage() {
             </p>
             <Link
               href="/upload"
-              className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--accent)] px-5 text-sm font-medium text-white transition-all hover:bg-[var(--accent-hover)]"
+              className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--accent)] px-5 text-sm font-medium text-[var(--on-accent)] transition-all hover:bg-[var(--accent-hover)]"
             >
               Upload Demo
             </Link>
@@ -73,7 +73,7 @@ export default async function HeatmapsListPage() {
               const config = getMapConfig(mapRaw);
               return (
                 <Link key={mapRaw} href={`/heatmaps/map/${mapRaw}`}>
-                  <Card className="group relative overflow-hidden p-0 transition-all duration-150 hover:border-[var(--border-hover)] hover:shadow-[0_0_30px_rgba(239,68,68,0.06)]">
+                  <Card className="group relative overflow-hidden p-0 transition-all duration-150 hover:border-[var(--border-hover)] hover:shadow-[0_0_30px_rgba(255,77,106,0.06)]">
                     <div
                       className="h-36 w-full bg-cover bg-center"
                       style={{
