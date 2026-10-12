@@ -30,5 +30,9 @@ export const config = {
     "/premier/:path*",
     "/admin/:path*",
     "/progress/:path*",
+    "/report/:path*",
+    "/scouting/:path*",
+    "/lineups/:path*",
+    "/pro/:path*",
   ],
 };

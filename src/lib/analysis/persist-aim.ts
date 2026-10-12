@@ -53,9 +53,12 @@ export async function computeAndPersistAim(prisma: PrismaClient, matchId: string
 
   const results = analyzeAim(input);
 
-  await prisma.$transaction([
-    prisma.aimStats.deleteMany({ where: { matchId } }),
-    prisma.aimStats.createMany({
+  // Serialised per match (like findings): two first views after a version
+  // bump would otherwise interleave delete+insert and hit @@unique([matchId, steamId]).
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`aim:${matchId}`}))`;
+    await tx.aimStats.deleteMany({ where: { matchId } });
+    await tx.aimStats.createMany({
       data: results.map(({ peekTypes, moments, ...rest }) => ({
         ...rest,
         matchId,
@@ -63,8 +66,8 @@ export async function computeAndPersistAim(prisma: PrismaClient, matchId: string
         peekTypes: peekTypes as unknown as object,
         moments: moments as unknown as object,
       })),
-    }),
-  ]);
+    });
+  });
   return results.length;
 }
 

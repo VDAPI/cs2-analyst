@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { ownMatchWhere } from "@/lib/sharing/access";
 import { notFound } from "next/navigation";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { getMapConfig } from "@/lib/utils/maps";
@@ -11,8 +12,12 @@ interface Props {
 export default async function HeatmapPage({ params }: Props) {
   const { matchId } = await params;
 
-  const match = await prisma.match.findUnique({
-    where: { id: matchId },
+  // The uploader's own match only (the heatmap API is owner-only too).
+  const where = await ownMatchWhere(matchId);
+  if (!where) notFound();
+
+  const match = await prisma.match.findFirst({
+    where,
     select: {
       id: true,
       map: true,

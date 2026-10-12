@@ -11,6 +11,7 @@
  * 4. PL and EN dictionaries have exactly the same keys; resolveLocale(),
  *    translate() and pluralForm().
  * 5. notificationView() renders "analysis ready / failed" in both languages.
+ * 6. isAllowedPushEndpoint() only lets the browsers' push services through.
  *
  * No database, demo file or network needed.
  */
@@ -28,6 +29,7 @@ import { en } from "@/lib/i18n/messages/en";
 import { resolveLocale } from "@/lib/i18n/config";
 import { createT, pluralForm, translate } from "@/lib/i18n/translate";
 import { notificationView } from "@/lib/notifications/text";
+import { isAllowedPushEndpoint } from "@/lib/notifications/push-endpoint";
 
 const checks: [string, boolean][] = [];
 const check = (label: string, ok: boolean) => checks.push([label, ok]);
@@ -145,6 +147,20 @@ async function main() {
   check("failed EN body", failed.title === "Analysis failed" && failed.body === "pug.dem: Corrupt demo");
   const unknown = notificationView(createT("en"), { type: "ANALYSIS_DONE", matchId: null, data: {} });
   check("no map or file → generic label, library link", unknown.body.startsWith("Your match") && unknown.url === "/library");
+
+  // ─── 6. Push endpoints (no SSRF) ───────────────────────
+  check("FCM endpoint allowed", isAllowedPushEndpoint("https://fcm.googleapis.com/fcm/send/abc"));
+  check("Mozilla endpoint allowed", isAllowedPushEndpoint("https://updates.push.services.mozilla.com/wpush/v2/abc"));
+  check("Windows endpoint allowed", isAllowedPushEndpoint("https://wns2-db5p.notify.windows.com/w/?token=abc"));
+  check("Apple endpoint allowed", isAllowedPushEndpoint("https://web.push.apple.com/abc"));
+  check("internal IP rejected", !isAllowedPushEndpoint("https://10.0.0.5/admin"));
+  check("IPv6 literal rejected", !isAllowedPushEndpoint("https://[::1]/x"));
+  check("custom port rejected", !isAllowedPushEndpoint("https://fcm.googleapis.com:8443/x"));
+  check("http rejected", !isAllowedPushEndpoint("http://fcm.googleapis.com/x"));
+  check("credentials rejected", !isAllowedPushEndpoint("https://u:p@fcm.googleapis.com/x"));
+  check("lookalike host rejected", !isAllowedPushEndpoint("https://fcm.googleapis.com.evil.example/x"));
+  check("suffix without dot rejected", !isAllowedPushEndpoint("https://evilpush.apple.com/x"));
+  check("garbage rejected", !isAllowedPushEndpoint("not a url"));
 }
 
 main().then(() => {

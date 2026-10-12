@@ -8,8 +8,8 @@ import { InitialsAvatar, PageHeader, StatCard, buttonVariants } from "@/componen
 import { resultFor } from "@/components/match";
 import { BENCHMARKS, weaponDisplayName } from "@/lib/utils/formatters";
 import { detectTradeKills } from "@/lib/utils/tradeKills";
-import { detectClutches } from "@/lib/utils/clutches";
-import { playerSideAtRound } from "@/lib/utils/sideSplit";
+import { detectClutchesBySide } from "@/lib/utils/clutches";
+import { createSideResolver } from "@/lib/utils/sideSplit";
 import { BUY_TYPE_COLORS, type BuyTypeKey } from "@/lib/utils/buyType";
 import { WeaponBarChart, type WeaponStat } from "@/components/charts/weapon-bar-chart";
 import {
@@ -123,6 +123,8 @@ export default async function PlayerDetailPage({ params }: Props) {
               id: true,
               number: true,
               winner: true,
+              ctScore: true,
+              tScore: true,
               kills: {
                 orderBy: { tick: "asc" },
                 select: {
@@ -242,14 +244,18 @@ export default async function PlayerDetailPage({ params }: Props) {
     }
 
     // Clutches
-    const clutches = detectClutches({
+    // MatchPlayer.team is the side the player finished on — resolve the side
+    // played in each round (halves, overtime) before comparing with winners.
+    const sideAt = createSideResolver(match.rounds);
+    const clutches = detectClutchesBySide({
       rounds: match.rounds.map((r) => ({
         id: r.id,
         number: r.number,
         winner: r.winner as "CT" | "T",
         kills: r.kills,
       })),
-      teamBySteamId,
+      finalTeamBySteamId: teamBySteamId,
+      sideAt,
     });
     for (const c of clutches) {
       if (c.clutcherSteamId !== steamId) continue;
@@ -258,8 +264,12 @@ export default async function PlayerDetailPage({ params }: Props) {
     }
 
     // Per-player aggregations from this player's kills only
+    // Enemy kills only: suicides / world deaths and team kills are not frags.
+    const isEnemyKill = (k: { attackerSteamId: string; victimSteamId: string }) =>
+      k.attackerSteamId !== k.victimSteamId &&
+      teamBySteamId.get(k.attackerSteamId) !== teamBySteamId.get(k.victimSteamId);
     const playerKillsThisMatch = allKills.filter(
-      (k) => k.attackerSteamId === steamId
+      (k) => k.attackerSteamId === steamId && isEnemyKill(k)
     );
 
     for (const k of playerKillsThisMatch) {
@@ -283,9 +293,9 @@ export default async function PlayerDetailPage({ params }: Props) {
       ?.team as "CT" | "T" | undefined;
     if (playerMatchTeam) {
       for (const round of match.rounds) {
-        const side = playerSideAtRound(playerMatchTeam, round.number);
+        const side = sideAt(playerMatchTeam, round.number);
         for (const k of round.kills) {
-          if (k.attackerSteamId === steamId) {
+          if (k.attackerSteamId === steamId && isEnemyKill(k)) {
             sideStats[side].kills++;
             if (k.headshot) sideStats[side].headshots++;
           }
@@ -309,7 +319,7 @@ export default async function PlayerDetailPage({ params }: Props) {
         const playerRP = round.players.find((rp) => rp.steamId === steamId);
         if (!playerRP) continue;
 
-        const side = playerSideAtRound(playerMatchTeam, round.number);
+        const side = sideAt(playerMatchTeam, round.number);
         const won = round.winner === side;
 
         const bucket: keyof typeof buyTypeStats | null = (() => {
@@ -329,7 +339,7 @@ export default async function PlayerDetailPage({ params }: Props) {
         })();
 
         const playerKillsInRound = round.kills.filter(
-          (k) => k.attackerSteamId === steamId
+          (k) => k.attackerSteamId === steamId && isEnemyKill(k)
         );
         const playerDeathsInRound = round.kills.filter(
           (k) => k.victimSteamId === steamId

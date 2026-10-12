@@ -25,7 +25,7 @@
 import { normalizeWeapon, WEAPON_MAX_SPEED } from "./movement";
 
 /** Bump when the analysis changes, so stored stats are recomputed. */
-export const AIM_VERSION = 2;
+export const AIM_VERSION = 3;
 
 // ─── Tunables ────────────────────────────────────────────
 
@@ -47,6 +47,8 @@ export const CROSSHAIR_BAD_DEG = 15;
 const REACT_MIN_DEG = 1.5;
 /** Ignore reactions / time to damage beyond these (player engaged someone else first). */
 const REACTION_MAX_S = 1.5;
+/** Faster than this is anticipation (sound, info) or spotting lag, not a reaction. */
+const REACTION_MIN_MS = 100;
 const TTD_MAX_S = 3;
 /** Error before the hit at or below which the shot was pre-aimed. */
 export const PREAIM_DEG = 4;
@@ -508,13 +510,16 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
       fightTicks.set(id, l);
     }
   }
+  // Duels are gunfights: grenade, molotov and knife damage neither opens nor
+  // extends one (it still counts as damage taken / a fight above).
+  const gunDamage = enemyDamage.filter((d) => normalizeWeapon(d.weapon) != null);
   const anyIn = (ticks: number[] | undefined, from: number, to: number) =>
     !!ticks && ticks.some((t) => t >= from && t <= to);
 
   // ── Duels ──
   const duels: Duel[] = [];
   const open = new Map<string, Duel>();
-  for (const d of enemyDamage) {
+  for (const d of gunDamage) {
     const [a, b] = [d.attackerSteamId, d.victimSteamId].sort();
     const key = `${d.roundNumber}:${a}:${b}`;
     const cur = open.get(key);
@@ -597,11 +602,29 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
         (s) => s.roundNumber === duel.round && s.tick >= spotTick && s.tick <= duel.end + HIT_WINDOW_TICKS
       );
       const firstShot = pShots[0];
-      const firstDmg = enemyDamage.find(
-        (d) => d.roundNumber === duel.round && d.attackerSteamId === pId && d.victimSteamId === eId && d.tick >= spotTick
+      // P's first gun hit on E inside this duel (never a later duel's hit).
+      const firstDmg = gunDamage.find(
+        (d) =>
+          d.roundNumber === duel.round &&
+          d.attackerSteamId === pId &&
+          d.victimSteamId === eId &&
+          d.tick >= Math.max(spotTick, duel.start) &&
+          d.tick <= duel.end
       );
 
-      // Reaction: first swing toward the enemy, or the first shot.
+      // Reaction: first swing toward the enemy, or the first shot. A player who
+      // was already turning toward the enemy at first sight reacted to
+      // something earlier (sound, info): the onset is unknown, no sample.
+      let alreadyTurning = false;
+      if (first > 0) {
+        const pPrev = r.index[first - 1].get(pId);
+        const ePrev = r.index[first - 1].get(eId);
+        if (pPrev && ePrev) {
+          const turned = angleBetween(pPrev.yaw, pPrev.pitch, P0.yaw, P0.pitch);
+          const closer = aimError(pPrev, ePrev).total - err0.total;
+          alreadyTurning = turned >= REACT_MIN_DEG && closer >= REACT_MIN_DEG;
+        }
+      }
       let swingTick: number | null = null;
       for (let k = first + 1; k < r.frames.length && r.frames[k].tick <= spotTick + s2t(REACTION_MAX_S); k++) {
         const pPrev = r.index[k - 1].get(pId);
@@ -612,14 +635,16 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
         const turned = angleBetween(pPrev.yaw, pPrev.pitch, pCur.yaw, pCur.pitch);
         const closer = aimError(pPrev, ePrev).total - aimError(pCur, eCur).total;
         if (turned >= REACT_MIN_DEG && closer >= REACT_MIN_DEG) {
-          swingTick = r.frames[k - 1].tick;
+          // The first frame where the swing is observed.
+          swingTick = r.frames[k].tick;
           break;
         }
       }
       const shotTick = firstShot && firstShot.tick - spotTick <= s2t(REACTION_MAX_S) ? firstShot.tick : null;
       const reactTick = swingTick != null && shotTick != null ? Math.min(swingTick, shotTick) : swingTick ?? shotTick;
-      if (onsetKnown && reactTick != null) {
-        const ms = ((reactTick - spotTick) / tickRate) * 1000;
+      const reactMs = reactTick != null ? ((reactTick - spotTick) / tickRate) * 1000 : null;
+      if (onsetKnown && !alreadyTurning && reactMs != null && reactMs >= REACTION_MIN_MS) {
+        const ms = reactMs;
         push(reactions, pId, ms);
         if (ms > 450 && lost) {
           addMoment(pId, {

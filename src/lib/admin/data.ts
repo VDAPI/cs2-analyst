@@ -41,7 +41,12 @@ export async function getAdminOverview(now: Date = new Date()): Promise<AdminOve
     prisma.user.count({ where: { createdAt: { gte: since7 } } }),
     prisma.user.count({ where: { role: "ADMIN" } }),
     prisma.demoUpload.findMany({
-      where: { createdAt: { gte: since30 } },
+      // Uploads cancelled before they finished keep their in-flight status
+      // forever; leave them out (finished analyses deleted later still count).
+      where: {
+        createdAt: { gte: since30 },
+        OR: [{ deletedAt: null }, { status: { notIn: IN_FLIGHT } }],
+      },
       select: { createdAt: true, status: true, parseMs: true },
     }),
     prisma.demoUpload.count({ where: stuckWhere(now) }),
@@ -80,7 +85,7 @@ export interface AdminUploadRow {
   matchId: string | null;
   parseMs: number | null;
   retries: number;
-  /** The .dem is still stored, or FACEIT can download it again. */
+  /** The .dem is still stored, or FACEIT / Valve's replay link can download it again. */
   retryable: boolean;
   createdAt: string;
   updatedAt: string;
@@ -106,6 +111,7 @@ export async function getAdminUploads(
     include: {
       user: { select: { id: true, email: true, name: true, faceitNickname: true } },
       match: { select: { map: true } },
+      steamMatch: { select: { demoUrl: true, userId: true } },
     },
   });
 
@@ -121,7 +127,11 @@ export async function getAdminUploads(
     matchId: u.matchId,
     parseMs: u.parseMs,
     retries: u.retries,
-    retryable: Boolean(u.fileUrl && !u.demoDeletedAt) || Boolean(u.faceitMatchId && faceitDownloads),
+    // Same paths as retryUpload().
+    retryable:
+      Boolean(u.fileUrl && !u.demoDeletedAt) ||
+      Boolean(u.faceitMatchId && faceitDownloads) ||
+      Boolean(u.steamMatch?.demoUrl && u.steamMatch.userId === u.userId),
     createdAt: u.createdAt.toISOString(),
     updatedAt: u.updatedAt.toISOString(),
     user: {

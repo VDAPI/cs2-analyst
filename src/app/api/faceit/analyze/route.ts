@@ -3,12 +3,13 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { allowedBatch, getPlanUsage } from "@/lib/limits";
+import { allowedBatch, keepDemoSlotsLeft, withUploadSlots } from "@/lib/limits";
 import {
   activeUploadId,
-  enqueueFaceitDownload,
+  createFaceitUpload,
   faceitDownloadsEnabled,
   FACEIT_UPLOAD_INCLUDE,
+  queueFaceitDownload,
 } from "@/lib/faceit/analyze";
 
 const bodySchema = z.object({
@@ -66,14 +67,42 @@ export async function POST(req: Request) {
     });
   }
 
-  const usage = await getPlanUsage(userId);
-  const n = allowedBatch(todo.length, usage.remaining, usage.limits.batchSize);
+  // Count, re-check and create the upload rows as one step per user, so
+  // parallel requests can't all take the same free slots or the same match.
+  const created = await withUploadSlots(userId, async (tx, usage) => {
+    // Another request may have claimed some of these since we read them.
+    const fresh = await tx.faceitMatch.findMany({
+      where: { id: { in: todo.map((m) => m.id) }, userId },
+      include: FACEIT_UPLOAD_INCLUDE,
+    });
+    const freshById = new Map(fresh.map((m) => [m.id, m]));
+    const free: typeof todo = [];
+    for (const m of todo) {
+      const f = freshById.get(m.id);
+      if (!f) skipped.push({ id: m.id, reason: "not_found" });
+      else if (activeUploadId(f)) skipped.push({ id: m.id, reason: "already_analyzed" });
+      else free.push(f);
+    }
+
+    const n = allowedBatch(free.length, usage.remaining, usage.limits.batchSize);
+    // "Keep demo" only for as many as the plan's cap still allows.
+    let keepSlots = parsed.data.keepDemo ? keepDemoSlotsLeft(usage) : 0;
+    const rows: { id: string; faceitMatchId: string; uploadId: string }[] = [];
+    for (const m of free.slice(0, n)) {
+      const keep = keepSlots > 0;
+      if (keep) keepSlots--;
+      const uploadId = await createFaceitUpload(tx, userId, m, keep);
+      rows.push({ id: m.id, faceitMatchId: m.faceitMatchId, uploadId });
+    }
+    for (const m of free.slice(n)) skipped.push({ id: m.id, reason: "limit" });
+    return rows;
+  });
+
   const queued: { id: string; uploadId: string }[] = [];
-  for (const m of todo.slice(0, n)) {
-    const uploadId = await enqueueFaceitDownload(userId, m, parsed.data.keepDemo ?? false);
-    queued.push({ id: m.id, uploadId });
+  for (const r of created) {
+    await queueFaceitDownload(r.uploadId, r.faceitMatchId, userId);
+    queued.push({ id: r.id, uploadId: r.uploadId });
   }
-  for (const m of todo.slice(n)) skipped.push({ id: m.id, reason: "limit" });
 
   return NextResponse.json({ mode: "queued", queued, skipped });
 }

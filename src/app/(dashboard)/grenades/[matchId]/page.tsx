@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { getMapConfig } from "@/lib/utils/maps";
+import { teamASidesFromScores } from "@/lib/utils/sideSplit";
 import { GrenadeViewer } from "./grenade-viewer";
 
 interface Props {
@@ -26,7 +27,7 @@ export default async function GrenadeAnalysisPage({ params }: Props) {
         select: { steamId: true, name: true, team: true },
       },
       rounds: {
-        select: { number: true },
+        select: { number: true, winner: true, ctScore: true, tScore: true },
         orderBy: { number: "asc" },
       },
     },
@@ -57,6 +58,7 @@ export default async function GrenadeAnalysisPage({ params }: Props) {
       totalRounds={match.rounds.length}
       scoreCT={match.scoreCT}
       scoreT={match.scoreT}
+      teamASideByRound={Object.fromEntries(teamASidesFromScores(match.rounds))}
     />
   );
 }

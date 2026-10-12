@@ -74,8 +74,12 @@ function aggregateStats(entries: MatchEntry[]) {
     totalFlashAssists += e.flashAssists;
     totalFk += e.firstKills;
     totalFd += e.firstDeaths;
-    totalClutchWins += e.clutchWins;
-    totalClutchAttempts += e.clutchAttempts;
+    // Matches parsed before clutch attempts were stored have wins but 0
+    // attempts — leave them out of Clutch% instead of skewing it.
+    if (e.clutchAttempts > 0 || e.clutchWins === 0) {
+      totalClutchWins += e.clutchWins;
+      totalClutchAttempts += e.clutchAttempts;
+    }
   }
 
   const kd = totalDeaths > 0 ? totalKills / totalDeaths : totalKills;
@@ -85,7 +89,7 @@ function aggregateStats(entries: MatchEntry[]) {
   const clutchPct =
     totalClutchAttempts > 0
       ? (totalClutchWins / totalClutchAttempts) * 100
-      : 0;
+      : null;
   const fkPerMatch = totalFk / n;
 
   return {
@@ -282,10 +286,10 @@ export default async function ComparisonPage({ params }: Props) {
     },
     {
       stat: "Clutch%",
-      player1: normalizeStat("clutchWinPercent", s1.clutchPct),
-      player2: normalizeStat("clutchWinPercent", s2.clutchPct),
-      raw1: `${s1.clutchPct.toFixed(0)}%`,
-      raw2: `${s2.clutchPct.toFixed(0)}%`,
+      player1: normalizeStat("clutchWinPercent", s1.clutchPct ?? 0),
+      player2: normalizeStat("clutchWinPercent", s2.clutchPct ?? 0),
+      raw1: s1.clutchPct === null ? "—" : `${s1.clutchPct.toFixed(0)}%`,
+      raw2: s2.clutchPct === null ? "—" : `${s2.clutchPct.toFixed(0)}%`,
     },
     {
       stat: "Entry/mecz",

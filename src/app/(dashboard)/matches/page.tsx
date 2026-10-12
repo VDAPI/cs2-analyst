@@ -36,7 +36,7 @@ export default async function MatchesPage() {
           rounds: {
             select: {
               number: true,
-              kills: { select: { attackerSteamId: true, attackerName: true } },
+              kills: { select: { attackerSteamId: true, attackerName: true, victimSteamId: true } },
             },
           },
         },
@@ -169,6 +169,8 @@ export default async function MatchesPage() {
             for (const round of match.rounds) {
               const killCounts = new Map<string, { name: string; count: number }>();
               for (const kill of round.kills) {
+                // Suicides / world deaths are not frags
+                if (kill.attackerSteamId === kill.victimSteamId) continue;
                 const existing = killCounts.get(kill.attackerSteamId);
                 if (existing) existing.count++;
                 else killCounts.set(kill.attackerSteamId, { name: kill.attackerName, count: 1 });

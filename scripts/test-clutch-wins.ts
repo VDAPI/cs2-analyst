@@ -14,7 +14,7 @@
  *
  * No demo file required — both functions are pure.
  */
-import { computeClutchWins, computeAssistCounts } from "@/lib/parsers/demo-parser";
+import { computeClutchWins, computeClutchStats, computeAssistCounts } from "@/lib/parsers/demo-parser";
 
 const checks: [string, boolean][] = [];
 const check = (label: string, ok: boolean) => checks.push([label, ok]);
@@ -31,7 +31,11 @@ const playerRoster = new Map<string, { team: "CT" | "T" }>([
   ["p4", { team: "T" }],
 ]);
 
-const HALFTIME_TICK = 5000;
+// teamA (finished on CT: p1/p2) played T in round 1 and CT in round 13.
+const teamASideByRound = new Map<number, "CT" | "T">([
+  [1, "T"],
+  [13, "CT"],
+]);
 
 const rounds = [
   // First half: p3/p4 play CT here. p1 kills p3 → p4 alone vs p1+p2 → 1v2.
@@ -49,7 +53,7 @@ const clutchWins = computeClutchWins({
   rounds,
   kills: clutchKills,
   playerRoster,
-  halftimeTick: HALFTIME_TICK,
+  teamASideByRound,
 });
 
 console.log("clutchWins:", Object.fromEntries(clutchWins));
@@ -70,12 +74,29 @@ const naive = computeClutchWins({
   rounds,
   kills: clutchKills,
   playerRoster,
-  halftimeTick: -Infinity,
+  teamASideByRound: new Map([
+    [1, "CT"],
+    [13, "CT"],
+  ]),
 });
 check(
   "control: roster-verbatim sides drop the first-half clutch",
   (naive.get("p4") ?? 0) === 0
 );
+
+// Attempts count every clutch, won or lost (compare page Clutch%).
+const stats = computeClutchStats({ rounds, kills: clutchKills, playerRoster, teamASideByRound });
+check("attempts recorded for the winner (p4 = 1/1)", stats.get("p4")?.attempts === 1 && stats.get("p4")?.wins === 1);
+
+// Overtime: round 28 is the second half of OT1, teamA back on its first-half
+// side. A rule keyed on "round > 12 = final side" inverts it.
+const otStats = computeClutchStats({
+  rounds: [{ number: 28, winner: "T" as const }],
+  kills: [{ tick: 30, roundNumber: 28, attackerSteamId: "p1", victimSteamId: "p3" }],
+  playerRoster,
+  teamASideByRound: new Map([[28, "T"]]),
+});
+check("OT round: p4 (CT there) left alone and loses", otStats.get("p4")?.attempts === 1 && otStats.get("p4")?.wins === 0);
 
 // ─── 2. Assists and flashAssists are disjoint ────────────
 
