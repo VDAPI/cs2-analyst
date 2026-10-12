@@ -81,3 +81,7 @@ jobs:
       - name: Utility and lineups regression tests
         if: ${{ !cancelled() }}
         run: npm run test:utility
+
+      - name: Admin panel metrics regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:admin

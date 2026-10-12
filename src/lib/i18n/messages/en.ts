@@ -43,6 +43,7 @@ export const en: Messages = {
     pro: "Pro",
     team: "Team",
     settings: "Settings",
+    admin: "Admin panel",
     more: "More",
     mainNav: "Main navigation",
     bottomNav: "Bottom navigation",

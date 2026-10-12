@@ -16,6 +16,7 @@ import {
   Binoculars,
   ClipboardCheck,
   Target,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 import type { MessageKey } from "@/lib/i18n/translate";
@@ -73,6 +74,9 @@ export const navGroups: NavGroup[] = [
 ];
 
 export const settingsItem: NavItem = { href: "/settings", labelKey: "nav.settings", icon: Settings };
+
+/** Shown next to Settings for admins only (S27). */
+export const adminItem: NavItem = { href: "/admin", labelKey: "nav.admin", icon: ShieldCheck };
 
 /** The four destinations pinned to the mobile bottom bar; the rest live under "Więcej". */
 export const mobilePrimaryHrefs = ["/matches", "/report", "/upload", "/replay"];

@@ -7,13 +7,13 @@ import { cn } from "@/lib/utils/cn";
 import { Logo } from "./logo";
 import { NavGroups } from "./nav-groups";
 import { NavLink } from "./nav-link";
-import { settingsItem, isActivePath } from "./nav-items";
+import { adminItem, settingsItem, isActivePath } from "./nav-items";
 import { useT } from "@/lib/i18n/client";
 
 const STORAGE_KEY = "cs2a:sidebar-collapsed";
 
 /** Desktop sidebar (≥1024px). Below that the top bar drawer and mobile bottom bar take over. */
-export function Sidebar() {
+export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
   const t = useT();
   const [collapsed, setCollapsed] = useState(false);
@@ -59,6 +59,9 @@ export function Sidebar() {
       </nav>
 
       <div className="flex flex-col gap-0.5 border-t border-[var(--border)] p-3">
+        {isAdmin && (
+          <NavLink item={adminItem} active={isActivePath(pathname, adminItem.href)} collapsed={collapsed} />
+        )}
         <NavLink item={settingsItem} active={isActivePath(pathname, settingsItem.href)} collapsed={collapsed} />
         <button
           type="button"

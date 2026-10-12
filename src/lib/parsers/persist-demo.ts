@@ -40,10 +40,11 @@ export async function parseAndPersistDemo(
       .update({ where: { id: uploadId }, data: { progress: pct } })
       .catch(() => {});
   };
+  const startedAt = Date.now();
   try {
     await prisma.demoUpload.update({
       where: { id: uploadId },
-      data: { status: "PARSING", error: null },
+      data: { status: "PARSING", error: null, parseStartedAt: new Date(startedAt) },
     });
     await onProgress?.(10);
 
@@ -250,7 +251,12 @@ export async function parseAndPersistDemo(
 
     await prisma.demoUpload.update({
       where: { id: uploadId },
-      data: { status: "COMPLETED", matchId: match.id, progress: 100 },
+      data: {
+        status: "COMPLETED",
+        matchId: match.id,
+        progress: 100,
+        parseMs: Date.now() - startedAt,
+      },
     });
     await onProgress?.(100);
 
