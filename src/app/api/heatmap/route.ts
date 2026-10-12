@@ -98,6 +98,8 @@ export async function GET(req: Request) {
 
   for (const k of kills) {
     const roundNum = k.round.number;
+    // Suicides / world deaths (attacker = victim) are not kills.
+    if (type === "kills" && k.attackerSteamId === k.victimSteamId) continue;
     if (type === "kills") {
       if (side) {
         const team = getInGameTeam(k.attackerSteamId, roundNum);

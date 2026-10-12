@@ -61,5 +61,5 @@ Y is inverted (posY - gameY). Map configs: `src/lib/utils/maps.ts`. Unknown maps
 5. Dots: kills mistake, deaths `deathGray`, headshot ring lime (`--headshot-gold`)
 
 ## Grenades (`/grenades/[matchId]`)
-- Side filter uses the thrower's side **in that round** (`playerSideAtRound`), not `MatchPlayer.team`.
+- Side filter uses the thrower's side **in that round** (`sideInRound` / `createSideResolver` in `src/lib/utils/sideSplit.ts`, per-round from stored winners + scores), not `MatchPlayer.team`.
 - Tap a landing spot or a list row to select; the selected grenade links to the replay at its tick.

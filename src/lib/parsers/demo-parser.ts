@@ -395,11 +395,11 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
       throughSmoke: bool(k.thrusmoke),
       noScope: bool(k.noscope),
       flashAssisted: bool(k.assistedflash),
-      attackerPos: {
-        x: num(k.attacker_X),
-        y: num(k.attacker_Y),
-        z: num(k.attacker_Z),
-      },
+      // No attacker → no attacker position; use the victim's spot instead of
+      // (0,0,0), which kill heatmaps would draw at the world origin.
+      attackerPos: rawAttackerId
+        ? { x: num(k.attacker_X), y: num(k.attacker_Y), z: num(k.attacker_Z) }
+        : { x: num(k.user_X), y: num(k.user_Y), z: num(k.user_Z) },
       victimPos: {
         x: num(k.user_X),
         y: num(k.user_Y),
@@ -606,7 +606,10 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
         let endTick = tick + HE_DAMAGE_WINDOW_TICKS;
         if (type === "MOLOTOV") {
           const expire = infernoExpireByEntity.get(entityId)?.find((t) => t >= tick);
-          endTick = expire ?? tick + Math.round(header.tickRate * MOLOTOV_FALLBACK_BURN_S);
+          // Capped at the max burn time: entity indices are recycled, so a
+          // missing inferno_expire must not pull in a later fire's expire.
+          const maxEnd = tick + Math.round(header.tickRate * MOLOTOV_FALLBACK_BURN_S);
+          endTick = expire !== undefined ? Math.min(expire, maxEnd) : maxEnd;
         }
         grenadeWindows.push({ index: grenades.length, kind: type, throwerSteamId, startTick: tick, endTick });
       }
@@ -777,7 +780,7 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
 const FLASH_BLIND_TICK_SLACK = 2;
 /** HE damage lands on (or right after) the detonate tick. */
 const HE_DAMAGE_WINDOW_TICKS = 8;
-/** Burn time used when a molotov has no inferno_expire (≈7 s in CS2). */
+/** Max burn time; also used when a molotov has no inferno_expire (≈7 s in CS2). */
 const MOLOTOV_FALLBACK_BURN_S = 7.5;
 
 export interface GrenadeHit {

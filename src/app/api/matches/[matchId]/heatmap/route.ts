@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { createSideResolver } from "@/lib/utils/sideSplit";
 
 interface Props {
   params: Promise<{ matchId: string }>;
@@ -61,19 +62,24 @@ export async function GET(req: Request, { params }: Props) {
   });
 
   // Get player roster for team info
-  // matchPlayer.team is the END-OF-MATCH team (second-half side).
-  // In first half (rounds 1-12), sides are SWAPPED relative to the DB value.
-  const players = await prisma.matchPlayer.findMany({
-    where: { matchId },
-    select: { steamId: true, name: true, team: true },
-  });
-  const dbTeamBySteamId = new Map(players.map((p) => [p.steamId, p.team]));
+  // matchPlayer.team is the side the player FINISHED on; the side in a given
+  // round (halves, overtime, short matches) comes from the stored rounds.
+  const [players, rounds] = await Promise.all([
+    prisma.matchPlayer.findMany({
+      where: { matchId },
+      select: { steamId: true, name: true, team: true },
+    }),
+    prisma.round.findMany({
+      where: { matchId },
+      select: { number: true, winner: true, ctScore: true, tScore: true },
+    }),
+  ]);
+  const dbTeamBySteamId = new Map(players.map((p) => [p.steamId, p.team as "CT" | "T"]));
+  const sideAt = createSideResolver(rounds);
 
-  function getInGameTeam(steamId: string, roundNumber: number): string | undefined {
+  function getInGameTeam(steamId: string, roundNumber: number): "CT" | "T" | undefined {
     const dbTeam = dbTeamBySteamId.get(steamId);
-    if (!dbTeam) return undefined;
-    if (roundNumber <= 12) return dbTeam === "CT" ? "T" : "CT";
-    return dbTeam;
+    return dbTeam ? sideAt(dbTeam, roundNumber) : undefined;
   }
 
   // Build points based on type
@@ -82,6 +88,14 @@ export async function GET(req: Request, { params }: Props) {
   for (const k of kills) {
     const roundNum = k.round.number;
     if (type === "kills") {
+      // Suicides / world deaths and team kills are not kills.
+      if (
+        k.attackerSteamId === k.victimSteamId ||
+        (dbTeamBySteamId.has(k.attackerSteamId) &&
+          dbTeamBySteamId.get(k.attackerSteamId) === dbTeamBySteamId.get(k.victimSteamId))
+      ) {
+        continue;
+      }
       if (side) {
         const team = getInGameTeam(k.attackerSteamId, roundNum);
         if (team !== side) continue;
