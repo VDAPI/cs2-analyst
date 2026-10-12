@@ -155,8 +155,14 @@ export class DiscordGateway {
       this.acked = false;
       this.send({ op: OP.HEARTBEAT, d: this.seq });
     };
-    this.firstBeat = setTimeout(beat, Math.floor(interval * Math.random()));
-    this.heartbeat = setInterval(beat, interval);
+    // First beat after a random share of the interval, then every interval
+    // from there (starting both at HELLO could send two beats ms apart and
+    // take the missing ACK for a dead connection).
+    this.firstBeat = setTimeout(() => {
+      this.firstBeat = null;
+      beat();
+      this.heartbeat = setInterval(beat, interval);
+    }, Math.floor(interval * Math.random()));
   }
 
   private clearHeartbeat(): void {

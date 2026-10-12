@@ -7,7 +7,8 @@
  */
 (function () {
   "use strict";
-  var api = typeof browser !== "undefined" && browser.runtime ? browser : chrome;
+  // chrome.* with callbacks works in Chrome and Firefox (Firefox's browser.* takes promises only).
+  var api = chrome;
   var BUTTON_ID = "cs2a-analyze-button";
   var lastHref = "";
 

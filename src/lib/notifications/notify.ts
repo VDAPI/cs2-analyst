@@ -53,7 +53,10 @@ export async function notifyUploadFinished(prisma: PrismaClient, uploadId: strin
     const view = notificationView(createT(locale), { type, matchId: upload.matchId, data });
     await sendPushToUser(prisma, upload.userId, { ...view, tag: `upload-${uploadId}` });
     // Discord (S26): DM from the bot and/or the player's channel webhook.
-    await notifyDiscord(prisma, upload.userId, { type, matchId: upload.matchId, data });
+    // Not awaited: Discord retries (429, timeouts) must not hold up the worker.
+    void notifyDiscord(prisma, upload.userId, { type, matchId: upload.matchId, data }).catch((err) =>
+      console.error(`[notify] discord failed uploadId=${uploadId}`, err)
+    );
   } catch (err) {
     console.error(`[notify] failed uploadId=${uploadId}`, err);
   }

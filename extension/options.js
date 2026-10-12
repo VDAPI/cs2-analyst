@@ -1,7 +1,8 @@
 /* CS2 Analyst extension (S26): settings page — the app address the button opens. */
 (function () {
   "use strict";
-  var api = typeof browser !== "undefined" && browser.runtime ? browser : chrome;
+  // chrome.* with callbacks works in Chrome and Firefox (Firefox's browser.* takes promises only).
+  var api = chrome;
   var input = document.getElementById("appUrl");
   var status = document.getElementById("status");
   var open = document.getElementById("open");
