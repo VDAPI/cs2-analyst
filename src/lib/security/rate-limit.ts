@@ -39,7 +39,9 @@ export const RATE_RULES = {
    * let them through. Same number as AI_DAILY_LIMIT in src/lib/coach/persist.ts.
    */
   coachAiDaily: { max: 40, windowMs: 24 * HOUR },
-  /** Small writes: notes, goals, shares, settings, push, feedback. */
+  /** Joining a team by invite code (guessing codes). */
+  teamJoin: { max: 20, windowMs: 10 * MIN },
+  /** Small writes: notes, goals, shares, settings, push, feedback, teams. */
   write: { max: 120, windowMs: 10 * MIN },
   avatar: { max: 10, windowMs: 10 * MIN },
   /** Data export (a big query) and account deletion (asks for the password). */

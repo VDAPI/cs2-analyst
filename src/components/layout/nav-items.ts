@@ -76,7 +76,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: "/pro", labelKey: "nav.pro", icon: Trophy },
       { href: "/play-like-pro", labelKey: "nav.playLikePro", icon: Swords },
-      { href: "/team", labelKey: "nav.team", icon: Shield, soon: true },
+      { href: "/team", labelKey: "nav.team", icon: Shield },
     ],
   },
 ];

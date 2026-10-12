@@ -72,7 +72,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Trener AI | Ocena rad (przydatne / nie) i uczenie kolejności rad | ✅ | S15 |
 | Postęp | Trendy metryk w czasie, cele, odznaki | ✅ | S16 |
 | Społeczność | Publiczny profil, udostępnianie raportu | ✅ | S16 |
-| Drużyna | Dashboard drużyny, anti-strat przeciwnika, tablica taktyczna | 🆕 | S17 |
+| Drużyna | Dashboard drużyny, anti-strat przeciwnika, tablica taktyczna | ✅ | S17 |
 | Inne źródła | Premier/Steam (share code lub upload) dla chętnych | ✅ | S18 |
 | Platforma | PWA, powiadomienia „analiza gotowa”, PL/EN | ✅ | S18 |
 | Platforma | Storage R2, limity darmowego planu | 🆕 | S7 |
@@ -187,6 +187,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S12.
 - **Zakres:** drużyny (model `Team` już jest), dashboard drużyny, anti-strat przeciwnika (defaulty, executes, retake), tablica taktyczna z zapisem.
 - **Gotowe, gdy:** drużyna widzi wspólne statystyki i tendencje rywala.
+- **Status:** ✅ zrobione. Ekran `/team` (w menu „Drużyna”): tworzenie drużyny (nazwa, tag), dołączanie linkiem zaproszenia, role właściciel / trener / gracz, do 10 członków i 10 dodatkowych SteamID (gracze bez konta). Dashboard liczy mecze, w których gra razem co najmniej 3 graczy składu (z bibliotek wszystkich członków, ten sam mecz wgrany dwa razy liczy się raz): bilans, rundy CT/T, pistolety, post-plant, retake, otwarcia, trade'y, mapy, gracze (ADR, rating) i najczęstsze błędy drużyny. Rywale: z meczu drużyny („Scoutuj tę drużynę”) albo z listy SteamID; anti-strat z dem, w których gra co najmniej 3 z nich: na T wybór bombsite'u, tempo (szybkie / standard / późne), executes z utility i przykładowymi rundami, defaulty, otwarcia, kupno, lurk; na CT ustawienie A/mid/B po 20 s, stacki, wczesna agresja, utility, retake; pistolety i runda po przegranym pistolecie; role graczy (AWP, entry, lurk, anchor) i do 12 najważniejszych wniosków z linkiem do momentu w replayu 2D. Raport w cache, przeliczany przy zmianie składu, dem albo wersji analizy. Tablica taktyczna: gracze CT/T, smoke/flash/molotov/HE, strzałki (też przerywane), rysowanie, tekst, kroki z opisem i odtwarzaniem, cofnij/ponów, zapis dla drużyny z ochroną przed nadpisaniem, PNG, duplikowanie; „Otwórz na tablicy” przenosi ustawienie rywala na mapę. Członkowie drużyny widzą mecze drużyny i rywali tylko do odczytu (replay bez notatek i udostępniania). Usunięcie konta oddaje drużynę następnemu członkowi. Test: `npm run test:team`.
 
 ### S18. Platforma
 - **Wymaga:** S7.

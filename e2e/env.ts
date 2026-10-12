@@ -41,4 +41,8 @@ export interface SeedState {
   playerSteamId: string;
   opponentSteamId: string;
   teammateSteamId: string;
+  /** The account's team (S17), its scouted rival and a saved tactic board. */
+  teamId: string;
+  rivalId: string;
+  boardId: string;
 }

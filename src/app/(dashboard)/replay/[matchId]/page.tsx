@@ -20,14 +20,16 @@ export default async function ReplayPage({ params, searchParams }: Props) {
   const initialRound = Number(query.round) || 1;
   const initialTick = Number(query.tick) || null;
 
-  // The uploader's own match only: the replay APIs (ticks, kills, bombs)
-  // answer the owner or a share token, and shares open /s/[token] instead.
-  const where = await ownMatchWhere(matchId);
+  // The uploader's own match, or a team / rival match of a teammate (S17,
+  // read-only): the replay APIs (ticks, kills, bombs) answer the owner, a
+  // teammate of such a match or a share token; shares open /s/[token] instead.
+  const where = await ownMatchWhere(matchId, { allowTeam: true });
   if (!where) notFound();
 
   const match = await prisma.match.findFirst({
     where,
     include: {
+      upload: { select: { userId: true } },
       rounds: {
         orderBy: { number: "asc" },
         select: {
@@ -87,6 +89,7 @@ export default async function ReplayPage({ params, searchParams }: Props) {
       initialTick={initialTick}
       initialPlayer={initialPlayer}
       initialFindingId={query.finding ?? null}
+      readOnly={match.upload?.userId !== session?.user?.id}
     />
   );
 }

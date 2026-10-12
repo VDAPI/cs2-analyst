@@ -114,6 +114,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: npm run test:security
 
+      - name: Team (roster, dashboard, anti-strat, tactic board) regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:team
+
       - name: Win probability (features, scoring, impact, pro situations) regression tests
         if: ${{ !cancelled() }}
         run: npm run test:winprob

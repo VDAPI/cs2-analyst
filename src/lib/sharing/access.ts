@@ -3,13 +3,15 @@
  * the uploader, or anyone holding a live share link of that match (S16). A
  * moment link only opens its own round. Route handlers take the token from
  * `?share=`. Pro demos (the pro pool, S13) are readable by every signed-in
- * player: "co zrobiłby pro" shows their rounds as 2D clips (S14).
+ * player: "co zrobiłby pro" shows their rounds as 2D clips (S14). Teammates
+ * read a member's team and rival matches read-only (S17, `teamCanSeeMatch`).
  */
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getAdminUser } from "@/lib/admin/session";
 import type { Prisma } from "@prisma/client";
+import { teamCanSeeMatch } from "@/lib/team/load";
 import { isShareToken } from "./share";
 
 export interface MatchAccess {
@@ -37,6 +39,9 @@ export async function getMatchAccess(req: Request, matchId: string): Promise<Mat
   if (upload.pro && session?.user?.id) {
     return { ownerId: null, round: null, shareId: null, uploaderId: upload.userId };
   }
+  if (session?.user?.id && (await teamCanSeeMatch(prisma, session.user.id, matchId))) {
+    return { ownerId: null, round: null, shareId: null, uploaderId: upload.userId };
+  }
 
   const token = new URL(req.url).searchParams.get("share");
   if (!isShareToken(token)) return null;
@@ -56,15 +61,17 @@ export async function getMatchAccess(req: Request, matchId: string): Promise<Mat
  * in. Share links never open these pages: they have their own public view
  * (/s/[token]) and read replay data through `getMatchAccess`. With
  * `allowAdmin`, an admin may open any match (the admin analyses list links
- * to the match page).
+ * to the match page). With `allowTeam`, a teammate may open a team or rival
+ * match of a team both are in (read-only 2D replay, S17).
  */
 export async function ownMatchWhere(
   matchId: string,
-  opts: { allowAdmin?: boolean } = {}
+  opts: { allowAdmin?: boolean; allowTeam?: boolean } = {}
 ): Promise<Prisma.MatchWhereInput | null> {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return null;
   if (opts.allowAdmin && (await getAdminUser())) return { id: matchId };
+  if (opts.allowTeam && (await teamCanSeeMatch(prisma, session.user.id, matchId))) return { id: matchId };
   return { id: matchId, upload: { userId: session.user.id, deletedAt: null } };
 }
 
