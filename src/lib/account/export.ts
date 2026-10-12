@@ -56,6 +56,8 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     coachFeedback,
     lineupMastery,
     teams,
+    tacticBoards,
+    teamRivals,
   ] = await Promise.all([
     prisma.account.findMany({ where: { userId }, select: { provider: true, providerAccountId: true, type: true } }),
     prisma.demoUpload.findMany({
@@ -97,6 +99,8 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     prisma.coachFeedback.findMany({ where: { userId } }),
     prisma.lineupMastery.findMany({ where: { userId } }),
     prisma.teamMember.findMany({ where: { userId }, include: { team: { select: { id: true, name: true } } } }),
+    prisma.tacticBoard.findMany({ where: { createdById: userId } }),
+    prisma.teamRival.findMany({ where: { createdById: userId }, select: { id: true, teamId: true, name: true, steamIds: true, notes: true, createdAt: true } }),
   ]);
 
   // Findings about the player: in their own uploads, and wherever they
@@ -140,7 +144,9 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
       steamAuthCodeSet: Boolean(steamAuthCode),
     },
     linkedAccounts: accounts,
-    teams: teams.map((t) => ({ team: t.team, role: t.role, joinedAt: t.joinedAt })),
+    teams: teams.map((t) => ({ team: t.team, role: t.role, steamId: t.steamId, joinedAt: t.joinedAt })),
+    tacticBoards,
+    teamRivals,
     uploads,
     playerStats: playerRows,
     findings,

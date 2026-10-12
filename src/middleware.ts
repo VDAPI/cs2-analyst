@@ -70,5 +70,6 @@ export const config = {
     "/training/:path*",
     "/pro/:path*",
     "/coach/:path*",
+    "/team/:path*",
   ],
 };
