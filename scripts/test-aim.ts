@@ -210,6 +210,57 @@ if (a && b && c && d) {
   check("molotov / HE / knife damage opens no duel", !!na && na.duels === 0 && na.crosshairSamples === 0 && na.reactionSamples === 0);
 }
 
+// ─── Reaction edge cases, hits bounded to their duel ─────
+
+{
+  // A stands at the origin, B east of it; both spotted from 400. `offset(t)`
+  // is A's yaw away from B.
+  const duelRound = (offset: (t: number) => number): AimFrame[] => {
+    const frames: AimFrame[] = [];
+    for (let t = 0; t <= 1200; t += 4) {
+      frames.push({
+        tick: t,
+        players: [
+          player(A, "CT", { yaw: offset(t), spottedBy: t >= 400 ? [B] : [] }),
+          player(B, "T", { ...B_POS, yaw: 180, spottedBy: t >= 400 ? [A] : [] }),
+        ],
+      });
+    }
+    return frames;
+  };
+  const run = (frames: AimFrame[], shots: ReturnType<typeof shot>[], damages: ReturnType<typeof dmg>[]) =>
+    analyzeAim({
+      tickRate: TICK_RATE,
+      rounds: [{ number: 1, startTick: 0, frames }],
+      shots,
+      damages,
+      kills: [],
+      flashes: [],
+      reloads: [],
+    }).find((r) => r.steamId === A);
+
+  // Already on B, shoots 4 ticks (62 ms) after first sight: anticipation, no sample.
+  const fast = run(duelRound(() => 0), [shot(1, 404, A)], [dmg(1, 405, A, B)]);
+  check("reaction under 100 ms is dropped", !!fast && fast.duels === 1 && fast.reactionSamples === 0 && fast.ttdSamples === 1);
+
+  // Turning toward B on the frame before first sight, then a swing seen at 424:
+  // the onset of the reaction is unknown, no sample.
+  const turning = run(
+    duelRound((t) => (t <= 392 ? 40 : t <= 396 ? 38 : t < 424 ? 36 : 0)),
+    [shot(1, 440, A)],
+    [dmg(1, 441, A, B)]
+  );
+  check("already turning toward the enemy at first sight → no reaction sample", !!turning && turning.duels === 1 && turning.reactionSamples === 0);
+  // The same swing from a still crosshair is a reaction (control).
+  const still = run(duelRound((t) => (t < 424 ? 36 : 0)), [shot(1, 440, A)], [dmg(1, 441, A, B)]);
+  check("still crosshair, swing seen at 424 → reaction ≈ 375 ms", !!still && still.reactionSamples === 1 && near(still.reactionMedianMs, 375, 2));
+
+  // Two A–B duels in one round more than DUEL_GAP_S apart; A only hits in the
+  // second. The first duel must not borrow that hit (no flick/tracking for it).
+  const two = run(duelRound(() => 0), [shot(1, 900, A)], [dmg(1, 405, B, A), dmg(1, 901, A, B)]);
+  check("two duels, the later hit is classified once", !!two && two.duels === 2 && two.flicks + two.trackings + two.preaims === 1);
+}
+
 // ─── Report ──────────────────────────────────────────────
 
 let failed = 0;
