@@ -71,5 +71,6 @@ export const config = {
     "/pro/:path*",
     "/coach/:path*",
     "/team/:path*",
+    "/play-like-pro/:path*",
   ],
 };

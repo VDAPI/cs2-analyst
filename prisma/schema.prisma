@@ -68,6 +68,9 @@ model User {
   // Public profile (S16): off until the player switches it on in Settings;
   // the slug is the /u/<slug> address.
   publicProfile      Boolean   @default(false)
+  // "Play like a pro" (S24): the pro player (steamId from the pro pool) the
+  // player compares themselves with; null = the pool's busiest player.
+  favoriteProSteamId String?
   publicSlug         String?   @unique
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -928,6 +931,11 @@ model NormSample {
   pro     Boolean // from a pro demo (DemoUpload.pro)
   version String // NORMS_STAMP; older rows are recomputed
   metrics Json
+  /// Role in this sample (S24, src/lib/roles/roles.ts): the side's role on
+  /// "CT"/"T" rows, the match role on "all". Pro rows also feed "pro/<role>".
+  role    String?
+  /// SideProfile of the side (timing, team spacing, setup spots); null on "all".
+  profile Json?
 
   createdAt DateTime @default(now())
 
@@ -935,6 +943,7 @@ model NormSample {
 
   @@unique([matchId, steamId, side])
   @@index([pro, version])
+  @@index([steamId, version])
 }
 
 /// Percentiles of one metric in one pool, map, side and situation, rebuilt

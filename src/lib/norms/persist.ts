@@ -5,7 +5,7 @@
  * findings; the pro pool is refreshed at once after a pro demo, the rank
  * pools at most every NORMS_REFRESH_MS.
  */
-import type { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { loadMechanicsInput } from "@/lib/analysis/persist-mechanics";
 import { loadAimInput } from "@/lib/analysis/persist-aim";
 import { loadTacticsInput } from "@/lib/analysis/persist-tactics";
@@ -14,6 +14,7 @@ import { MECHANICS_VERSION } from "@/lib/analysis/movement";
 import { AIM_VERSION } from "@/lib/analysis/aim";
 import { TACTICS_VERSION } from "@/lib/analysis/tactics";
 import { UTILITY_VERSION } from "@/lib/analysis/utility";
+import { ROLES_VERSION } from "@/lib/roles/roles";
 import { buildNormSamples } from "./build";
 import {
   aggregateNorms,
@@ -28,7 +29,7 @@ import {
 } from "./norms";
 
 /** Samples are valid while sampling and the analyses behind them are unchanged. */
-export const NORMS_STAMP = `n${NORMS_VERSION}.m${MECHANICS_VERSION}.a${AIM_VERSION}.t${TACTICS_VERSION}.u${UTILITY_VERSION}`;
+export const NORMS_STAMP = `n${NORMS_VERSION}.m${MECHANICS_VERSION}.a${AIM_VERSION}.t${TACTICS_VERSION}.u${UTILITY_VERSION}.r${ROLES_VERSION}`;
 
 /** Rank pools change slowly; rebuild them at most this often from the parse worker. */
 export const NORMS_REFRESH_MS = 30 * 60 * 1000;
@@ -53,11 +54,12 @@ export async function computeAndPersistNormSamples(
     },
   });
   if (!match) return 0;
-  const [mechanics, aim, tactics, utility] = await Promise.all([
+  const [mechanics, aim, tactics, utility, places] = await Promise.all([
     loadMechanicsInput(prisma, matchId),
     loadAimInput(prisma, matchId),
     loadTacticsInput(prisma, matchId),
     loadUtilityInput(prisma, matchId),
+    prisma.mapPlaceCell.findMany({ where: { map: match.map }, select: { cx: true, cy: true, cz: true, place: true, count: true } }),
   ]);
   const samples = buildNormSamples({
     map: match.map,
@@ -67,6 +69,7 @@ export async function computeAndPersistNormSamples(
     aim,
     tactics,
     utility,
+    places,
   });
   await prisma.$transaction([
     prisma.normSample.deleteMany({ where: { matchId } }),
@@ -79,6 +82,8 @@ export async function computeAndPersistNormSamples(
         pro: s.pro,
         version: NORMS_STAMP,
         metrics: s.metrics as unknown as Prisma.InputJsonValue,
+        role: s.role,
+        profile: s.profile ? (s.profile as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
       })),
     }),
   ]);
@@ -102,7 +107,7 @@ async function loadSamples(db: SampleReader): Promise<NormSampleInput[]> {
   for (;;) {
     const rows = await db.normSample.findMany({
       where: { version: NORMS_STAMP },
-      select: { id: true, matchId: true, steamId: true, side: true, map: true, pro: true, metrics: true },
+      select: { id: true, matchId: true, steamId: true, side: true, map: true, pro: true, metrics: true, role: true },
       orderBy: { id: "asc" },
       take: PAGE,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
@@ -131,6 +136,7 @@ async function loadSamples(db: SampleReader): Promise<NormSampleInput[]> {
         pro: r.pro,
         rank: r.pro ? null : (rankOf.get(`${r.matchId}:${r.steamId}`) ?? null),
         metrics: r.metrics as unknown as SampleMetrics,
+        role: r.role,
       });
     }
     cursor = rows[rows.length - 1].id;
