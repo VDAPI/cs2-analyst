@@ -27,7 +27,8 @@
     "test:findings": "tsx --tsconfig tsconfig.json scripts/test-findings.ts",
     "test:platform": "tsx --tsconfig tsconfig.json scripts/test-platform.ts",
     "test:scouting": "tsx --tsconfig tsconfig.json scripts/test-scouting.ts",
-    "test:tactics": "tsx --tsconfig tsconfig.json scripts/test-tactics.ts"
+    "test:tactics": "tsx --tsconfig tsconfig.json scripts/test-tactics.ts",
+    "test:admin": "tsx --tsconfig tsconfig.json scripts/test-admin.ts"
   },
   "dependencies": {
     "@laihoe/demoparser2": "^0.41.3",
@@ -40,6 +41,8 @@
     "@radix-ui/react-slider": "^1.2.0",
     "@radix-ui/react-tabs": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.0",
+    "@sentry/nextjs": "10.75.3",
+    "@sentry/node": "10.75.3",
     "@tanstack/react-query": "^5.60.0",
     "@trpc/client": "^11.0.0",
     "@trpc/react-query": "^11.0.0",

@@ -23,6 +23,9 @@ import { deleteAnalysis } from "../src/lib/library";
 import { notifyUploadFinished } from "../src/lib/notifications/notify";
 import { downloadReplayDemo, ReplayGoneError } from "../src/lib/steam/demo-download";
 import { demoParseQueue, type SteamDemoDownloadJobData } from "../src/lib/queue";
+import { initWorkerSentry, reportJobFailure, reportWorkerError } from "../src/lib/monitoring/worker-sentry";
+
+initWorkerSentry("worker-parse");
 
 const prisma = new PrismaClient();
 
@@ -44,11 +47,17 @@ async function processDemo(job: Job<DemoParseJobData>) {
   // Cancelled from the queue screen before we got to it.
   const before = await prisma.demoUpload.findUnique({
     where: { id: uploadId },
-    select: { deletedAt: true },
+    select: { deletedAt: true, status: true },
   });
   if (!before || before.deletedAt) {
     await deleteStoredDemo(fileUrl).catch(() => {});
     console.log(`[parser] skip uploadId=${uploadId}: removed by the user`);
+    return null;
+  }
+  // A duplicate job (e.g. an admin re-queued an analysis that looked stuck
+  // but was only waiting) must not parse a finished analysis a second time.
+  if (before.status === "COMPLETED") {
+    console.log(`[parser] skip uploadId=${uploadId}: already analyzed`);
     return null;
   }
 
@@ -120,6 +129,7 @@ worker.on("completed", (job) => {
 
 worker.on("failed", (job, err) => {
   console.error(`Demo parse failed: ${job?.id}`, err.message);
+  reportJobFailure("demo-parse", job, err);
   // Parse jobs run once; the upload is FAILED now (no-op if it isn't).
   if (job) void notifyUploadFinished(prisma, job.data.uploadId);
 });
@@ -197,6 +207,7 @@ const steamWorker = new Worker("steam-demo-download", processSteamDownload, {
 
 steamWorker.on("failed", (job, err) => {
   console.error(`Steam replay download failed: ${job?.id}`, err.message);
+  reportJobFailure("steam-demo-download", job, err);
 });
 
 // Store replay data for older matches that still have their .dem, so nobody
@@ -210,4 +221,7 @@ backfillReplayData(prisma, {}, (line) => console.log(`[replay-backfill]${line}`)
       );
     }
   })
-  .catch((err) => console.error("[replay-backfill] failed:", err));
+  .catch((err) => {
+    console.error("[replay-backfill] failed:", err);
+    reportWorkerError(err, "replay-backfill");
+  });

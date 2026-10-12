@@ -28,5 +28,6 @@ export const config = {
     "/compare/:path*",
     "/settings/:path*",
     "/premier/:path*",
+    "/admin/:path*",
   ],
 };

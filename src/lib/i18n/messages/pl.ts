@@ -43,6 +43,7 @@ export const pl = {
     pro: "Pro",
     team: "Drużyna",
     settings: "Ustawienia",
+    admin: "Panel admina",
     more: "Więcej",
     mainNav: "Główna nawigacja",
     bottomNav: "Nawigacja dolna",
