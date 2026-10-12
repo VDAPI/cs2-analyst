@@ -53,7 +53,7 @@ export function FaceitSyncTrigger({ hasFaceit }: FaceitSyncTriggerProps) {
           Syncing FACEIT matches…
         </div>
       ) : result ? (
-        <div className="flex items-center gap-2 rounded-lg bg-[rgba(34,197,94,0.08)] px-3 py-2 text-xs text-[var(--success)]">
+        <div className="flex items-center gap-2 rounded-lg bg-[rgba(61,245,160,0.08)] px-3 py-2 text-xs text-[var(--success)]">
           {result.synced > 0
             ? `Synced ${result.synced} new match${result.synced !== 1 ? "es" : ""}`
             : "No new matches found"}

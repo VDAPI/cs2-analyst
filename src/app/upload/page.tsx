@@ -111,7 +111,7 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="flex min-h-[80vh] flex-col items-center justify-center px-6">
+    <div className="flex min-h-[70vh] flex-col items-center justify-center">
       <div className="mb-4 w-full max-w-lg">
         <Link
           href="/matches"
@@ -252,7 +252,7 @@ export default function UploadPage() {
           {/* Action button */}
           {file && status === "idle" && (
             <Button
-              variant="primary"
+              variant="cta"
               size="lg"
               className="mt-2 w-full"
               onClick={handleUpload}

@@ -82,7 +82,7 @@ export function drawHeatmap(
     gradient.addColorStop(0, `rgba(239, 68, 68, ${point.intensity})`);
     gradient.addColorStop(0.4, `rgba(251, 191, 36, ${point.intensity * 0.6})`);
     gradient.addColorStop(0.7, `rgba(59, 130, 246, ${point.intensity * 0.3})`);
-    gradient.addColorStop(1, "rgba(59, 130, 246, 0)");
+    gradient.addColorStop(1, "rgba(155, 107, 255, 0)");
 
     offCtx.fillStyle = gradient;
     offCtx.fillRect(

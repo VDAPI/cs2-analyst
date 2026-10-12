@@ -40,8 +40,8 @@ export function WeaponBarChart({ data, height = 280 }: WeaponBarChartProps) {
         >
           <defs>
             <linearGradient id="weaponBarGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.9} />
-              <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.45} />
+              <stop offset="0%" stopColor="#5AA9FF" stopOpacity={0.9} />
+              <stop offset="100%" stopColor="#5AA9FF" stopOpacity={0.45} />
             </linearGradient>
           </defs>
           <CartesianGrid
@@ -103,7 +103,7 @@ function WeaponTooltip({
   const w = payload[0].payload;
 
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-[rgba(15,15,18,0.95)] px-3 py-2 shadow-lg backdrop-blur-sm">
+    <div className="rounded-lg border border-[var(--border)] bg-[rgba(16,14,25,0.95)] px-3 py-2 shadow-lg backdrop-blur-sm">
       <p className="text-xs font-medium text-[var(--text-primary)]">
         {w.displayName}
       </p>

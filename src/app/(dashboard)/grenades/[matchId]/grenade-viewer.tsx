@@ -59,11 +59,11 @@ interface GrenadeViewerProps {
 const CANVAS_SIZE = 1024;
 
 const GRENADE_COLORS: Record<string, { line: string; fill: string; label: string }> = {
-  SMOKE: { line: "#94a3b8", fill: "rgba(148,163,184,0.3)", label: "Smoke" },
-  FLASH: { line: "#fde047", fill: "rgba(253,224,71,0.25)", label: "Flash" },
-  HE: { line: "#ef4444", fill: "rgba(239,68,68,0.25)", label: "HE" },
-  MOLOTOV: { line: "#f97316", fill: "rgba(249,115,22,0.25)", label: "Molotov" },
-  INCENDIARY: { line: "#f97316", fill: "rgba(249,115,22,0.25)", label: "Incendiary" },
+  SMOKE: { line: "#A9A3C4", fill: "rgba(148,163,184,0.3)", label: "Smoke" },
+  FLASH: { line: "#FFF27A", fill: "rgba(253,224,71,0.25)", label: "Flash" },
+  HE: { line: "#FF4D6A", fill: "rgba(255,77,106,0.25)", label: "HE" },
+  MOLOTOV: { line: "#FF7A33", fill: "rgba(255,122,51,0.25)", label: "Molotov" },
+  INCENDIARY: { line: "#FF7A33", fill: "rgba(255,122,51,0.25)", label: "Incendiary" },
   DECOY: { line: "#a78bfa", fill: "rgba(167,139,250,0.2)", label: "Decoy" },
 };
 
@@ -167,7 +167,7 @@ export function GrenadeViewer({
     const h = canvas.height;
 
     // Background
-    ctx.fillStyle = "#0a0a12";
+    ctx.fillStyle = "#08070D";
     ctx.fillRect(0, 0, w, h);
 
     // Radar
@@ -248,14 +248,14 @@ export function GrenadeViewer({
 
         // Label background
         const labelWidth = ctx.measureText(label).width + 12;
-        ctx.fillStyle = "rgba(15,15,18,0.9)";
+        ctx.fillStyle = "rgba(16,14,25,0.9)";
         ctx.fillRect(to.x - labelWidth / 2, to.y - radius * 1.4 - 28, labelWidth, detail ? 28 : 18);
 
         ctx.fillStyle = colors.line;
         ctx.fillText(label, to.x, to.y - radius * 1.4 - 16);
         if (detail) {
           ctx.font = '10px "Geist Mono", monospace';
-          ctx.fillStyle = "#fafafa";
+          ctx.fillStyle = "#F3F0FF";
           ctx.fillText(detail, to.x, to.y - radius * 1.4 - 4);
         }
       }
@@ -409,13 +409,13 @@ export function GrenadeViewer({
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-[var(--text-secondary)]">Enemies flashed</span>
-                <span className="font-mono text-[#fde047]">
+                <span className="font-mono text-[#FFF27A]">
                   {filteredGrenades.filter((g) => g.type === "FLASH").reduce((s, g) => s + g.playersFlashed, 0)}
                 </span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-[var(--text-secondary)]">Utility damage</span>
-                <span className="font-mono text-[#ef4444]">
+                <span className="font-mono text-[#FF4D6A]">
                   {filteredGrenades.reduce((s, g) => s + g.damageDealt, 0)}
                 </span>
               </div>
@@ -443,12 +443,12 @@ export function GrenadeViewer({
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-[rgba(255,255,255,0.04)] text-[var(--text-tertiary)]">
+                  <tr className="border-b border-[rgba(190,160,255,0.04)] text-[var(--text-tertiary)]">
                     <th className="pb-1.5 text-left font-medium">Player</th>
-                    <th className="pb-1.5 text-right font-medium" style={{ color: "#94a3b8" }}>S</th>
-                    <th className="pb-1.5 text-right font-medium" style={{ color: "#fde047" }}>F</th>
-                    <th className="pb-1.5 text-right font-medium" style={{ color: "#ef4444" }}>HE</th>
-                    <th className="pb-1.5 text-right font-medium" style={{ color: "#f97316" }}>M</th>
+                    <th className="pb-1.5 text-right font-medium" style={{ color: "#A9A3C4" }}>S</th>
+                    <th className="pb-1.5 text-right font-medium" style={{ color: "#FFF27A" }}>F</th>
+                    <th className="pb-1.5 text-right font-medium" style={{ color: "#FF4D6A" }}>HE</th>
+                    <th className="pb-1.5 text-right font-medium" style={{ color: "#FF7A33" }}>M</th>
                     <th className="pb-1.5 text-right font-medium">Flsh</th>
                     <th className="pb-1.5 text-right font-medium">Dmg</th>
                   </tr>
@@ -460,10 +460,10 @@ export function GrenadeViewer({
                     .map((s) => (
                       <tr
                         key={s.steamId}
-                        className={`border-b border-[rgba(255,255,255,0.04)] transition-colors ${
+                        className={`border-b border-[rgba(190,160,255,0.04)] transition-colors ${
                           playerFilter === s.steamId
-                            ? "bg-[rgba(255,255,255,0.08)] border-l-2 border-l-[#fafafa]"
-                            : "hover:bg-[rgba(255,255,255,0.02)]"
+                            ? "bg-[rgba(190,160,255,0.08)] border-l-2 border-l-[#F3F0FF]"
+                            : "hover:bg-[rgba(190,160,255,0.02)]"
                         }`}
                       >
                         <td className="py-1.5">
@@ -484,8 +484,8 @@ export function GrenadeViewer({
                         <td className="py-1.5 text-right font-mono">{s.flashes}</td>
                         <td className="py-1.5 text-right font-mono">{s.hes}</td>
                         <td className="py-1.5 text-right font-mono">{s.molotovs}</td>
-                        <td className="py-1.5 text-right font-mono text-[#fde047]">{s.flashEnemies}</td>
-                        <td className="py-1.5 text-right font-mono text-[#ef4444]">{s.utilDamage}</td>
+                        <td className="py-1.5 text-right font-mono text-[#FFF27A]">{s.flashEnemies}</td>
+                        <td className="py-1.5 text-right font-mono text-[#FF4D6A]">{s.utilDamage}</td>
                       </tr>
                     ))}
                 </tbody>
@@ -525,12 +525,12 @@ export function GrenadeViewer({
                         {colors.label}
                       </span>
                       {g.damageDealt > 0 && (
-                        <span className="flex-shrink-0 font-mono text-[10px] text-[#ef4444]">
+                        <span className="flex-shrink-0 font-mono text-[10px] text-[#FF4D6A]">
                           {g.damageDealt}
                         </span>
                       )}
                       {g.playersFlashed > 0 && (
-                        <span className="flex-shrink-0 font-mono text-[10px] text-[#fde047]">
+                        <span className="flex-shrink-0 font-mono text-[10px] text-[#FFF27A]">
                           {g.playersFlashed}
                         </span>
                       )}

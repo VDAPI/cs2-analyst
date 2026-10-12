@@ -295,7 +295,7 @@ function ScoreboardTable({
             {players.map((p) => (
               <tr
                 key={p.name}
-                className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(255,255,255,0.02)]"
+                className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(190,160,255,0.02)]"
               >
                 <td className="px-5 py-3 font-medium text-[var(--text-primary)]">
                   {p.name}

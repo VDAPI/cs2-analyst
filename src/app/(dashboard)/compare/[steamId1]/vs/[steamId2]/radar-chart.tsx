@@ -40,7 +40,7 @@ function CustomTooltip({
         <div className="flex items-center gap-2 text-xs">
           <span
             className="h-2 w-2 rounded-full"
-            style={{ backgroundColor: "#60a5fa" }}
+            style={{ backgroundColor: "#5AA9FF" }}
           />
           <span className="text-[var(--text-secondary)]">{player1Name}</span>
           <span className="stat-inline ml-auto text-[var(--text-primary)]">
@@ -50,7 +50,7 @@ function CustomTooltip({
         <div className="flex items-center gap-2 text-xs">
           <span
             className="h-2 w-2 rounded-full"
-            style={{ backgroundColor: "#fbbf24" }}
+            style={{ backgroundColor: "#FFC23D" }}
           />
           <span className="text-[var(--text-secondary)]">{player2Name}</span>
           <span className="stat-inline ml-auto text-[var(--text-primary)]">
@@ -74,11 +74,11 @@ export function RadarComparisonChart({
       </h2>
       <div className="flex items-center justify-center gap-6 mb-4">
         <div className="flex items-center gap-2 text-xs">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#60a5fa" }} />
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#5AA9FF" }} />
           <span className="text-[var(--text-secondary)]">{player1Name}</span>
         </div>
         <div className="flex items-center gap-2 text-xs">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#fbbf24" }} />
+          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: "#FFC23D" }} />
           <span className="text-[var(--text-secondary)]">{player2Name}</span>
         </div>
       </div>
@@ -95,16 +95,16 @@ export function RadarComparisonChart({
           <Radar
             name={player1Name}
             dataKey="player1"
-            stroke="#60a5fa"
-            fill="#60a5fa"
+            stroke="#5AA9FF"
+            fill="#5AA9FF"
             fillOpacity={0.2}
             strokeWidth={2.5}
           />
           <Radar
             name={player2Name}
             dataKey="player2"
-            stroke="#fbbf24"
-            fill="#fbbf24"
+            stroke="#FFC23D"
+            fill="#FFC23D"
             fillOpacity={0.2}
             strokeWidth={2.5}
           />

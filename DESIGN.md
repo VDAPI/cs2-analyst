@@ -1,7 +1,7 @@
 # CS2 Analyst — Design System (Violet Lime)
 
 > Paleta **Violet Lime (Esport Neon)** wybrana przez właściciela projektu 12.10.2026.
-> Ten plik to docelowa specyfikacja. Tokeny w `src/styles/globals.css` przechodzą na nią w sesji **S2** (`docs/SESSIONS.md`); do tego czasu kod ma jeszcze starą niebieską paletę. Nazwy tokenów zostają te same, zmieniają się wartości, więc komponenty używające `var(--…)` przefarbują się same.
+> Tokeny w `src/styles/globals.css` mają wartości Violet Lime od sesji **S2** (`docs/SESSIONS.md`). Komponenty w `src/components/ui/`, nawigacja w `src/components/layout/`.
 
 ## 1. Visual Theme & Atmosphere
 

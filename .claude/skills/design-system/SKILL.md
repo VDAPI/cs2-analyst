@@ -7,7 +7,7 @@ description: CS2 Analyst design system quick reference (Violet Lime / Esport Neo
 
 Full spec: `DESIGN.md` (root). This skill extracts the most-used patterns.
 
-**Migration status:** `src/styles/globals.css` still holds the old blue palette until session S2 (`docs/SESSIONS.md`). Always style through the token names below (`var(--accent)`, `var(--ct-blue)` …), never hard-coded hex, so the S2 value swap recolors everything. Tokens marked *new* do not exist in `globals.css` yet — S2 adds them; before S2, don't reference them.
+**Status:** `src/styles/globals.css` holds the Violet Lime values (since S2), including the tokens marked *new* below, plus `--on-accent` (dark text on violet/lime/CT fills). Always style through the token names (`var(--accent)`, `var(--ct-blue)` …), never hard-coded hex. Reuse `src/components/ui/` (Button `cta`/`primary`/`secondary`/`ghost`/`danger`, Card, StatCard, Badge, Input, Checkbox, Tabs, Progress, FindingTag, useToast). Uppercase labels: class `label-overline`. Headings: `font-display` (h1–h3 get it automatically).
 
 ## Core Tokens (target values)
 
@@ -35,7 +35,7 @@ Fixed meanings — never use CT, T, mistake, good or warning colors for decorati
 
 ## Typography
 
-- **Headings & short labels**: Chakra Petch 600/700 (added in S2 via `next/font/google`, `latin-ext` subset for Polish)
+- **Headings & short labels**: Chakra Petch 600/700 (`next/font/google`, `latin-ext` subset for Polish, CSS var `--font-display`, utility `font-display`)
 - **Body**: Geist 14px/400/1.6 (15px on mobile)
 - **All numbers/stats**: Geist Mono + `tabular-nums` — K/D, ADR, scores, money, ticks, times, %
 - **Labels**: Chakra Petch 12px/600, uppercase, 0.8px tracking
