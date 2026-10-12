@@ -28,6 +28,8 @@ const SCREENS: Screen[] = [
   { name: "postep", path: () => "/progress" },
   // The weekly plan is built for the current week: checked, not screenshotted.
   { name: "trener", path: () => "/coach", noScreenshot: true },
+  // Today's day of that plan: same reason.
+  { name: "trening", path: () => "/training", noScreenshot: true },
   { name: "upload", path: () => "/upload", volatile: (page) => [page.getByText(/Zostało \d+/)] },
   { name: "kolejka", path: () => "/queue" },
   { name: "biblioteka", path: () => "/library", volatile: monthlyLimit },
