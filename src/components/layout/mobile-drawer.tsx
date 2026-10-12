@@ -6,15 +6,16 @@ import { X } from "lucide-react";
 import { Logo } from "./logo";
 import { NavGroups } from "./nav-groups";
 import { NavLink } from "./nav-link";
-import { settingsItem, isActivePath } from "./nav-items";
+import { adminItem, settingsItem, isActivePath } from "./nav-items";
 
 interface MobileDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  isAdmin?: boolean;
 }
 
 /** Full navigation for screens below 1024px (opened from the top bar or the "Więcej" tab). */
-export function MobileDrawer({ open, onOpenChange }: MobileDrawerProps) {
+export function MobileDrawer({ open, onOpenChange, isAdmin = false }: MobileDrawerProps) {
   const pathname = usePathname();
   const close = () => onOpenChange(false);
 
@@ -39,7 +40,10 @@ export function MobileDrawer({ open, onOpenChange }: MobileDrawerProps) {
           <nav aria-label="Główna nawigacja" className="flex-1 overflow-y-auto p-3">
             <NavGroups onNavigate={close} />
           </nav>
-          <div className="border-t border-[var(--border)] p-3 pb-[calc(12px+env(safe-area-inset-bottom))]">
+          <div className="flex flex-col gap-0.5 border-t border-[var(--border)] p-3 pb-[calc(12px+env(safe-area-inset-bottom))]">
+            {isAdmin && (
+              <NavLink item={adminItem} active={isActivePath(pathname, adminItem.href)} onNavigate={close} />
+            )}
             <NavLink item={settingsItem} active={isActivePath(pathname, settingsItem.href)} onNavigate={close} />
           </div>
         </Dialog.Content>

@@ -29,6 +29,9 @@ import {
 } from "../src/lib/storage/demo-store";
 import { deleteAnalysis } from "../src/lib/library";
 import type { FaceitDemoDownloadJobData } from "../src/lib/queue";
+import { initWorkerSentry, reportJobFailure } from "../src/lib/monitoring/worker-sentry";
+
+initWorkerSentry("worker-faceit");
 
 const prisma = new PrismaClient();
 
@@ -212,6 +215,7 @@ worker.on("completed", (job) => {
 
 worker.on("failed", (job, err) => {
   console.error(`FACEIT demo download failed: ${job?.id}`, err.message);
+  reportJobFailure("faceit-demo-download", job, err);
 });
 
 worker.on("ready", () => {

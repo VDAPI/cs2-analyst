@@ -13,6 +13,7 @@ import {
   ListOrdered,
   Library,
   Binoculars,
+  ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -61,6 +62,9 @@ export const navGroups: NavGroup[] = [
 ];
 
 export const settingsItem: NavItem = { href: "/settings", label: "Ustawienia", icon: Settings };
+
+/** Shown next to Settings for admins only (S27). */
+export const adminItem: NavItem = { href: "/admin", label: "Panel admina", icon: ShieldCheck };
 
 /** The four destinations pinned to the mobile bottom bar; the rest live under "Więcej". */
 export const mobilePrimaryHrefs = ["/matches", "/upload", "/replay", "/players"];
