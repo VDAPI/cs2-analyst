@@ -21,8 +21,10 @@ export interface ClipContext {
   matchId: string;
   mapName: string;
   mapConfig: RadarConfig | null;
-  /** Public link token: read-only view, clips load through the link (S16). */
+  /** Public link token: clips load through the link (S16). */
   share?: string | null;
+  /** Public view (share link or the /demo example, S21): no replay, pro or lineup buttons. */
+  readOnly?: boolean;
 }
 
 /** One mistake: when, what, the numbers, the advice, a 2D clip on demand and a jump into the replay. */
@@ -100,7 +102,7 @@ export function FindingCard({
           <Eye className="h-3.5 w-3.5" aria-hidden />
           {open ? "Ukryj 2D" : "Podgląd 2D"}
         </button>
-        {!ctx.share && (
+        {!ctx.readOnly && (
           <button
             type="button"
             onClick={() => setPro((o) => !o)}
@@ -111,7 +113,7 @@ export function FindingCard({
             {pro ? t("winprob.proHide") : t("winprob.proButton")}
           </button>
         )}
-        {!ctx.share && (
+        {!ctx.readOnly && (
           <Link
             href={replayHref(ctx.matchId, f)}
             className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "flex-1 sm:flex-none")}
@@ -120,7 +122,7 @@ export function FindingCard({
             W replayu
           </Link>
         )}
-        {!ctx.share && hasLineupPractice(f.type) && (
+        {!ctx.readOnly && hasLineupPractice(f.type) && (
           <Link
             href={`/lineups?finding=${encodeURIComponent(f.id)}`}
             className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "flex-1 sm:flex-none")}

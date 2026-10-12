@@ -42,7 +42,12 @@ export async function loadPlayerReport(
 }
 
 /** What the 2D clips on a report need about the match's map. */
-export function reportClipContext(matchId: string, map: string, share: string | null = null) {
+export function reportClipContext(
+  matchId: string,
+  map: string,
+  share: string | null = null,
+  readOnly: boolean = share != null
+) {
   const mapConfig = getMapConfig(map);
   const radar: RadarConfig | null = mapConfig
     ? {
@@ -54,5 +59,5 @@ export function reportClipContext(matchId: string, map: string, share: string | 
         radarImage: mapConfig.radarImage,
       }
     : null;
-  return { matchId, mapName: mapDisplayName(map), mapConfig: radar, share };
+  return { matchId, mapName: mapDisplayName(map), mapConfig: radar, share, readOnly };
 }

@@ -37,6 +37,7 @@ export async function loadTacticsInput(prisma: PrismaClient, matchId: string): P
               victimPosX: true,
               victimPosY: true,
               victimPosZ: true,
+              weapon: true,
             },
           },
           damages: { select: { tick: true, attackerSteamId: true, victimSteamId: true } },

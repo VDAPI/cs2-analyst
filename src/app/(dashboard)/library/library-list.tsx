@@ -3,12 +3,13 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Archive, FileText, FileX, Library, Play, Trash2, Upload, ClipboardCheck } from "lucide-react";
+import { AlertCircle, Archive, FileText, FileX, Library, Play, Trash2, ClipboardCheck } from "lucide-react";
 import { Badge, Button, Card, EmptyState, buttonVariants, type BadgeProps } from "@/components/ui";
 import { MapThumb, ResultBadge, SourceBadge } from "@/components/match";
 import { formatDate } from "@/lib/utils/formatters";
 import type { DemoState } from "@/lib/library";
 import { mapDisplayName } from "@/lib/utils/mapNames";
+import { StartActions } from "@/components/onboarding/getting-started";
 
 export interface LibraryEntry {
   uploadId: string;
@@ -103,12 +104,7 @@ export function LibraryList({ entries }: { entries: LibraryEntry[] }) {
         icon={Library}
         title="Brak zapisanych analiz"
         description="Gotowe analizy trafiają tutaj, razem z raportem i powtórką 2D."
-        action={
-          <Link href="/upload" className={buttonVariants({ variant: "cta" })}>
-            <Upload className="h-4 w-4" aria-hidden />
-            Wgraj demo
-          </Link>
-        }
+        action={<StartActions />}
       />
     );
   }

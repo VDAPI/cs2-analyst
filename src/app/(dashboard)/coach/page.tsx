@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { Dumbbell, GraduationCap, Upload } from "lucide-react";
+import { Dumbbell, GraduationCap } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getT } from "@/lib/i18n/server";
@@ -14,6 +14,7 @@ import { loadProgress } from "@/lib/progress/load";
 import { formatDate } from "@/lib/utils/formatters";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { cn } from "@/lib/utils/cn";
+import { StartActions } from "@/components/onboarding/getting-started";
 
 interface Props {
   searchParams: Promise<{ player?: string }>;
@@ -63,12 +64,7 @@ export default async function CoachPage({ searchParams }: Props) {
           icon={GraduationCap}
           title={t("coach.emptyTitle")}
           description={t("coach.emptyBody")}
-          action={
-            <Link href="/upload" className={buttonVariants({ variant: "cta" })}>
-              <Upload className="h-4 w-4" aria-hidden />
-              {t("coach.upload")}
-            </Link>
-          }
+          action={<StartActions />}
         />
       </div>
     );

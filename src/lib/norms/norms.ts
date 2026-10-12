@@ -17,7 +17,7 @@ import { pct, type WeaponMechanics } from "@/lib/analysis/movement";
 import { REFERENCE_NORMS } from "./reference";
 
 /** Bump when sampling or aggregation changes; old samples are rebuilt. */
-export const NORMS_VERSION = 1;
+export const NORMS_VERSION = 2;
 
 export type NormSide = "CT" | "T" | "all";
 export const NORM_SIDES: NormSide[] = ["all", "CT", "T"];
@@ -240,17 +240,24 @@ export interface NormSampleInput {
   /** rankBucket() of the player in that match, null when unknown. */
   rank: string | null;
   metrics: SampleMetrics;
+  /** The player's role in that sample (S24); pro samples with a role also feed `rolePool(role)`. */
+  role?: string | null;
 }
+
+/** Pool of the pro norms measured on players of one role (S24), e.g. "pro/entry". */
+export const rolePool = (role: string) => `pro/${role}`;
+export const isRolePool = (pool: string) => pool.startsWith("pro/");
 
 /**
  * Percentiles per pool × map × side × situation × metric. Pro samples feed
- * the "pro" pool only; everyone else feeds "all" and their rank bucket. Each
+ * the "pro" pool and their role's pool ("pro/entry", S24); everyone else
+ * feeds "all" and their rank bucket. Each
  * sample also counts towards the "all" map.
  */
 export function aggregateNorms(samples: Iterable<NormSampleInput>): NormRow[] {
   const cells = new Map<string, number[]>();
   for (const s of samples) {
-    const pools = s.pro ? ["pro"] : s.rank ? ["all", s.rank] : ["all"];
+    const pools = s.pro ? ["pro", ...(s.role ? [rolePool(s.role)] : [])] : s.rank ? ["all", s.rank] : ["all"];
     const maps = s.map === "all" ? ["all"] : [s.map, "all"];
     for (const [key, entry] of Object.entries(s.metrics)) {
       const value = entry?.[0];
@@ -345,6 +352,13 @@ export function proNorm(table: NormTable | null, metric: string, ctx: NormContex
   const ref = REFERENCE_NORMS[metric];
   if (!ref) return null;
   return { metric, p10: null, p90: null, p25: ref.p25, p50: ref.p50, p75: ref.p75, n: 0, source: "reference", map: "all" };
+}
+
+/** Pro norm measured on players of one role only (S24); null until that pool has enough samples. */
+export function roleNorm(table: NormTable | null, role: string, metric: string, ctx: NormContext = {}): ProNorm | null {
+  const row = table?.get(rolePool(role), metric, ctx) ?? null;
+  if (!row) return null;
+  return { metric, p10: row.p10, p25: row.p25, p50: row.p50, p75: row.p75, p90: row.p90, n: row.n, source: "pro", map: row.map };
 }
 
 /**

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { Download, Dumbbell, ExternalLink, Eye, Gamepad2, GraduationCap, Target, Upload } from "lucide-react";
+import { Download, Dumbbell, ExternalLink, Eye, Gamepad2, GraduationCap, Target } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getT } from "@/lib/i18n/server";
@@ -17,6 +17,7 @@ import { buildRoutine, planDayOf, type RoutineItem } from "@/lib/training/routin
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { cn } from "@/lib/utils/cn";
 import { DayDone } from "./day-done";
+import { StartActions } from "@/components/onboarding/getting-started";
 
 interface Props {
   searchParams: Promise<{ day?: string; player?: string }>;
@@ -97,10 +98,7 @@ export default async function TrainingPage({ searchParams }: Props) {
           description={t("coach.emptyBody")}
           action={
             data.totalMatches === 0 ? (
-              <Link href="/upload" className={buttonVariants({ variant: "cta" })}>
-                <Upload className="h-4 w-4" aria-hidden />
-                {t("coach.upload")}
-              </Link>
+              <StartActions />
             ) : (
               <Link href="/coach" className={buttonVariants({ variant: "primary" })}>
                 {t("training.openPlan")}

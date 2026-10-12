@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { ClipboardCheck, ExternalLink, TrendingUp, Upload } from "lucide-react";
+import { ClipboardCheck, ExternalLink, TrendingUp } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getT } from "@/lib/i18n/server";
-import { Card, EmptyState, PageHeader, SectionTitle, buttonVariants } from "@/components/ui";
+import { Card, EmptyState, PageHeader, SectionTitle } from "@/components/ui";
 import { MapThumb, ResultBadge } from "@/components/match";
 import { MetricTrendCard } from "@/components/charts/lazy-charts";
 import { BadgeGrid } from "@/components/progress/badge-grid";
@@ -27,6 +27,7 @@ import { formatDate } from "@/lib/utils/formatters";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { cn } from "@/lib/utils/cn";
 import type { MessageKey } from "@/lib/i18n/translate";
+import { StartActions } from "@/components/onboarding/getting-started";
 
 const WINDOWS = [10, 20, 50];
 
@@ -73,12 +74,7 @@ export default async function ProgressPage({ searchParams }: Props) {
           icon={TrendingUp}
           title={t("progress.emptyTitle")}
           description={t("progress.emptyBody")}
-          action={
-            <Link href="/upload" className={buttonVariants({ variant: "cta" })}>
-              <Upload className="h-4 w-4" aria-hidden />
-              {t("progress.upload")}
-            </Link>
-          }
+          action={<StartActions />}
         />
       </div>
     );

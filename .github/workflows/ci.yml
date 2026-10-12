@@ -114,6 +114,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: npm run test:security
 
+      - name: Team (roster, dashboard, anti-strat, tactic board) regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:team
+
       - name: Win probability (features, scoring, impact, pro situations) regression tests
         if: ${{ !cancelled() }}
         run: npm run test:winprob
@@ -121,6 +125,14 @@ jobs:
       - name: Performance plumbing (event prefetch, tick columns, parse processes, decode cache) regression tests
         if: ${{ !cancelled() }}
         run: npm run test:perf
+
+      - name: Role detection and "play like a pro" regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:roles
+
+      - name: Example analysis and onboarding regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:onboarding
 
       - name: Parser checks on the E2E fixture demo
         if: ${{ !cancelled() }}

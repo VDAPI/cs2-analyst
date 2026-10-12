@@ -149,6 +149,14 @@ async function main() {
     "api/user/account/route.ts": "account",
     "api/user/export/route.ts": "account",
     "api/shares/route.ts": "write",
+    "api/teams/route.ts": "write",
+    "api/teams/join/route.ts": "teamJoin",
+    "api/teams/[teamId]/route.ts": "write",
+    "api/teams/[teamId]/members/[memberId]/route.ts": "write",
+    "api/teams/[teamId]/rivals/route.ts": "write",
+    "api/teams/[teamId]/rivals/[rivalId]/route.ts": "write",
+    "api/teams/[teamId]/boards/route.ts": "write",
+    "api/teams/[teamId]/boards/[boardId]/route.ts": "write",
   };
   const missing = Object.entries(LIMITED)
     .filter(([rel, rule]) => !readFileSync(join(root, rel), "utf8").includes(`rateLimit("${rule}"`))

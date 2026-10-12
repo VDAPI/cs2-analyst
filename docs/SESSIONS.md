@@ -72,18 +72,18 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Trener AI | Ocena rad (przydatne / nie) i uczenie kolejności rad | ✅ | S15 |
 | Postęp | Trendy metryk w czasie, cele, odznaki | ✅ | S16 |
 | Społeczność | Publiczny profil, udostępnianie raportu | ✅ | S16 |
-| Drużyna | Dashboard drużyny, anti-strat przeciwnika, tablica taktyczna | 🆕 | S17 |
+| Drużyna | Dashboard drużyny, anti-strat przeciwnika, tablica taktyczna | ✅ | S17 |
 | Inne źródła | Premier/Steam (share code lub upload) dla chętnych | ✅ | S18 |
 | Platforma | PWA, powiadomienia „analiza gotowa”, PL/EN | ✅ | S18 |
 | Platforma | Storage R2, limity darmowego planu | 🆕 | S7 |
 | Jakość | Testy E2E (Playwright) głównych ścieżek, desktop i telefon, w CI | ✅ | S19 |
 | Jakość | Lokalne środowisko testowe jednym poleceniem (Docker), dostęp z telefonu w sieci Wi-Fi | ✅ | S20 |
-| Start | Demo bez logowania: przykładowa analiza meczu pro, przewodnik po aplikacji | 🆕 | S21 |
+| Start | Demo bez logowania: przykładowa analiza meczu pro, przewodnik po aplikacji | ✅ | S21 |
 | Trening | Generator treningu: mapy Workshop, configi .cfg, rutyna dnia | ✅ | S22 |
 | Trening | Trener lineupów: komendy setpos/setang do skopiowania, config do ćwiczenia granatów | ✅ | S22 |
 | Przed meczem | Scouting rywali z linku do pokoju FACEIT, sugestia veto map | 🆕 | S23 |
-| Pro | „Graj jak pro”: porównanie z wybranym zawodowcem per mapa i rola | 🆕 | S24 |
-| ML | Wykrywanie roli (entry, AWP, support, lurk, anchor) i rady pod rolę | 🆕 | S24 |
+| Pro | „Graj jak pro”: porównanie z wybranym zawodowcem per mapa i rola | ✅ | S24 |
+| ML | Wykrywanie roli (entry, AWP, support, lurk, anchor) i rady pod rolę | ✅ | S24 |
 | Społeczność | Klipy 2D błędów i highlightów do pobrania (MP4/GIF) i udostępnienia | 🆕 | S25 |
 | Społeczność | Ranking znajomych, wyzwania tygodniowe | 🆕 | S25 |
 | Integracje | Bot Discord: powiadomienia i komenda /stats | 🆕 | S26 |
@@ -187,6 +187,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S12.
 - **Zakres:** drużyny (model `Team` już jest), dashboard drużyny, anti-strat przeciwnika (defaulty, executes, retake), tablica taktyczna z zapisem.
 - **Gotowe, gdy:** drużyna widzi wspólne statystyki i tendencje rywala.
+- **Status:** ✅ zrobione. Ekran `/team` (w menu „Drużyna”): tworzenie drużyny (nazwa, tag), dołączanie linkiem zaproszenia, role właściciel / trener / gracz, do 10 członków i 10 dodatkowych SteamID (gracze bez konta). Dashboard liczy mecze, w których gra razem co najmniej 3 graczy składu (z bibliotek wszystkich członków, ten sam mecz wgrany dwa razy liczy się raz): bilans, rundy CT/T, pistolety, post-plant, retake, otwarcia, trade'y, mapy, gracze (ADR, rating) i najczęstsze błędy drużyny. Rywale: z meczu drużyny („Scoutuj tę drużynę”) albo z listy SteamID; anti-strat z dem, w których gra co najmniej 3 z nich: na T wybór bombsite'u, tempo (szybkie / standard / późne), executes z utility i przykładowymi rundami, defaulty, otwarcia, kupno, lurk; na CT ustawienie A/mid/B po 20 s, stacki, wczesna agresja, utility, retake; pistolety i runda po przegranym pistolecie; role graczy (AWP, entry, lurk, anchor) i do 12 najważniejszych wniosków z linkiem do momentu w replayu 2D. Raport w cache, przeliczany przy zmianie składu, dem albo wersji analizy. Tablica taktyczna: gracze CT/T, smoke/flash/molotov/HE, strzałki (też przerywane), rysowanie, tekst, kroki z opisem i odtwarzaniem, cofnij/ponów, zapis dla drużyny z ochroną przed nadpisaniem, PNG, duplikowanie; „Otwórz na tablicy” przenosi ustawienie rywala na mapę. Członkowie drużyny widzą mecze drużyny i rywali tylko do odczytu (replay bez notatek i udostępniania). Usunięcie konta oddaje drużynę następnemu członkowi. Test: `npm run test:team`.
 
 ### S18. Platforma
 - **Wymaga:** S7.
@@ -212,6 +213,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S10.
 - **Zakres:** publiczna przykładowa analiza (mecz pro lub własny mecz właściciela za zgodą), przycisk „Zobacz przykład” na stronie głównej, przewodnik po raporcie przy pierwszym logowaniu, puste stany z instrukcją.
 - **Gotowe, gdy:** nowa osoba widzi pełny raport bez zakładania konta.
+- **Status:** ✅ zrobione. Strona `/demo` („Zobacz przykład” w hero strony głównej, link w menu strony i pod przykładowym raportem) pokazuje pełny raport meczu bez konta: wybór każdego z 10 graczy, rola w meczu, podsumowanie, Top 3 z radą, ćwiczeniem i klipem 2D, „Ty vs pro”, wszystkie błędy według kategorii. Tylko do odczytu (bez replaya, trenera AI i notatek właściciela). Mecz wybiera admin w `/admin/pro` („Ustaw jako przykład” przy demie pro albo ID własnego meczu, za zgodą graczy); bez wyboru jest to najnowsze demo z puli pro, a w lokalnym środowisku pierwsza przykładowa analiza konta testowego. Przewodnik po raporcie (8 kroków: gracz, podsumowanie, Top 3, rada, podgląd 2D, Ty vs pro, wszystkie momenty, replay i udostępnianie) otwiera się sam przy pierwszym raporcie gracza i przy pierwszej wizycie na `/demo`, zawsze z przycisku „Jak czytać raport”; ukończenie zapamiętuje konto (`User.reportTourAt`) i przeglądarka. Nowe konto zaczyna na ekranie Mecze od „Zacznij w trzech krokach” (dodaj mecz, poczekaj na analizę, otwórz raport), a puste stany (biblioteka, gracze, porównanie, postęp, trener, trening, raporty, replay, heatmapy, granaty, ekonomia) mają wgranie dema, połączenie FACEIT i link do przykładu. Test: `npm run test:onboarding`.
 
 ### S22. Trening: generator rutyny i trener lineupów
 - **Wymaga:** S11, S15.

@@ -54,7 +54,11 @@ export default async function ProNormsPage({ searchParams }: Props) {
   const side: NormSide = sp.side === "CT" || sp.side === "T" ? sp.side : "all";
   const [mapRows, poolRows, myRank, pool, refreshedAt] = await Promise.all([
     prisma.metricNorm.findMany({ where: { map: { not: "all" } }, distinct: ["map"], select: { map: true } }),
-    prisma.metricNorm.findMany({ where: { pool: { notIn: ["pro", "all"] } }, distinct: ["pool"], select: { pool: true } }),
+    prisma.metricNorm.findMany({
+      where: { pool: { notIn: ["pro", "all"] }, NOT: { pool: { startsWith: "pro/" } } },
+      distinct: ["pool"],
+      select: { pool: true },
+    }),
     steamId
       ? prisma.matchPlayer.findFirst({
           where: { steamId, rankType: { not: null }, match: { upload: { userId } } },

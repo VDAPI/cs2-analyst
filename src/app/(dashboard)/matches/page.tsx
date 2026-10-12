@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { Badge, Card, EmptyState, PageHeader, SectionTitle, StatCard, buttonVariants } from "@/components/ui";
+import { Badge, Card, PageHeader, SectionTitle, StatCard, buttonVariants } from "@/components/ui";
 import { MapThumb, ResultBadge, SourceBadge, resultColor, resultFor, type MatchResult } from "@/components/match";
 import { formatDate } from "@/lib/utils/formatters";
 import { Flame, Upload } from "lucide-react";
@@ -11,6 +11,7 @@ import { FaceitHistoryPicker } from "@/components/faceit-history-picker";
 import { activeUploadId, faceitDownloadsEnabled, FACEIT_UPLOAD_INCLUDE } from "@/lib/faceit/analyze";
 import { getPlanUsage } from "@/lib/limits";
 import Link from "next/link";
+import { GettingStarted } from "@/components/onboarding/getting-started";
 
 /** "1 gracz", "4 graczy" — Polish plural for the player count. */
 function playersLabel(n: number): string {
@@ -104,6 +105,8 @@ export default async function MatchesPage() {
     (fm) => !parsedFaceitIds.has(fm.faceitMatchId)
   );
 
+  const empty = parsedMatches.length === 0 && unlinkedFaceitMatches.length === 0;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -121,31 +124,25 @@ export default async function MatchesPage() {
         }
       />
 
+      {/* A new player starts with the three steps (S21) instead of empty stats. */}
+      {empty && <GettingStarted faceit={!dbUser?.faceitId} />}
+
       {/* Stat overview row */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        <StatCard label="Rozegrane mecze" value={matchCount || "--"} />
-        <StatCard
-          label="Win rate"
-          value={playerMatches > 0 ? `${winRate}%` : "--%"}
-          accentColor="var(--good)"
-        />
-        <StatCard label="Śr. rating HLTV" value={avgHltv} />
-        <StatCard label="Śr. ADR" value={avgAdr} />
-      </div>
+      {!empty && (
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          <StatCard label="Rozegrane mecze" value={matchCount || "--"} />
+          <StatCard
+            label="Win rate"
+            value={playerMatches > 0 ? `${winRate}%` : "--%"}
+            accentColor="var(--good)"
+          />
+          <StatCard label="Śr. rating HLTV" value={avgHltv} />
+          <StatCard label="Śr. ADR" value={avgAdr} />
+        </div>
+      )}
 
       {/* Parsed match list */}
-      {parsedMatches.length === 0 && unlinkedFaceitMatches.length === 0 ? (
-        <EmptyState
-          icon={Upload}
-          title="Brak meczów"
-          description="Wgraj swoje pierwsze demo, a analiza meczu pojawi się tutaj."
-          action={
-            <Link href="/upload" className={buttonVariants({ variant: "primary" })}>
-              Wgraj demo
-            </Link>
-          }
-        />
-      ) : (
+      {!empty && (
         <div className="space-y-3">
           {parsedMatches.length > 0 && (
             <SectionTitle className="mb-0">Przeanalizowane mecze</SectionTitle>

@@ -20,6 +20,7 @@ import {
   TrendingUp,
   GraduationCap,
   Dumbbell,
+  Swords,
   type LucideIcon,
 } from "lucide-react";
 import type { MessageKey } from "@/lib/i18n/translate";
@@ -74,7 +75,8 @@ export const navGroups: NavGroup[] = [
     labelKey: "nav.groupPro",
     items: [
       { href: "/pro", labelKey: "nav.pro", icon: Trophy },
-      { href: "/team", labelKey: "nav.team", icon: Shield, soon: true },
+      { href: "/play-like-pro", labelKey: "nav.playLikePro", icon: Swords },
+      { href: "/team", labelKey: "nav.team", icon: Shield },
     ],
   },
 ];
