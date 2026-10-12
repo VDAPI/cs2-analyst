@@ -19,7 +19,7 @@ import { computeAndPersistTactics } from "../analysis/persist-tactics";
 import { parsePlayerRanks } from "./ranks";
 import { persistMatchRanks } from "../norms/ranks";
 import { computeAndPersistNormSamples, refreshNorms, refreshNormsIfStale } from "../norms/persist";
-import { computeAndPersistWinProb } from "../winprob/persist";
+import { backfillWinProb, computeAndPersistWinProb } from "../winprob/persist";
 import { requestTraining } from "../winprob/train-trigger";
 
 interface PersistArgs {
@@ -298,7 +298,10 @@ export async function parseAndPersistDemo(
       try {
         const snapshots = await computeAndPersistWinProb(prisma, match.id);
         console.log(`[persist-demo] win-prob snapshots match=${match.id}: ${snapshots}`);
-        void requestTraining().catch(() => {});
+        // After a retrain, pro situations scored by the old model are rescored a few at a time.
+        void requestTraining()
+          .then(() => backfillWinProb(prisma, { limit: 5 }))
+          .catch(() => {});
       } catch (error) {
         console.error(`[persist-demo] win-prob FAILED match=${match.id}:`, error);
       }

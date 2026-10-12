@@ -22,7 +22,7 @@
 import { BOMB_TIME_S, otherSide, playersAt, stateAt, type RoundContext, type Side, type Vec3 } from "./features";
 import { predictSide, type WinProbModelSpec } from "./model";
 
-export const SITUATIONS_VERSION = 1;
+export const SITUATIONS_VERSION = 2;
 export const SITUATION_STEP_S = 2;
 export const ACTION_HORIZON_S = 5;
 /** Closing or opening the distance to the nearest enemy by more than this is a push / fall back. */
@@ -31,6 +31,8 @@ const ENGAGE_DELTA = 250;
 const HOLD_MOVE = 200;
 /** A grenade detonating this long after the horizon was still thrown inside it. */
 const GRENADE_FLIGHT_S = 2;
+/** …and at least this long (a grenade popping sooner was thrown before the decision). */
+const GRENADE_MIN_FLIGHT_S = 1;
 
 export const PRO_ACTIONS = ["plant", "defuse", "utility", "push", "fall_back", "reposition", "hold"] as const;
 export type ProAction = (typeof PRO_ACTIONS)[number];
@@ -88,9 +90,22 @@ export function situationAt(ctx: RoundContext, steamId: string, tick: number): S
   };
 }
 
-function nearestEnemy(ctx: RoundContext, steamId: string, side: Side, tick: number, at: Vec3): number {
-  const enemies = playersAt(ctx, tick).filter((p) => p.side === otherSide(side) && p.alive && p.pos);
-  return enemies.length > 0 ? Math.min(...enemies.map((p) => dist(p.pos!, at))) : NaN;
+/** The nearest alive enemy at `tick`: its id and distance. */
+function nearestEnemy(ctx: RoundContext, side: Side, tick: number, at: Vec3): { steamId: string; d: number } | null {
+  let best: { steamId: string; d: number } | null = null;
+  for (const p of playersAt(ctx, tick)) {
+    if (p.side !== otherSide(side) || !p.alive || !p.pos) continue;
+    const d = dist(p.pos, at);
+    if (!best || d < best.d) best = { steamId: p.steamId, d };
+  }
+  return best;
+}
+
+/** Where that enemy was at `tick`, or just before he died if that was earlier. */
+function enemyPosAt(ctx: RoundContext, steamId: string, tick: number): Vec3 | null {
+  const death = ctx.deathTick.get(steamId);
+  const at = death != null && death <= tick ? death - 1 : tick;
+  return playersAt(ctx, at).find((p) => p.steamId === steamId)?.pos ?? null;
 }
 
 /** What the player did in the next ACTION_HORIZON_S seconds after `tick`. */
@@ -110,7 +125,9 @@ export function actionAfter(ctx: RoundContext, steamId: string, tick: number): A
   if (side === "CT" && (bombBy("DEFUSE_BEGIN") || bombBy("DEFUSED"))) return result("defuse");
   if (
     ctx.round.grenades.some(
-      (g) => g.throwerSteamId === steamId && g.tick > tick && g.tick <= until + GRENADE_FLIGHT_S * tr
+      (g) => g.throwerSteamId === steamId &&
+        g.tick > tick + GRENADE_MIN_FLIGHT_S * tr &&
+        g.tick <= until + GRENADE_FLIGHT_S * tr
     )
   ) {
     return result("utility");
@@ -120,11 +137,13 @@ export function actionAfter(ctx: RoundContext, steamId: string, tick: number): A
   const now = playersAt(ctx, tick).find((p) => p.steamId === steamId);
   const later = playersAt(ctx, end).find((p) => p.steamId === steamId);
   if (!now?.pos || !later?.pos) return null;
-  const before = nearestEnemy(ctx, steamId, side, tick, now.pos);
-  const after = nearestEnemy(ctx, steamId, side, end, later.pos);
-  if (Number.isFinite(before) && Number.isFinite(after)) {
-    if (before - after > ENGAGE_DELTA) return result("push");
-    if (after - before > ENGAGE_DELTA) return result("fall_back");
+  // Closer to / further from the same enemy (killing him must not read as falling back).
+  const enemy = nearestEnemy(ctx, side, tick, now.pos);
+  const enemyLater = enemy ? enemyPosAt(ctx, enemy.steamId, end) : null;
+  if (enemy && enemyLater) {
+    const after = dist(later.pos, enemyLater);
+    if (enemy.d - after > ENGAGE_DELTA) return result("push");
+    if (after - enemy.d > ENGAGE_DELTA) return result(kill ? "push" : "fall_back");
   }
   return result(dist(now.pos, later.pos) > HOLD_MOVE ? "reposition" : "hold");
 }

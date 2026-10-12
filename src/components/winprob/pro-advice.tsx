@@ -5,7 +5,8 @@ import { Loader2, Play, Users } from "lucide-react";
 import { buttonVariants } from "@/components/ui";
 import { FindingClip } from "@/components/replay/finding-clip";
 import type { RadarConfig } from "@/lib/canvas/radar";
-import { useT } from "@/lib/i18n/client";
+import { useLocale, useT } from "@/lib/i18n/client";
+import { fmtPp } from "@/lib/winprob/format";
 import type { MessageKey } from "@/lib/i18n/translate";
 import type { ProAdvice } from "@/lib/winprob/persist";
 import { ACTION_HORIZON_S, type ProAction } from "@/lib/winprob/situations";
@@ -15,7 +16,6 @@ import { cn } from "@/lib/utils/cn";
 const MIN_NEIGHBOURS = 5;
 
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
-const fmtPp = (pp: number) => `${pp > 0 ? "+" : ""}${pp.toFixed(1).replace(".", ",")}`;
 
 type State = { status: "loading" } | { status: "error" } | { status: "done"; advice: ProAdvice | null };
 
@@ -36,6 +36,7 @@ export function ProAdvicePanel({
   mapConfig: RadarConfig | null;
 }) {
   const t = useT();
+  const locale = useLocale();
   const [state, setState] = useState<State>({ status: "loading" });
   const [clipOf, setClipOf] = useState<number | null>(null);
 
@@ -108,7 +109,7 @@ export function ProAdvicePanel({
                       )}
                       title={t("winprob.effectHint", { s: ACTION_HORIZON_S })}
                     >
-                      {t("winprob.effect", { pp: fmtPp(x.avgDeltaPp) })}
+                      {t("winprob.effect", { pp: fmtPp(x.avgDeltaPp, locale) })}
                     </span>
                   </div>
                   <div className="h-1.5 overflow-hidden rounded-full bg-[var(--surface-3)]">
@@ -127,7 +128,7 @@ export function ProAdvicePanel({
               {a.youDeltaPp != null && (
                 <span className={cn("font-mono", a.youDeltaPp >= 0 ? "text-[var(--good)]" : "text-[var(--mistake)]")}>
                   {" "}
-                  ({t("winprob.effect", { pp: fmtPp(a.youDeltaPp) })})
+                  ({t("winprob.effect", { pp: fmtPp(a.youDeltaPp, locale) })})
                 </span>
               )}
             </p>

@@ -24,8 +24,12 @@ import { IMPACT_VERSION } from "@/lib/winprob/impact";
  */
 export const FINDINGS_STAMP = `f${FINDINGS_VERSION}.m${MECHANICS_VERSION}.a${AIM_VERSION}.t${TACTICS_VERSION}.u${UTILITY_VERSION}`;
 
-/** The stamp also names the win-probability model the impacts were scored with (S14). */
-export const findingsStamp = (modelId: string) => `${FINDINGS_STAMP}.w${WP_FEATURES_VERSION}.i${IMPACT_VERSION}:${modelId}`;
+/**
+ * The stamp also covers how the win-probability impacts are measured (S14).
+ * The model they were scored with is kept apart (`Match.findingsWpModel`): a
+ * retrain only rescores the stored rows in place, so finding ids survive it.
+ */
+export const findingsStamp = () => `${FINDINGS_STAMP}.w${WP_FEATURES_VERSION}.i${IMPACT_VERSION}`;
 
 /** Rebuild the match's findings. Returns how many were stored. */
 export async function computeAndPersistFindings(prisma: PrismaClient, matchId: string): Promise<number> {
@@ -84,7 +88,8 @@ export async function computeAndPersistFindings(prisma: PrismaClient, matchId: s
       where: { id: matchId },
       data: {
         findingsVersion:
-          mechanics.length + aim.length + tactics.length + utility.length > 0 ? findingsStamp(model.id) : null,
+          mechanics.length + aim.length + tactics.length + utility.length > 0 ? findingsStamp() : null,
+        findingsWpModel: model.id,
       },
     });
   });
@@ -93,12 +98,40 @@ export async function computeAndPersistFindings(prisma: PrismaClient, matchId: s
 
 /** The match's findings (optionally one player's), rebuilt first when stale. */
 export async function getFindings(prisma: PrismaClient, matchId: string, steamId?: string) {
-  const match = await prisma.match.findUnique({ where: { id: matchId }, select: { findingsVersion: true } });
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    select: { findingsVersion: true, findingsWpModel: true },
+  });
   if (!match) return [];
-  const model = await getActiveModel(prisma);
-  if (match.findingsVersion !== findingsStamp(model.id)) await computeAndPersistFindings(prisma, matchId);
+  if (match.findingsVersion !== findingsStamp()) {
+    await computeAndPersistFindings(prisma, matchId);
+  } else {
+    const model = await getActiveModel(prisma);
+    if (match.findingsWpModel !== model.id) await rescoreFindingImpacts(prisma, matchId);
+  }
   return prisma.finding.findMany({
     where: { matchId, ...(steamId ? { steamId } : {}) },
-    orderBy: [{ roundNumber: "asc" }, { tick: "asc" }],
+    orderBy: [{ roundNumber: "asc" }, { tick: "asc" }, { id: "asc" }],
   });
+}
+
+/** Re-score the stored findings' win-probability costs with the active model, keeping the rows. */
+async function rescoreFindingImpacts(prisma: PrismaClient, matchId: string): Promise<void> {
+  const model = await getActiveModel(prisma);
+  const rows = await prisma.finding.findMany({
+    where: { matchId },
+    select: { id: true, type: true, steamId: true, roundNumber: true, tick: true, targetSteamId: true },
+  });
+  const impacts = await findingImpacts(prisma, matchId, rows, model);
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`findings:${matchId}`}))`;
+    for (let i = 0; i < rows.length; i++) {
+      const impact = impacts[i];
+      await tx.finding.updateMany({
+        where: { id: rows[i].id },
+        data: { wpBefore: impact?.before ?? null, wpAfter: impact?.after ?? null, wpKind: impact?.kind ?? null },
+      });
+    }
+    await tx.match.update({ where: { id: matchId }, data: { findingsWpModel: model.id } });
+  }, { timeout: 30_000 });
 }

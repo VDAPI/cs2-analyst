@@ -60,7 +60,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
   const loaded = selected ? await loadPlayerReport(prisma, matchId, selected.steamId, all) : null;
   const report = loaded?.report ?? null;
   const hasData = loaded?.hasData ?? false;
-  const { t } = await getT();
+  const { t, locale } = await getT();
   const norms =
     selected && loaded?.hasData
       ? await loadReportNorms(prisma, {
@@ -73,7 +73,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
         })
       : null;
   const ctx = reportClipContext(matchId, match.map);
-  const winprob = hasData && selected ? await loadReportWinProb(prisma, matchId, selected.steamId, t) : null;
+  const winprob = hasData && selected ? await loadReportWinProb(prisma, matchId, selected.steamId, t, locale) : null;
 
   // AI coach (S15): cached notes or the standard text now; the client asks
   // the API for the AI's notes when they aren't written yet.

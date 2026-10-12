@@ -6,8 +6,8 @@
  * - "death": the player died in the moments after it (the duel the mistake
  *   lost) → WP right after the death vs. the same moment with the player
  *   still alive (so a kill on the same tick is not counted in).
- * - "mate_death": a teammate died right after it (a team flash) → same, on
- *   that teammate's death.
+ * - "mate_death": a team flash whose blinded player was then hit → same, on
+ *   the first kill by that enemy on the thrower's team in the next seconds.
  * - "trade": a missed trade → WP when the trade window closed vs. the same
  *   moment had the killer been traded (and not got the kills he got after).
  * - "drop": no drop → WP at freeze end vs. the same with the broke teammate
@@ -24,7 +24,7 @@ import { otherSide, stateAt, type Counterfactual, type RoundContext, type Side }
 import { predictSide, type WinProbModelSpec } from "./model";
 
 /** Bump when how a cost is measured changes: stored findings are rebuilt. */
-export const IMPACT_VERSION = 1;
+export const IMPACT_VERSION = 2;
 
 export type ImpactKind = "death" | "mate_death" | "trade" | "drop";
 
@@ -122,10 +122,19 @@ export function findingImpact(
       return acrossDeath("death", f.steamId, d);
     }
     case "mate_death": {
-      const deaths = [...ctx.deathTick.entries()]
-        .filter(([id, t]) => id !== f.steamId && ctx.sideOf.get(id) === side && t >= f.tick && t <= f.tick + MATE_WINDOW_S * tr)
-        .sort((a, b) => a[1] - b[1]);
-      return deaths.length > 0 ? acrossDeath("mate_death", deaths[0][0], deaths[0][1]) : null;
+      // Only a kill by the enemy who hit a blinded teammate (the finding's target), the thrower included.
+      const punisher = f.targetSteamId;
+      if (!punisher) return null;
+      const k = ctx.round.kills
+        .filter(
+          (x) =>
+            x.attackerSteamId === punisher &&
+            ctx.sideOf.get(x.victimSteamId) === side &&
+            x.tick >= f.tick &&
+            x.tick <= f.tick + MATE_WINDOW_S * tr
+        )
+        .sort((a, b) => a.tick - b.tick)[0];
+      return k ? acrossDeath("mate_death", k.victimSteamId, k.tick) : null;
     }
     case "trade": {
       const killer = f.targetSteamId;

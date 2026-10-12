@@ -227,8 +227,13 @@ check(
   "mechanics: no death in the window → no number",
   findingImpact({ type: "moving_shot", steamId: C1, roundNumber: 1, tick: S(20), targetSteamId: T2 }, ctx, PRIOR_MODEL) == null
 );
-const flash = findingImpact({ type: "team_flash", steamId: T1, roundNumber: 1, tick: S(18), targetSteamId: null }, ctx, PRIOR_MODEL);
+const flash = findingImpact({ type: "team_flash", steamId: T1, roundNumber: 1, tick: S(18), targetSteamId: C1 }, ctx, PRIOR_MODEL);
 check("team flash: the flashed mate's death", flash?.kind === "mate_death" && flash.tick === S(20) && flash.after < flash.before);
+check(
+  "team flash: a death by another enemy is not its cost",
+  findingImpact({ type: "team_flash", steamId: T1, roundNumber: 1, tick: S(18), targetSteamId: C2 }, ctx, PRIOR_MODEL) == null &&
+    findingImpact({ type: "team_flash", steamId: T1, roundNumber: 1, tick: S(18), targetSteamId: null }, ctx, PRIOR_MODEL) == null
+);
 const trade = findingImpact({ type: "missed_trade", steamId: T1, roundNumber: 1, tick: S(20), targetSteamId: C1 }, ctx, PRIOR_MODEL);
 check("missed trade: actual worse than traded", trade?.kind === "trade" && trade.after < trade.before);
 const drop = findingImpact({ type: "no_drop", steamId: T1, roundNumber: 1, tick: FREEZE_END, targetSteamId: null }, ctx, PRIOR_MODEL);
@@ -239,7 +244,7 @@ check(
 );
 check("no frames → no number", findingImpact({ type: "untraded_death", steamId: T2, roundNumber: 1, tick: S(20), targetSteamId: C1 }, undefined, PRIOR_MODEL) == null);
 check("impactPp rounds to one decimal", impactPp({ before: 0.5, after: 0.3567 }) === -14.3);
-check("findings stamp names the model", findingsStamp("abc").endsWith(":abc") && findingsStamp("prior") !== findingsStamp("abc"));
+check("findings stamp covers the impact rules, not the model", findingsStamp().includes(".w") && findingsStamp().includes(".i"));
 
 // ─── 5. WPA and series ───────────────────────────────────
 const wpa = matchWpa({ tickRate: TR, sites: SITES, rounds: [round1] }, PRIOR_MODEL);

@@ -187,6 +187,7 @@ model Match {
   // FINDINGS_STAMP the stored findings were built with (null = never); a
   // different stamp makes the report rebuild them (src/lib/findings/persist.ts).
   findingsVersion String?
+  findingsWpModel String? // win-probability model the findings' costs were scored with (S14)
 }
 
 model MatchPlayer {
@@ -1069,6 +1070,7 @@ model ProSituation {
   died        Boolean
   wpBefore    Float
   wpAfter     Float
+  modelId     String  @default("") // WinProbModel.id (or "prior") that scored wpBefore/wpAfter
 
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
 

@@ -28,6 +28,8 @@ import { matchWpa, type PlayerWpa } from "./series";
 import {
   ACTION_HORIZON_S,
   actionAfter,
+  MIN_EXACT,
+  NEIGHBOURS,
   roundSituations,
   similarSituations,
   situationAt,
@@ -224,6 +226,7 @@ async function persistSituations(prisma: PrismaClient, matchId: string, match: W
         died: s.died,
         wpBefore: s.wpBefore,
         wpAfter: s.wpAfter,
+        modelId: model.id,
       })),
     }),
   ]);
@@ -231,13 +234,15 @@ async function persistSituations(prisma: PrismaClient, matchId: string, match: W
 
 /**
  * Snapshots for analysed matches that have none of the current version, and
- * situations for pro demos that have none (or older ones). The parse worker
+ * situations for pro demos that have none (or older ones, or ones scored by
+ * another model). The parse worker
  * runs this on startup. Returns how many matches were processed.
  */
 export async function backfillWinProb(
   prisma: PrismaClient,
   { limit = 500, log }: { limit?: number; log?: (line: string) => void } = {}
 ): Promise<number> {
+  const model = await getActiveModel(prisma);
   const matches = await prisma.match.findMany({
     where: {
       upload: { status: "COMPLETED", deletedAt: null },
@@ -247,6 +252,8 @@ export async function backfillWinProb(
         { winProbData: { version: { not: WP_FEATURES_VERSION } } },
         { upload: { pro: true }, situations: { none: {} } },
         { upload: { pro: true }, situations: { some: { version: { not: SITUATIONS_VERSION } } } },
+        // Pro situations scored by an older model: rescored so they compare with the player's numbers.
+        { upload: { pro: true }, situations: { some: { modelId: { not: model.id } } } },
       ],
     },
     select: { id: true },
@@ -321,6 +328,8 @@ export async function findingImpacts(
 
 /** Most candidates read per search; the index narrows them to one map, side, bomb state and ±1 alive. */
 const MAX_CANDIDATES = 6000;
+/** Candidates within this many seconds of round clock are fetched first. */
+const TIME_WINDOW_S = 25;
 
 export interface ProExample {
   matchId: string;
@@ -384,19 +393,35 @@ export async function proAdviceForFinding(
         ) / 10
       : null;
 
-  const rows = await prisma.proSituation.findMany({
-    where: {
-      map: match.map,
-      version: SITUATIONS_VERSION,
-      side: situation.side,
-      planted: situation.planted,
-      aliveUs: { gte: situation.aliveUs - 1, lte: situation.aliveUs + 1 },
-      aliveThem: { gte: situation.aliveThem - 1, lte: situation.aliveThem + 1 },
-      // Never compare a pro demo with itself.
-      matchId: { not: finding.matchId },
-    },
-    take: MAX_CANDIDATES,
-  });
+  // Exact alive counts first, ±1 only when there are too few; each within a
+  // time window first, so the cap keeps the most similar rows, not arbitrary ones.
+  const base = {
+    map: match.map,
+    version: SITUATIONS_VERSION,
+    side: situation.side,
+    planted: situation.planted,
+    // Never compare a pro demo with itself.
+    matchId: { not: finding.matchId },
+  };
+  const fetchRows = async (band: number, windowed: boolean) =>
+    prisma.proSituation.findMany({
+      where: {
+        ...base,
+        aliveUs: { gte: situation.aliveUs - band, lte: situation.aliveUs + band },
+        aliveThem: { gte: situation.aliveThem - band, lte: situation.aliveThem + band },
+        ...(windowed
+          ? { timeLeft: { gte: situation.timeLeft - TIME_WINDOW_S, lte: situation.timeLeft + TIME_WINDOW_S } }
+          : {}),
+      },
+      orderBy: { id: "asc" },
+      take: MAX_CANDIDATES,
+    });
+  let rows = await fetchRows(0, true);
+  if (rows.length < NEIGHBOURS) rows = await fetchRows(0, false);
+  if (rows.length < MIN_EXACT) {
+    rows = await fetchRows(1, true);
+    if (rows.length < NEIGHBOURS) rows = await fetchRows(1, false);
+  }
   const candidates: Candidate[] = rows.map((r) => ({
     id: r.id,
     side: r.side === "T" ? "T" : "CT",

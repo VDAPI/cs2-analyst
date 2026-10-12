@@ -1,7 +1,8 @@
 "use client";
 
 import { TrendingDown, TrendingUp } from "lucide-react";
-import { useT } from "@/lib/i18n/client";
+import { useLocale, useT } from "@/lib/i18n/client";
+import { fmtPp, fmtPpAbs } from "@/lib/winprob/format";
 import type { MessageKey } from "@/lib/i18n/translate";
 import { cn } from "@/lib/utils/cn";
 
@@ -13,6 +14,7 @@ export const ppOf = (wp: { before: number; after: number }) => Math.round((wp.af
 /** "Kosztowało team −14 pp szansy na rundę (54% → 40%, śmierć po tym błędzie)" on a finding card. */
 export function FindingImpact({ wp }: { wp: { before: number; after: number; kind: string } }) {
   const t = useT();
+  const locale = useLocale();
   const pp = ppOf(wp);
   if (Math.abs(pp) < MIN_IMPACT_PP) return null;
   const cost = pp < 0;
@@ -31,8 +33,8 @@ export function FindingImpact({ wp }: { wp: { before: number; after: number; kin
       <span className="min-w-0">
         <span className="font-semibold text-[var(--text-primary)]">
           {cost
-            ? t("winprob.costLong", { pp: pp.toFixed(1).replace(".", ",") })
-            : t("winprob.gainLong", { pp: pp.toFixed(1).replace(".", ",") })}
+            ? t("winprob.costLong", { pp: fmtPp(pp, locale) })
+            : t("winprob.gainLong", { pp: fmtPpAbs(pp, locale) })}
         </span>
         <span className="text-[var(--text-tertiary)]">
           {" "}

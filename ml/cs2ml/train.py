@@ -22,6 +22,7 @@ prior; otherwise the app keeps scoring with the prior.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -155,6 +156,19 @@ def fit_logistic(prior: dict) -> Callable[[Dataset, np.ndarray], dict]:
     return fit
 
 
+def unit_weights(ds: Dataset, idx: np.ndarray) -> np.ndarray:
+    """Round weights rescaled to mean 1, so lambda_l2 / min_data_in_leaf / min hessian act as set."""
+    w = ds.weight[idx]
+    return w * len(idx) / w.sum()
+
+
+def fingerprint(ds: Dataset) -> str:
+    """Which matches (and how many snapshots each) a model was trained on."""
+    counts = np.bincount(ds.groups.astype(int), minlength=len(ds.match_ids)) if len(ds.groups) else []
+    items = sorted(f"{mid}:{int(c)}" for mid, c in zip(ds.match_ids, counts))
+    return hashlib.sha1(f"{ds.version}|{'|'.join(items)}".encode()).hexdigest()
+
+
 def fit_lgbm(monotone: bool) -> Callable[[Dataset, np.ndarray], dict]:
     import lightgbm as lgb
 
@@ -172,11 +186,11 @@ def fit_lgbm(monotone: bool) -> Callable[[Dataset, np.ndarray], dict]:
             val_groups = set(rng.choice(groups, size=max(1, len(groups) // 5), replace=False).tolist())
             is_val = np.array([g in val_groups for g in ds.groups[idx]])
             tr, va = idx[~is_val], idx[is_val]
-            dtr = lgb.Dataset(ds.X[tr], ds.y[tr], weight=ds.weight[tr], feature_name=list(ds.features), free_raw_data=False)
-            dva = lgb.Dataset(ds.X[va], ds.y[va], weight=ds.weight[va], reference=dtr)
+            dtr = lgb.Dataset(ds.X[tr], ds.y[tr], weight=unit_weights(ds, tr), feature_name=list(ds.features), free_raw_data=False)
+            dva = lgb.Dataset(ds.X[va], ds.y[va], weight=unit_weights(ds, va), reference=dtr)
             b = lgb.train(params, dtr, MAX_ROUNDS, valid_sets=[dva], callbacks=[lgb.early_stopping(30, verbose=False)])
             rounds = max(20, b.best_iteration or MAX_ROUNDS)
-        dall = lgb.Dataset(ds.X[idx], ds.y[idx], weight=ds.weight[idx], feature_name=list(ds.features))
+        dall = lgb.Dataset(ds.X[idx], ds.y[idx], weight=unit_weights(ds, idx), feature_name=list(ds.features))
         booster = lgb.train(params, dall, rounds)
         spec = booster_to_spec(booster, ds.features)
         spec["_booster"] = booster  # fast scoring inside the trainer; stripped before storing
@@ -307,41 +321,39 @@ def store(database_url: str, ds: Dataset, result: dict) -> str:
 
 
 def store_run(database_url: str, ds: Dataset, ev: dict | None, note: str) -> None:
-    """Remember a training run that kept the current model (so --if-new-data does not retry it)."""
+    """Remember a training run and its data (so --if-new-data does not retry the same data)."""
     import psycopg
 
-    value = json.dumps({"matches": ds.n_matches, "version": ds.version, "note": note, "evaluation": ev})
+    value = json.dumps(
+        {"matches": ds.n_matches, "version": ds.version, "fingerprint": fingerprint(ds), "note": note, "evaluation": ev}
+    )
     with psycopg.connect(database_url) as conn, conn.cursor() as cur:
         cur.execute(
-            'INSERT INTO "AppSetting" (key, value) VALUES (%s, %s) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
+            'INSERT INTO "AppSetting" (key, value, "updatedAt") VALUES (%s, %s, now()) '
+            'ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, "updatedAt" = now()',
             ("winprob:lastRun", value),
         )
 
 
-def last_trained_matches(database_url: str, version: int) -> int:
-    """Matches behind the newest stored model or the last run that kept the prior."""
+def last_fingerprint(database_url: str) -> str | None:
+    """Fingerprint of the data behind the last training run (model stored or not)."""
     import psycopg
 
     with psycopg.connect(database_url) as conn, conn.cursor() as cur:
-        cur.execute('SELECT "nMatches" FROM "WinProbModel" WHERE "featuresVersion" = %s ORDER BY "createdAt" DESC LIMIT 1', (version,))
-        row = cur.fetchone()
-        n = int(row[0]) if row else 0
         cur.execute('SELECT value FROM "AppSetting" WHERE key = %s', ("winprob:lastRun",))
         run = cur.fetchone()
-        if run:
-            try:
-                info = json.loads(run[0])
-                if int(info.get("version", 0)) == version:
-                    n = max(n, int(info.get("matches", 0)))
-            except (ValueError, TypeError):
-                pass
-        return n
+    if not run:
+        return None
+    try:
+        return json.loads(run[0]).get("fingerprint")
+    except (ValueError, TypeError, AttributeError):
+        return None
 
 
 def run(database_url: str, *, dry_run: bool = False, if_new_data: bool = False, log=print) -> dict:
     ds = build_dataset(load_from_db(database_url))
-    if if_new_data and ds.n_matches > 0 and last_trained_matches(database_url, ds.version) >= ds.n_matches:
-        log(f"no new matches since the last training ({ds.n_matches})")
+    if if_new_data and ds.n_matches > 0 and last_fingerprint(database_url) == fingerprint(ds):
+        log(f"no new or changed matches since the last training ({ds.n_matches})")
         return {"status": "up_to_date", "matches": ds.n_matches}
     prior = load_prior()
     result = train(ds, prior, log)
@@ -356,6 +368,7 @@ def run(database_url: str, *, dry_run: bool = False, if_new_data: bool = False, 
     if dry_run:
         return {"status": "dry_run", "best": result["name"], "evaluation": result["evaluation"]}
     model_id = store(database_url, ds, result)
+    store_run(database_url, ds, result["evaluation"], f"stored {model_id}")
     log(f"stored model {model_id} ({result['name']})")
     return {"status": "trained", "id": model_id, "best": result["name"], "evaluation": result["evaluation"]}
 

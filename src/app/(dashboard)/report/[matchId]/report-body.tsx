@@ -7,7 +7,7 @@ import { formatMetric, type PlayerReport, type ReportIssue, type ReportMetric } 
 import { fmtRoundTime, replayHref, type FindingView } from "@/lib/findings/view";
 import type { ReportNorms } from "@/lib/norms/report-norms";
 import { formatNormValue, proText } from "@/lib/norms/view";
-import { fmtPp, totalCostPp, type ReportWinProb } from "@/lib/winprob/report";
+import { totalCostPp, type ReportWinProb } from "@/lib/winprob/report";
 import { FindingCard, type ClipContext } from "./finding-card";
 
 const STATUS_TONE: Record<string, string> = {
@@ -54,7 +54,7 @@ export function ReportBody({
           <SummaryTile
             label={winprob.t("winprob.summaryCost")}
             title={winprob.t("winprob.summaryCostHint")}
-            value={`${fmtPp(totalCost)} pp`}
+            value={`${winprob.fmt(totalCost)} pp`}
             tone="text-[var(--mistake)]"
           />
         )}
@@ -62,7 +62,7 @@ export function ReportBody({
           <SummaryTile
             label={winprob.t("winprob.wpa")}
             title={winprob.t("winprob.wpaHint")}
-            value={winprob.t("winprob.wpaValue", { pp: fmtPp(winprob.wpaPerRoundPp) })}
+            value={winprob.t("winprob.wpaValue", { pp: winprob.fmt(winprob.wpaPerRoundPp) })}
             tone={winprob.wpaPerRoundPp >= 0 ? "text-[var(--good)]" : "text-[var(--mistake)]"}
           />
         )}
@@ -354,7 +354,7 @@ function TopIssue({
             <>
               {" · "}
               <span className="font-mono font-semibold text-[var(--mistake)]" title={winprob.t("winprob.summaryCostHint")}>
-                {winprob.t("winprob.issueCost", { pp: fmtPp(cost) })}
+                {winprob.t("winprob.issueCost", { pp: winprob.fmt(cost) })}
               </span>
             </>
           )}
@@ -458,9 +458,9 @@ function IssueDetails({
             {formatMetric(issue.metric)}
           </span>
         )}
-        {cost != null && (
+        {cost != null && winprob && (
           <span className="font-mono text-xs font-semibold text-[var(--mistake)]" title={winprob?.t("winprob.summaryCostHint")}>
-            {fmtPp(cost)} pp
+            {winprob.fmt(cost)} pp
           </span>
         )}
         <span className="font-mono text-xs text-[var(--text-tertiary)]">{issue.findings.length}×</span>

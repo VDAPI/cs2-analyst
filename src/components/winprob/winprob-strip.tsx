@@ -65,7 +65,8 @@ export function WinProbStrip({ matchId }: { matchId: string }) {
     return v;
   }, [series, currentTick]);
 
-  if (!data || frames.length === 0) return null;
+  // Hidden until this round's answer is in (no "no data" flash on every round change).
+  if (!data || data.round !== currentRound || frames.length === 0) return null;
   if (!series || !path) {
     return <p className="text-xs text-[var(--text-tertiary)]">{t("winprob.stripNone")}</p>;
   }

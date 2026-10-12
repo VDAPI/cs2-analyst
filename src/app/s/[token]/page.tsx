@@ -64,7 +64,7 @@ export default async function SharedPage({ params }: Props) {
   const { token } = await params;
   const share = await loadShare(token);
   if (!share) notFound();
-  const { t } = await getT();
+  const { t, locale } = await getT();
   await prisma.share.update({ where: { id: share.id }, data: { views: { increment: 1 } } });
 
   const match = share.match;
@@ -155,7 +155,7 @@ export default async function SharedPage({ params }: Props) {
     steamId && loaded?.hasData
       ? await loadReportNorms(prisma, { matchId: match.id, steamId, map: match.map, metrics: loaded.metrics, rounds: loaded.rounds, t })
       : null;
-  const winprob = steamId && loaded?.hasData ? await loadReportWinProb(prisma, match.id, steamId, t) : null;
+  const winprob = steamId && loaded?.hasData ? await loadReportWinProb(prisma, match.id, steamId, t, locale) : null;
 
   return (
     <PublicShell>

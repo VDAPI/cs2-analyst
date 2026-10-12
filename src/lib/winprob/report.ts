@@ -5,6 +5,8 @@
  */
 import type { PrismaClient } from "@prisma/client";
 import type { TFunction } from "@/lib/i18n/translate";
+import type { Locale } from "@/lib/i18n/config";
+import { fmtPp as fmtPpLocale } from "./format";
 import { getActiveModel, getMatchWpa } from "./persist";
 
 export interface ReportWinProb {
@@ -13,13 +15,16 @@ export interface ReportWinProb {
   trained: boolean;
   nMatches: number;
   t: TFunction;
+  /** "−12,4" in the reader's language. */
+  fmt: (pp: number) => string;
 }
 
 export async function loadReportWinProb(
   prisma: PrismaClient,
   matchId: string,
   steamId: string,
-  t: TFunction
+  t: TFunction,
+  locale: Locale
 ): Promise<ReportWinProb | null> {
   try {
     const [model, wpa] = await Promise.all([getActiveModel(prisma), getMatchWpa(prisma, matchId)]);
@@ -29,6 +34,7 @@ export async function loadReportWinProb(
       trained: model.trained,
       nMatches: model.nMatches,
       t,
+      fmt: (pp: number) => fmtPpLocale(pp, locale),
     };
   } catch (error) {
     console.error(`[winprob] report data failed match=${matchId}:`, error);
@@ -36,20 +42,26 @@ export async function loadReportWinProb(
   }
 }
 
-/** Sum of the costs (negative changes) of these findings, pp, one decimal; null when none has one. */
-export function totalCostPp(findings: Array<{ wp?: { before: number; after: number } | null }>): number | null {
+/**
+ * Sum of the costs (negative changes) of these findings, pp, one decimal; null
+ * when none has one. Several findings on one death (a moving shot, no trade,
+ * a post-plant death…) carry the same cost: it is counted once.
+ */
+export function totalCostPp(
+  findings: Array<{ roundNumber: number; wp?: { before: number; after: number; kind: string } | null }>
+): number | null {
   let sum = 0;
   let any = false;
+  const seen = new Set<string>();
   for (const f of findings) {
     if (!f.wp) continue;
     const d = f.wp.after - f.wp.before;
-    if (d < 0) {
-      sum += d;
-      any = true;
-    }
+    if (d >= 0) continue;
+    const key = `${f.roundNumber}|${f.wp.kind}|${f.wp.before}|${f.wp.after}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sum += d;
+    any = true;
   }
   return any ? Math.round(sum * 1000) / 10 : null;
 }
-
-/** "−12,4" (Polish decimal comma, explicit sign). */
-export const fmtPp = (pp: number) => `${pp > 0 ? "+" : pp < 0 ? "−" : ""}${Math.abs(pp).toFixed(1).replace(".", ",")}`;
