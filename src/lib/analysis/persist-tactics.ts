@@ -6,10 +6,10 @@
  */
 import type { PrismaClient } from "@prisma/client";
 import { decodeRoundTicks } from "@/lib/replay/round-ticks";
-import { analyzeTactics, TACTICS_VERSION, type TacticsFrame } from "./tactics";
+import { analyzeTactics, TACTICS_VERSION, type TacticsFrame, type TacticsInput } from "./tactics";
 
-/** Returns the number of players stored, or 0 when the match has no rounds or kills. */
-export async function computeAndPersistTactics(prisma: PrismaClient, matchId: string): Promise<number> {
+/** The analysis input for one match from the DB, or null when there is nothing to analyse. */
+export async function loadTacticsInput(prisma: PrismaClient, matchId: string): Promise<TacticsInput | null> {
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     select: {
@@ -48,9 +48,9 @@ export async function computeAndPersistTactics(prisma: PrismaClient, matchId: st
       },
     },
   });
-  if (!match || match.rounds.length === 0 || !match.rounds.some((r) => r.kills.length > 0)) return 0;
+  if (!match || match.rounds.length === 0 || !match.rounds.some((r) => r.kills.length > 0)) return null;
 
-  const results = analyzeTactics({
+  return {
     tickRate: match.tickRate,
     players: match.players,
     rounds: match.rounds.map((r) => ({
@@ -67,7 +67,15 @@ export async function computeAndPersistTactics(prisma: PrismaClient, matchId: st
     damages: match.rounds.flatMap((r) => r.damages.map((d) => ({ ...d, roundNumber: r.number }))),
     bombs: match.rounds.flatMap((r) => r.bombs.map((b) => ({ ...b, roundNumber: r.number }))),
     economy: match.rounds.flatMap((r) => r.players.map((p) => ({ ...p, roundNumber: r.number }))),
-  });
+  };
+}
+
+/** Returns the number of players stored, or 0 when the match has no rounds or kills. */
+export async function computeAndPersistTactics(prisma: PrismaClient, matchId: string): Promise<number> {
+  const input = await loadTacticsInput(prisma, matchId);
+  if (!input) return 0;
+
+  const results = analyzeTactics(input);
 
   await prisma.$transaction([
     prisma.tacticsStats.deleteMany({ where: { matchId } }),

@@ -6,13 +6,10 @@
  */
 import type { PrismaClient } from "@prisma/client";
 import { decodeRoundTicks } from "@/lib/replay/round-ticks";
-import { analyzeMovement, MECHANICS_VERSION, type FrameInput } from "./movement";
+import { analyzeMovement, MECHANICS_VERSION, type FrameInput, type MovementInput } from "./movement";
 
-/** Returns the number of players stored, or 0 when the match has no replay data. */
-export async function computeAndPersistMechanics(
-  prisma: PrismaClient,
-  matchId: string
-): Promise<number> {
+/** The analysis input for one match from the DB, or null when there is nothing to analyse. */
+export async function loadMechanicsInput(prisma: PrismaClient, matchId: string): Promise<MovementInput | null> {
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     select: {
@@ -39,9 +36,9 @@ export async function computeAndPersistMechanics(
       },
     },
   });
-  if (!match || !match.rounds.some((r) => r.ticks)) return 0;
+  if (!match || !match.rounds.some((r) => r.ticks)) return null;
 
-  const results = analyzeMovement({
+  return {
     tickRate: match.tickRate,
     rounds: match.rounds.map((r) => ({
       number: r.number,
@@ -50,7 +47,18 @@ export async function computeAndPersistMechanics(
     })),
     shots: match.rounds.flatMap((r) => r.shots.map((s) => ({ ...s, roundNumber: r.number }))),
     damages: match.rounds.flatMap((r) => r.damages.map((d) => ({ ...d, roundNumber: r.number }))),
-  });
+  };
+}
+
+/** Returns the number of players stored, or 0 when the match has no replay data. */
+export async function computeAndPersistMechanics(
+  prisma: PrismaClient,
+  matchId: string
+): Promise<number> {
+  const input = await loadMechanicsInput(prisma, matchId);
+  if (!input) return 0;
+
+  const results = analyzeMovement(input);
 
   await prisma.$transaction([
     prisma.mechanicsStats.deleteMany({ where: { matchId } }),

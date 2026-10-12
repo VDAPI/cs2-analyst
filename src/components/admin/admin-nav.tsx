@@ -8,6 +8,7 @@ const TABS = [
   { href: "/admin", label: "Przegląd" },
   { href: "/admin/analyses", label: "Analizy" },
   { href: "/admin/users", label: "Użytkownicy" },
+  { href: "/admin/pro", label: "Dane pro" },
 ];
 
 /** Sub-navigation of the admin panel; scrolls sideways on its own at 360 px. */

@@ -23,7 +23,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "Above 34% of the weapon's max speed CS2 adds inaccuracy, so the first bullet misses the head.",
     advice: "Stop before you click: release the movement key and tap the opposite one (counter-strafe), then shoot.",
     drill: "Aim Botz: strafe A-D and shoot only after you've stopped, 5 minutes before every game.",
-    pro: "pro: about 5–8% of first shots while moving",
+    pro: "pro: about 8–17% of first shots while moving",
   },
   late_strafe: {
     label: "Shot while still stopping",
@@ -31,15 +31,15 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "A shot fired mid counter-strafe still carries movement inaccuracy, even though it feels like you're standing still.",
     advice: "Stop earlier: start the counter-strafe when you see the edge of the wall, not when you see the enemy.",
     drill: "Prefire maps (e.g. Yprac): come out of the corner with a counter-strafe, shoot only at zero velocity (cl_showpos 1).",
-    pro: "pro: stopped in about 80–100 ms",
+    pro: "pro: stopped in about 45–70 ms",
   },
   first_bullet: {
-    label: "First-bullet accuracy",
+    label: "1st-bullet accuracy",
     title: "Your first bullet rarely hits",
     why: "Most duels are decided by the first hit, and a spray after a missed first bullet hits far less often.",
     advice: "Keep your crosshair at head height and fire the first bullet standing still instead of spraying right away.",
     drill: "Aim Botz: 100 one-bullet kills (tapping) with the AK, standing still, then with a counter-strafe.",
-    pro: "pro: about 35–45% first-bullet hits",
+    pro: "pro: about 42–55% first-bullet hits",
   },
   spray: {
     label: "Spray into nothing",
@@ -47,7 +47,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "From the fourth bullet on, shots follow the recoil pattern; without control the rest of the spray misses.",
     advice: "At range, fire 3–5 bullet bursts instead of a full spray, and practise the full spray on a wall.",
     drill: "Recoil Master / the wall on Aim Botz: AK and M4 pattern, 10 sprays each per day.",
-    pro: "pro: about 35% hits from the 4th bullet on",
+    pro: "pro: about 25–35% hits from the 4th bullet on",
   },
   air_shot: {
     label: "Shot in the air",
@@ -65,7 +65,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "When your crosshair sits far from where the enemy appears, you need a big mouse movement and lose time.",
     advice: "Keep your crosshair at head height on the edge an enemy can come from; don't aim at walls or the floor.",
     drill: "On an empty server, walk your side's routes and set your crosshair at head height on every corner.",
-    pro: "pro: about 3–5° from the head when the enemy appears",
+    pro: "pro: about 5–10° from the head when the enemy appears",
   },
   reaction: {
     label: "Slow reaction",
@@ -73,7 +73,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "An enemy who sees you for the same amount of time shoots first if your reaction takes longer than 300–400 ms.",
     advice: "Play positions where you expect the enemy from one direction, so you react instead of searching.",
     drill: "Aim Lab / KovaaK's: Reflex Shot or Spidershot, 10 minutes a day.",
-    pro: "pro: about 200–250 ms",
+    pro: "pro: about 90–250 ms after the game spots the enemy",
   },
   ttd: {
     label: "Time to damage",
@@ -81,7 +81,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "The time from seeing an enemy to damaging them decides who wins the duel.",
     advice: "Work on crosshair placement and stopping before you shoot; those are what cut your time to damage.",
     drill: "Aim Botz: bots coming out from a corner, time how long your first hit takes.",
-    pro: "pro: about 350–450 ms",
+    pro: "pro: about 400–750 ms",
   },
   overflick: {
     label: "Overflick",
@@ -89,7 +89,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "A flick that passes the head needs a second correction and gives the enemy time to shoot.",
     advice: "Lower your sensitivity or aim closer to the enemy before the peek, so the flick is shorter.",
     drill: "KovaaK's / Aim Lab: flick scenarios with small targets, focus on stopping on the target, not on speed.",
-    pro: "pro: about 10% of flicks overshot",
+    pro: "pro: about 15–35% of flicks overshot",
   },
   headshots: {
     label: "Headshots",
@@ -97,7 +97,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "A rifle headshot kills instantly; to the body you need 3–4 bullets.",
     advice: "Keep your crosshair at head height, not body height, also while moving around the map.",
     drill: "Aim Botz in headshot-only mode (mp_damage_headshot_only 1), 100 kills.",
-    pro: "pro: about 45–55% headshot hits",
+    pro: "pro: about 20–28% headshot hits (all hits, not kills)",
   },
   preaim: {
     label: "Pre-aim",
@@ -105,7 +105,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "A hit without a big correction is the fastest hit; it takes good prediction of where the enemy is.",
     advice: "Learn the common enemy positions on the map and peek with your crosshair already on them.",
     drill: "Prefire maps (Yprac) on your maps, every position in order.",
-    pro: "pro: about 40–50% of hits from pre-aim",
+    pro: "pro: about 33–52% of hits from pre-aim",
   },
 
   // ─── Duels and peeks (S9) ───
@@ -115,7 +115,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "A peek without a flash or a trade gives the enemy a free shot at you, and when you die your team loses a player for nothing.",
     advice: "Before peeking a known position, ask for a flash or go so a teammate can trade you.",
     drill: "Learn 2–3 self pop-flashes on every map (Yprac / lineups on YouTube).",
-    pro: "pro: about 35% of dry peeks lost",
+    pro: "pro: about 30–55% of dry peeks lost",
   },
   reload: {
     label: "Bad-timing reload",
@@ -123,7 +123,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "For about 2.5 s of reloading you can't shoot, and a known enemy can swing in that time.",
     advice: "Reload hidden behind a wall or only when your mag is low; near an enemy, finish with your pistol.",
     drill: "After every kill in DM: first take cover, only then reload.",
-    pro: "pro: 0–1 such reloads per match",
+    pro: "pro: about 1–5 such reloads per match",
   },
 
   // ─── Movement and sound (S9) ───
@@ -133,7 +133,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "Footsteps can be heard from about 1100 units; the enemy knows where you are and waits with their crosshair ready.",
     advice: "Within earshot of a known enemy, shift-walk; only run when they can already see you or a teammate is fighting.",
     drill: "In a match: before you leave a passage near a known enemy, switch to walking.",
-    pro: "pro: 0–2 such runs per match",
+    pro: "pro: about 4–12 such runs per match",
   },
   jump: {
     label: "Needless jump",
@@ -141,7 +141,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "Landing after a jump makes noise, and you can't hit anything in the air.",
     advice: "Near enemies, only jump to get onto a ledge or to gather info with a jump-peek, never before a fight.",
     drill: "Learn jump-peeks for 2–3 AWP angles on your maps instead of plain jumps.",
-    pro: "pro: 0–1 needless jumps per match",
+    pro: "pro: about 1–5 jumps near enemies per match (jump-throws included)",
   },
 
   // ─── Utility (S11) ───
@@ -167,7 +167,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "A flash that blinds an enemy for less than a second gives your team no time to entry or shoot.",
     advice: "Throw pop-flashes from behind a wall so they pop over the edge in the enemy's view, not in front of you or behind them.",
     drill: "Your own server with bots: 3 pop-flashes per bombsite; check how long they blind the bots.",
-    pro: "pro: about 1.0–1.5 s of enemy blind per flash",
+    pro: "pro: about 1.1–2.0 s of enemy blind per flash",
   },
   team_flash: {
     label: "Team flash",
@@ -175,7 +175,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "A blinded teammate won't win the duel, and the enemy hears the flash and knows you're about to push.",
     advice: "Before you throw, call \"flashing A\" and throw over your teammate or behind them, never in front of them.",
     drill: "With a teammate on a server: they peek, you throw a pop-flash over them until you don't blind them 5 times in a row.",
-    pro: "pro: about 0.2 s of teammate blind per flash",
+    pro: "pro: about 0.15–0.5 s of teammate blind per flash",
   },
   flash_no_peek: {
     label: "Flash with no follow-up",
@@ -183,7 +183,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "A blinded enemy is about 2 s of advantage; if nobody peeks or shoots during that time, the flash is wasted.",
     advice: "Only flash when you or a teammate swing on the blinded enemy straight away; sync it with a \"flashing, going\" call.",
     drill: "Learn 2 self-flashes (throw and peek within 1 s) on every map you play.",
-    pro: "pro: about 70% of flashes that blinded an enemy are followed by a peek",
+    pro: "pro: about 60–80% of flashes that blinded an enemy are followed by a peek",
   },
   he_no_effect: {
     label: "HE with no effect",
@@ -191,7 +191,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "A $300 HE that hits nobody is money and an inventory slot with no return.",
     advice: "Throw HEs where the enemy is right now (after info, at a stack during the entry), ideally together with a teammate or after a flash that landed.",
     drill: "Learn HEs for 2–3 common positions on every map (e.g. around a corner onto boxes) and combine them with a molotov.",
-    pro: "pro: about 15–25 HP of damage per HE",
+    pro: "pro: about 8–19 HP of damage per HE",
   },
   molotov_no_effect: {
     label: "Molotov with no effect",
@@ -199,7 +199,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "A molotov costs $400–500; with no damage and no enemy flushed out of a position, it's money lost for the round.",
     advice: "Throw your molotov on a position you know about (info, sound, a common spot during the entry), or to stop a rush when you hear it.",
     drill: "Learn molotovs for 3 common defensive positions on each bombsite of your maps.",
-    pro: "pro: about 10–15 HP of damage per molotov",
+    pro: "pro: about 4–11 HP of damage per molotov",
   },
   nade_team_damage: {
     label: "Nade into teammates",
@@ -215,7 +215,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "Grenades in a dead player's pocket are wasted money; used before the fight they'd have given info, time or an advantage.",
     advice: "Before you take a fight, use at least one grenade: a flash before the peek, a molotov on a position, a smoke to cut a line.",
     drill: "Every round at 1:00, ask yourself: which grenade can I use for my team right now?",
-    pro: "pro: about $150 of unused utility per death",
+    pro: "pro: about $140–280 of unused utility per death",
   },
   lineup_miss: {
     label: "Lineup off target",
@@ -233,7 +233,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "A death with no teammate in trade range is a pure loss: the enemy gives nothing back and your team plays a man down.",
     advice: "Play within range of a teammate (up to about 3 s of running) or don't take the duel alone; info first, then fight together.",
     drill: "In your next match, before every peek check the radar for someone in trade range.",
-    pro: "pro: about 1–2 isolated deaths per match",
+    pro: "pro: about 14–27% of deaths traded by the team",
   },
   missed_trade: {
     label: "Missed trade",
@@ -241,7 +241,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "An enemy who just got a kill is standing in a known spot and is often reloading; it's the easiest frag of the round.",
     advice: "When a teammate dies next to you, swing on their killer right away (ideally from a different angle), before they reposition.",
     drill: "Retake/DM in pairs: one peeks, the other stays 1–2 m behind and trades within 2 s.",
-    pro: "pro: about 60–70% of trade chances taken",
+    pro: "pro: about 27–50% of trade chances taken",
   },
   entry_death: {
     label: "Unsupported entry",
@@ -317,7 +317,7 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     why: "After a few rounds the opponents know where you stand and come with utility or pre-aim on your spot.",
     advice: "Every 2–3 rounds change your position or timing (a different angle, aggression, falling back); be where the enemy doesn't expect you.",
     drill: "For every bombsite on your map, prepare 3 CT positions and rotate through them during the half.",
-    pro: "pro: change position or timing every 2–3 rounds",
+    pro: "pro: about 45–75% of CT rounds in the same spot, but with different timing and utility",
   },
   clutch_decision: {
     label: "Clutch decision",

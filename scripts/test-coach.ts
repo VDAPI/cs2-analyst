@@ -237,9 +237,13 @@ const rated = buildTrainingPlan({
   weekStart: "2026-10-12",
   matches,
   findings,
-  weights: feedbackWeights([{ type: "moving_shot", helpful: 0, total: 6 }], []),
+  weights: feedbackWeights([{ type: "smoke_early", helpful: 0, total: 6 }], []),
 });
-check("plan: 'not helpful' ratings move an issue down", rated.focuses[0].type !== "moving_shot");
+const rank = (p: typeof plan, type: string) => p.focuses.findIndex((f) => f.type === type);
+check(
+  "plan: 'not helpful' ratings move an issue down",
+  rank(plan, "smoke_early") === 1 && rank(rated, "smoke_early") > 1 && rated.focuses[0].type === "moving_shot"
+);
 const clean = buildTrainingPlan({
   weekStart: "2026-10-12",
   matches: [match(6, "de_nuke", { mech: null, aim: null, tactics: null, utility: null })],

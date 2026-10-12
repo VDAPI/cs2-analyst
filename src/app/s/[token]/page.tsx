@@ -12,6 +12,7 @@ import { fmtRoundTime, toFindingView } from "@/lib/findings/view";
 import { MOMENT_CLIP, isShareToken } from "@/lib/sharing/share";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { formatDate } from "@/lib/utils/formatters";
+import { loadReportNorms } from "@/lib/norms/report-norms";
 import { ReportBody } from "@/app/(dashboard)/report/[matchId]/report-body";
 
 interface Props {
@@ -149,6 +150,10 @@ export default async function SharedPage({ params }: Props) {
   const steamId = share.steamId;
   const all = (await getFindings(prisma, match.id)).map(toFindingView);
   const loaded = steamId ? await loadPlayerReport(prisma, match.id, steamId, all) : null;
+  const norms =
+    steamId && loaded?.hasData
+      ? await loadReportNorms(prisma, { matchId: match.id, steamId, map: match.map, metrics: loaded.metrics, rounds: loaded.rounds, t })
+      : null;
 
   return (
     <PublicShell>
@@ -164,7 +169,7 @@ export default async function SharedPage({ params }: Props) {
       />
       {loaded?.hasData ? (
         <div className="min-w-0 space-y-8">
-          <ReportBody report={loaded.report} ctx={ctx} nameOf={nameOf} />
+          <ReportBody report={loaded.report} ctx={ctx} nameOf={nameOf} norms={norms} />
         </div>
       ) : (
         <EmptyState title={t("shared.noData")} />

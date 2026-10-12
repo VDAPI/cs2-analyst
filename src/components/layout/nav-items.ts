@@ -71,7 +71,7 @@ export const navGroups: NavGroup[] = [
   {
     labelKey: "nav.groupPro",
     items: [
-      { href: "/pro", labelKey: "nav.pro", icon: Trophy, soon: true },
+      { href: "/pro", labelKey: "nav.pro", icon: Trophy },
       { href: "/team", labelKey: "nav.team", icon: Shield, soon: true },
     ],
   },

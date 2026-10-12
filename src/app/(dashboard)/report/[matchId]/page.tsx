@@ -11,11 +11,12 @@ import { cn } from "@/lib/utils/cn";
 import { getFindings } from "@/lib/findings/persist";
 import { loadPlayerReport, reportClipContext } from "@/lib/findings/player-report";
 import { toFindingView } from "@/lib/findings/view";
-import { getLocale } from "@/lib/i18n/server";
+import { getLocale, getT } from "@/lib/i18n/server";
 import { MatchCoach } from "@/components/coach/match-coach";
 import { coachAiEnabled } from "@/lib/coach/ai";
 import { matchCoachInput } from "@/lib/coach/match";
 import { loadFeedbackWeights, loadRatings, matchCoachText } from "@/lib/coach/persist";
+import { loadReportNorms } from "@/lib/norms/report-norms";
 import { ReportBody } from "./report-body";
 
 interface Props {
@@ -55,9 +56,21 @@ export default async function ReportPage({ params, searchParams }: Props) {
     players.find((p) => p.steamId === session.user.steamId) ??
     [...players].sort((a, b) => (countOf.get(b.steamId) ?? 0) - (countOf.get(a.steamId) ?? 0))[0];
 
-  const { report, hasData } = selected
-    ? await loadPlayerReport(prisma, matchId, selected.steamId, all)
-    : { report: null, hasData: false };
+  const loaded = selected ? await loadPlayerReport(prisma, matchId, selected.steamId, all) : null;
+  const report = loaded?.report ?? null;
+  const hasData = loaded?.hasData ?? false;
+  const { t } = await getT();
+  const norms =
+    selected && loaded?.hasData
+      ? await loadReportNorms(prisma, {
+          matchId,
+          steamId: selected.steamId,
+          map: match.map,
+          metrics: loaded.metrics,
+          rounds: loaded.rounds,
+          t,
+        })
+      : null;
   const ctx = reportClipContext(matchId, match.map);
 
   // AI coach (S15): cached notes or the standard text now; the client asks
@@ -180,7 +193,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
               aiEnabled={coachAiEnabled()}
             />
           )}
-          <ReportBody report={report} ctx={ctx} nameOf={nameOf} />
+          <ReportBody report={report} ctx={ctx} nameOf={nameOf} norms={norms} normsHref={`/pro?map=${match.map}`} />
         </>
       )}
     </div>

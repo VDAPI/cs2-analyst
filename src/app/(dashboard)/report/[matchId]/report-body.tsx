@@ -5,6 +5,8 @@ import { FindingClip } from "@/components/replay/finding-clip";
 import { cn } from "@/lib/utils/cn";
 import { formatMetric, type PlayerReport, type ReportIssue, type ReportMetric } from "@/lib/findings/report";
 import { fmtRoundTime, replayHref, type FindingView } from "@/lib/findings/view";
+import type { ReportNorms } from "@/lib/norms/report-norms";
+import { formatNormValue, proText } from "@/lib/norms/view";
 import { FindingCard, type ClipContext } from "./finding-card";
 
 const STATUS_TONE: Record<string, string> = {
@@ -23,10 +25,16 @@ export function ReportBody({
   report,
   ctx,
   nameOf,
+  norms = null,
+  normsHref = null,
 }: {
   report: PlayerReport<FindingView>;
   ctx: ClipContext;
   nameOf: Map<string, string>;
+  /** Pro and rank norms (S13); without them the report shows the catalog's reference pro text. */
+  norms?: ReportNorms | null;
+  /** Link to the full norms screen (logged-in report only). */
+  normsHref?: string | null;
 }) {
   return (
     <>
@@ -50,7 +58,7 @@ export function ReportBody({
           </Card>
         ) : (
           report.top.map((issue, i) => (
-            <TopIssue key={issue.type} rank={i + 1} issue={issue} ctx={ctx} nameOf={nameOf} />
+            <TopIssue key={issue.type} rank={i + 1} issue={issue} ctx={ctx} nameOf={nameOf} norms={norms} />
           ))
         )}
       </section>
@@ -70,12 +78,38 @@ export function ReportBody({
                 <CheckCircle2 className="h-5 w-5 shrink-0 text-[var(--good)]" aria-hidden />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-[var(--text-primary)]">{m.label}</p>
-                  <p className="text-xs text-[var(--text-tertiary)]">próg {m.threshold}</p>
+                  <p className="text-xs text-[var(--text-tertiary)]">
+                    próg {m.threshold}
+                    {proText(norms?.cmpOf.get(m.key)?.pro ?? null, m.unit) && (
+                      <> · {proText(norms?.cmpOf.get(m.key)?.pro ?? null, m.unit)}</>
+                    )}
+                  </p>
                 </div>
                 <span className="font-mono text-lg font-semibold text-[var(--good)]">{formatMetric(m)}</span>
               </div>
             ))}
           </div>
+        </section>
+      )}
+
+      {/* Every metric against pros and the player's rank (S13) */}
+      {norms && norms.metrics.length > 0 && (
+        <section aria-labelledby="vs-pro" className="space-y-3">
+          <SectionTitle>
+            <span id="vs-pro">{norms.t("norms.reportTitle")}</span>
+          </SectionTitle>
+          <p className="text-sm text-[var(--text-secondary)]">
+            {norms.t("norms.reportHint")}
+            {normsHref && (
+              <>
+                {" "}
+                <Link href={normsHref} className="text-[var(--accent-hover)] underline-offset-2 hover:underline">
+                  {norms.t("norms.title")} →
+                </Link>
+              </>
+            )}
+          </p>
+          <VsProTable norms={norms} />
         </section>
       )}
 
@@ -98,7 +132,7 @@ export function ReportBody({
               </p>
             ) : (
               issues.map((issue) => (
-                <IssueDetails key={issue.type} issue={issue} ctx={ctx} nameOf={nameOf} />
+                <IssueDetails key={issue.type} issue={issue} ctx={ctx} nameOf={nameOf} norms={norms} />
               ))
             )}
           </div>
@@ -107,8 +141,9 @@ export function ReportBody({
 
       <p className="text-xs text-[var(--text-tertiary)]">
         Błędy oceniamy po tym, co mogłeś wiedzieć w danej chwili (widoczność z gry, dźwięk, info od teamu), a nie
-        po widoku z góry. Wartości „pro” są orientacyjne, z publicznych średnich; dokładne normy z dem
-        profesjonalistów dojdą w kolejnej aktualizacji. Kolejność top 3 bierze pod uwagę liczbę i wagę błędów,
+        po widoku z góry. {norms?.anyMeasured && norms.t("norms.reportFootMeasured")}{" "}
+        {(!norms || norms.anyReference) && "Wartości „pro” oznaczone ≈ są orientacyjne, z publicznych źródeł, do czasu zebrania dem pro."}{" "}
+        Kolejność top 3 bierze pod uwagę liczbę i wagę błędów,
         to, czy kosztowały walkę, oraz wynik metryki w całym meczu.
       </p>
     </>
@@ -126,11 +161,103 @@ function SummaryTile({ label, value, tone }: { label: string; value: number; ton
   );
 }
 
-function MetricLine({ metric }: { metric: ReportMetric }) {
+const VERDICT_TONE: Record<string, string> = {
+  better: "text-[var(--good)]",
+  within: "text-[var(--text-secondary)]",
+  worse: "text-[var(--mistake)]",
+};
+
+/** "· pro: 24% · Poziom FACEIT 7: 18%" next to a metric. */
+function NormLine({ metric, norms }: { metric: ReportMetric; norms: ReportNorms | null }) {
+  const cmp = norms?.cmpOf.get(metric.key);
+  if (!norms || (!cmp?.pro && !cmp?.rank)) return null;
+  return (
+    <span className="text-[var(--text-tertiary)]">
+      {cmp.pro && (
+        <>
+          {" · "}
+          <span
+            className="font-medium text-[var(--accent-2)]"
+            title={cmp.pro.source === "reference" ? norms.t("norms.approx") : norms.t("norms.proN", { n: cmp.pro.n })}
+          >
+            {proText(cmp.pro, metric.unit)}
+          </span>
+        </>
+      )}
+      {cmp.rank && (
+        <>
+          {" · "}
+          {norms.rankName}: <span className="font-mono">{formatNormValue(cmp.rank.p50, metric.unit)}</span>
+        </>
+      )}
+    </span>
+  );
+}
+
+/** Pro text for an issue: the measured norm of its metric when there is one, else the catalog's reference line. */
+function issueProText(issue: ReportIssue<FindingView>, norms: ReportNorms | null): string {
+  const cmp = issue.metric ? norms?.cmpOf.get(issue.metric.key) : undefined;
+  if (norms && issue.metric && cmp?.pro?.source === "pro") {
+    const range = `${formatNormValue(cmp.pro.p25, issue.metric.unit)}–${formatNormValue(cmp.pro.p75, issue.metric.unit)}`;
+    return `${proText(cmp.pro, issue.metric.unit)} (p25–p75 ${range}, ${norms.t("norms.proN", { n: cmp.pro.n })})`;
+  }
+  return issue.def.pro;
+}
+
+/** Every number of the match next to the pro median and the rank pool's median. */
+function VsProTable({ norms }: { norms: ReportNorms }) {
+  const { t } = norms;
+  return (
+    <div className="table-scroll rounded-xl border border-[var(--border)]">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>{t("norms.colMetric")}</th>
+            <th className="text-right">{t("norms.colYou")}</th>
+            <th className="text-right">{t("norms.colPro")}</th>
+            <th className="text-right">{norms.rankName}</th>
+            <th className="text-right">{t("norms.colStanding")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {norms.metrics.map((m) => {
+            const cmp = norms.cmpOf.get(m.key);
+            return (
+              <tr key={m.key}>
+                <td className="min-w-[120px] max-w-[150px] whitespace-normal sm:max-w-[260px]">{m.label}</td>
+                <td className={cn("text-right font-mono font-semibold", STATUS_TONE[m.status])}>{formatMetric(m)}</td>
+                <td className="text-right font-mono text-[var(--accent-2)]">
+                  {cmp?.pro ? `${cmp.pro.source === "reference" ? "≈" : ""}${formatNormValue(cmp.pro.p50, m.unit)}` : "–"}
+                </td>
+                <td className="text-right font-mono text-[var(--text-secondary)]">
+                  {cmp?.rank ? formatNormValue(cmp.rank.p50, m.unit) : "–"}
+                </td>
+                <td className={cn("text-right text-xs", cmp?.verdict ? VERDICT_TONE[cmp.verdict] : "text-[var(--text-tertiary)]")}>
+                  {cmp?.betterThanPro != null
+                    ? t("norms.betterThan", { pct: cmp.betterThanPro })
+                    : cmp?.verdict === "better"
+                      ? t("norms.verdictBetter")
+                      : cmp?.verdict === "within"
+                        ? t("norms.verdictWithin")
+                        : cmp?.verdict === "worse"
+                          ? t("norms.verdictWorse")
+                          : "–"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function MetricLine({ metric, norms }: { metric: ReportMetric; norms: ReportNorms | null }) {
   return (
     <p className="text-sm text-[var(--text-secondary)]">
       {metric.label}:{" "}
       <span className={cn("font-mono font-semibold", STATUS_TONE[metric.status])}>{formatMetric(metric)}</span>
+      <NormLine metric={metric} norms={norms} />
       <span className="text-[var(--text-tertiary)]">
         {" "}
         · próg {metric.threshold} · próbka{" "}
@@ -152,11 +279,13 @@ function TopIssue({
   issue,
   ctx,
   nameOf,
+  norms,
 }: {
   rank: number;
   issue: ReportIssue<FindingView>;
   ctx: ClipContext;
   nameOf: Map<string, string>;
+  norms: ReportNorms | null;
 }) {
   const worst = issue.findings[0];
   return (
@@ -177,11 +306,11 @@ function TopIssue({
         <p className="text-sm text-[var(--text-tertiary)]">
           {issue.def.label} · {issueCountLabel(issue)}
         </p>
-        {issue.metric && <MetricLine metric={issue.metric} />}
+        {issue.metric && <MetricLine metric={issue.metric} norms={norms} />}
         <p className="flex items-start gap-2 text-sm text-[var(--text-secondary)]">
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent-2)]" aria-hidden />
           <span>
-            <span className="font-medium text-[var(--accent-2)]">{issue.def.pro}</span>
+            <span className="font-medium text-[var(--accent-2)]">{issueProText(issue, norms)}</span>
             <span className="text-[var(--text-tertiary)]"> · {issue.def.why}</span>
           </span>
         </p>
@@ -252,10 +381,12 @@ function IssueDetails({
   issue,
   ctx,
   nameOf,
+  norms,
 }: {
   issue: ReportIssue<FindingView>;
   ctx: ClipContext;
   nameOf: Map<string, string>;
+  norms: ReportNorms | null;
 }) {
   return (
     <details
@@ -277,7 +408,7 @@ function IssueDetails({
         )}
       </summary>
       <div className="space-y-3 border-t border-[var(--border)] px-3 py-3 sm:px-4">
-        {issue.metric && <MetricLine metric={issue.metric} />}
+        {issue.metric && <MetricLine metric={issue.metric} norms={norms} />}
         <p className="text-sm text-[var(--text-secondary)]">{issue.def.why}</p>
         <p className="text-sm text-[var(--text-primary)]">
           <span className="font-semibold text-[var(--accent-hover)]">Rada: </span>
@@ -285,7 +416,7 @@ function IssueDetails({
         </p>
         <p className="text-xs text-[var(--text-tertiary)]">
           <span className="font-semibold">Ćwiczenie: </span>
-          {issue.def.drill} · <span className="font-medium text-[var(--accent-2)]">{issue.def.pro}</span>
+          {issue.def.drill} · <span className="font-medium text-[var(--accent-2)]">{issueProText(issue, norms)}</span>
         </p>
         {issue.findings.length > 0 && (
           <div className="grid grid-cols-1 items-start gap-2 md:grid-cols-2 xl:grid-cols-3">

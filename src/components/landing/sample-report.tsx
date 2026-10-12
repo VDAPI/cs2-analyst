@@ -8,14 +8,14 @@ const tiles = [
     value: "38%",
     color: "var(--mistake)",
     fill: 38,
-    note: "pro: ok. 9% · cel: poniżej 15%",
+    note: "pro: ok. 12% · cel: poniżej 15%",
   },
   {
     label: "Czas counter-strafe",
     value: "118 ms",
     color: "var(--warning)",
     fill: 62,
-    note: "pro: ok. 80 ms",
+    note: "pro: ok. 55 ms",
   },
   {
     label: "Crosshair placement",
