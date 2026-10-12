@@ -21,9 +21,15 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "CS2 Analyst — Demo Analysis Platform",
+  metadataBase: new URL(process.env.NEXTAUTH_URL ?? "http://localhost:3000"),
+  title: "CS2 Analyst — analiza dem CS2 i błędów w grze",
   description:
-    "Upload CS2 demos and get detailed analytics: player stats, heatmaps, 2D replay, economy tracking, grenade analysis and more.",
+    "Wybierz mecze z FACEIT albo wgraj dowolne demo CS2. Dostaniesz błędy z momentem w rundzie, podglądem 2D, radą i porównaniem z pro.",
+  openGraph: {
+    type: "website",
+    siteName: "CS2 Analyst",
+    locale: "pl_PL",
+  },
   keywords: [
     "CS2",
     "Counter-Strike 2",
@@ -41,7 +47,7 @@ export default function RootLayout({
 }) {
   return (
     <html
-      lang="en"
+      lang="pl"
       className={`${GeistSans.variable} ${GeistMono.variable} ${chakraPetch.variable}`}
       suppressHydrationWarning
     >
