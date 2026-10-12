@@ -276,6 +276,15 @@ export function scoreIssue(
   return Math.round(def.weight * (momentScore + metricScore) * 10) / 10;
 }
 
+/** Worth working on: not judged good, and something more than a stray hint. */
+export function isActionable(i: Pick<ReportIssue, "score" | "metric" | "high" | "medium">): boolean {
+  return (
+    i.score > 0 &&
+    i.metric?.status !== "good" &&
+    (i.high + i.medium > 0 || i.metric?.status === "bad" || i.metric?.status === "warn")
+  );
+}
+
 export function buildReport<F extends ReportFinding>(findings: F[], metrics: ReportMetric[]): PlayerReport<F> {
   const byType = new Map<string, F[]>();
   for (const f of findings) {
@@ -313,13 +322,7 @@ export function buildReport<F extends ReportFinding>(findings: F[], metrics: Rep
   }
   issues.sort((a, b) => b.score - a.score || SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
 
-  // Worth working on: not judged good, and something more than a stray hint.
-  const actionable = issues.filter(
-    (i) =>
-      i.score > 0 &&
-      i.metric?.status !== "good" &&
-      (i.high + i.medium > 0 || i.metric?.status === "bad" || i.metric?.status === "warn")
-  );
+  const actionable = issues.filter(isActionable);
 
   const strengths = metrics
     .filter((m) => m.status === "good")

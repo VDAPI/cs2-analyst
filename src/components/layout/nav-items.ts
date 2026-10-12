@@ -18,6 +18,7 @@ import {
   Target,
   ShieldCheck,
   TrendingUp,
+  GraduationCap,
   type LucideIcon,
 } from "lucide-react";
 import type { MessageKey } from "@/lib/i18n/translate";
@@ -47,6 +48,7 @@ export const navGroups: NavGroup[] = [
       { href: "/matches", labelKey: "nav.matches", icon: BarChart3 },
       { href: "/report", labelKey: "nav.report", icon: ClipboardCheck },
       { href: "/progress", labelKey: "nav.progress", icon: TrendingUp },
+      { href: "/coach", labelKey: "nav.coach", icon: GraduationCap },
       { href: "/upload", labelKey: "nav.upload", shortLabelKey: "nav.uploadShort", icon: Upload },
       { href: "/queue", labelKey: "nav.queue", icon: ListOrdered },
       { href: "/library", labelKey: "nav.library", icon: Library },
