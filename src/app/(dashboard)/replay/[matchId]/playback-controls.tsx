@@ -16,6 +16,7 @@ import {
 import type { FindingView } from "@/lib/findings/view";
 import { Segmented } from "@/components/tools/segmented";
 import { cn } from "@/lib/utils/cn";
+import { WinProbStrip } from "@/components/winprob/winprob-strip";
 
 interface RoundInfo {
   number: number;
@@ -108,6 +109,9 @@ export function PlaybackControls({ matchId, rounds, findingMarks = [], onFinding
 
   return (
     <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--glass-bg)] p-3 backdrop-blur-xl sm:p-4">
+      {/* Round win probability (S14), aligned with the scrubber */}
+      <WinProbStrip matchId={matchId} />
+
       {/* Scrubber */}
       <div>
         {findingMarks.length > 0 && (

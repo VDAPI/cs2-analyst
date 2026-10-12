@@ -66,8 +66,8 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Raport | Raport „co poprawić” z priorytetami | ✅ | S10 |
 | Pro | Pipeline dem pro i normy pro per mapa/strona/sytuacja | ✅ | S13 |
 | Pro | Porównanie każdej metryki z pro i z rangą | ✅ | S13 |
-| Pro | Model szansy wygranej rundy, wpływ każdej decyzji | 🆕 | S14 |
-| Pro | „Co zrobiłby pro” w podobnej sytuacji | 🆕 | S14 |
+| Pro | Model szansy wygranej rundy, wpływ każdej decyzji | ✅ | S14 |
+| Pro | „Co zrobiłby pro” w podobnej sytuacji | ✅ | S14 |
 | Trener AI | Rady w ludzkim języku (Claude API), plan treningu, ćwiczenia | ✅ | S15 |
 | Trener AI | Ocena rad (przydatne / nie) i uczenie kolejności rad | ✅ | S15 |
 | Postęp | Trendy metryk w czasie, cele, odznaki | ✅ | S16 |
@@ -169,6 +169,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S13.
 - **Zakres:** osobna usługa w Pythonie (LightGBM/XGBoost) liczy szansę wygranej rundy z (żywi, HP, ekonomia, bomba, czas, pozycje, utility). Wpływ decyzji = zmiana szansy. Wyszukiwanie podobnych sytuacji w danych pro i pokazanie, co pro robili najczęściej, z klipem 2D.
 - **Gotowe, gdy:** Finding pokazuje „kosztowało team X pp szansy na rundę”.
+- **Status:** ✅ zrobione. Szansa wygranej rundy liczona z 27 cech stanu (żywi, HP, pancerz, wartość sprzętu, karabiny, AWP, czas, bomba i czas na defuse, odległości do bomby i bombsite'ów, zużyte utility), `src/lib/winprob/`. Usługa w Pythonie (`ml/`, LightGBM 4.7, serwis `ml` w `docker-compose.yml`, albo `npm run ml:train`) porównuje na danych z bazy (walidacja krzyżowa po meczach) model wyjściowy, regresję logistyczną i dwa warianty LightGBM (z ograniczeniami monotoniczności: śmierć gracza nigdy nie podnosi szansy jego drużyny) i zapisuje najlepszy, gdy jest lepszy od wyjściowego; po każdej analizie worker prosi o ponowny trening, gdy przybyły mecze. Drzewa są eksportowane do JSON i liczone w TypeScripcie (test zgodności z LightGBM). Do 20 meczów z danymi replayu działa model wyjściowy dopasowany do publicznych statystyk rund (oznaczony ≈ w UI). Wpływ błędu liczony kontrfaktycznie: śmierć (szansa z graczem żywym vs. po śmierci), flash w swoich (śmierć kolegi), brak trade'u (gdyby zabójca zginął), brak dropu (kolega z karabinem); typy bez uczciwej miary nie dostają liczby. Karta błędu pokazuje „kosztowało team X pp szansy na rundę” i przycisk „Co zrobiłby pro?”: sytuacje z dem pro na tej mapie (co 2 s każdy żywy gracz: strona, żywi, bomba, czas, odległości, sprzęt; akcja w kolejnych 5 s: plant, defuse, utility, wejście, cofnięcie, zmiana pozycji, trzymanie), najczęstsze akcje pro z ich średnim wpływem na szansę i klipy 2D z dem pro. Raport: suma kosztu błędów, koszt przy każdym problemie i WPA gracza (pp na rundę z zabójstw i śmierci, jak Xenopoulos i in.). Replay: pasek szansy CT/T pod osią czasu. Admin: `/admin/ml` (porównanie modeli, historia, trening ręczny). Test: `npm run test:winprob`, `npm run ml:test`.
 
 ### S15. Trener AI
 - **Wymaga:** S10 (lepiej po S13).

@@ -179,6 +179,8 @@ model Match {
   tactics     TacticsStats[]
   findings    Finding[]
   normSamples NormSample[]
+  winProbData WinProbData?
+  situations  ProSituation[]
   shares      Share[]
   coachTexts  CoachText[]
   mapNotes    MapNote[]
@@ -186,6 +188,7 @@ model Match {
   // FINDINGS_STAMP the stored findings were built with (null = never); a
   // different stamp makes the report rebuild them (src/lib/findings/persist.ts).
   findingsVersion String?
+  findingsWpModel String? // win-probability model the findings' costs were scored with (S14)
 }
 
 model MatchPlayer {
@@ -680,6 +683,13 @@ model Finding {
   values        Json // FindingValue[]
   detail        String
   advice        String
+  // What it cost the team (S14, src/lib/winprob/impact.ts): the team's round
+  // win probability before / after the consequence (0–1), and how it was
+  // measured ("death" | "mate_death" | "trade" | "drop"). Null = no rule or
+  // no replay data for that round.
+  wpBefore      Float?
+  wpAfter       Float?
+  wpKind        String?
 
   createdAt DateTime @default(now())
 
@@ -1009,4 +1019,76 @@ model CoachFeedback {
 
   @@unique([userId, context, type])
   @@index([type])
+}
+
+// ─── Round win probability (S14) ─────────────────────────
+
+/// Training snapshots of one match for the win-probability model, built from
+/// the stored replay data by src/lib/winprob/features.ts. `rows` is
+/// [roundNumber, tick, tWin, ...features] with null where a feature does not
+/// apply; `features` names the columns. Read by the Python trainer (ml/).
+model WinProbData {
+  id        String   @id @default(cuid())
+  matchId   String   @unique
+  version   Int // WP_FEATURES_VERSION
+  map       String
+  pro       Boolean
+  rounds    Int
+  features  Json // string[]
+  rows      Json // (number | null)[][]
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([version])
+}
+
+/// A trained win-probability model (ml/cs2ml/train.py). `spec` is scored by
+/// src/lib/winprob/model.ts; only the active one whose featuresVersion matches
+/// the app's WP_FEATURES_VERSION is used, otherwise the shipped prior.
+model WinProbModel {
+  id              String   @id @default(cuid())
+  kind            String // "logistic" | "lgbm" | "lgbm_mono"
+  featuresVersion Int
+  spec            Json
+  metrics         Json // out-of-fold comparison of every candidate
+  nMatches        Int
+  nRounds         Int
+  nRows           Int
+  active          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  @@index([active])
+}
+
+/// One alive player at one moment of a pro demo, with what they did next
+/// (src/lib/winprob/situations.ts) — the base of "co zrobiłby pro".
+model ProSituation {
+  id          String  @id @default(cuid())
+  matchId     String
+  version     Int // SITUATIONS_VERSION
+  map         String
+  roundNumber Int
+  tick        Int
+  steamId     String
+  side        String // "CT" | "T"
+  aliveUs     Int
+  aliveThem   Int
+  planted     Boolean
+  timeLeft    Float
+  x           Float
+  y           Float
+  z           Float
+  hp          Int
+  action      String // ProAction
+  kill        Boolean
+  died        Boolean
+  wpBefore    Float
+  wpAfter     Float
+  modelId     String  @default("") // WinProbModel.id (or "prior") that scored wpBefore/wpAfter
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([map, side, planted, aliveUs, aliveThem])
+  @@index([matchId])
 }

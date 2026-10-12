@@ -1,0 +1,110 @@
+{
+  "kind": "logistic",
+  "features": [
+    "alive_diff",
+    "alive_log_ratio",
+    "ct_alive",
+    "ct_hp",
+    "defuse_margin",
+    "defuse_short",
+    "defusing",
+    "equip_avg_diff",
+    "planted",
+    "t_alive",
+    "t_hp",
+    "time_pressure"
+  ],
+  "intercept": -0.0334,
+  "terms": [
+    {
+      "f": [
+        "alive_log_ratio"
+      ],
+      "w": 2.8979
+    },
+    {
+      "f": [
+        "alive_diff"
+      ],
+      "w": 0.3784
+    },
+    {
+      "f": [
+        "t_hp"
+      ],
+      "w": 0.0055
+    },
+    {
+      "f": [
+        "ct_hp"
+      ],
+      "w": -0.0055
+    },
+    {
+      "f": [
+        "t_alive"
+      ],
+      "w": -0.5499999999999999
+    },
+    {
+      "f": [
+        "ct_alive"
+      ],
+      "w": 0.5499999999999999
+    },
+    {
+      "f": [
+        "equip_avg_diff"
+      ],
+      "w": 0.7
+    },
+    {
+      "f": [
+        "planted"
+      ],
+      "w": 1.95
+    },
+    {
+      "f": [
+        "defuse_margin"
+      ],
+      "w": -0.11
+    },
+    {
+      "f": [
+        "defuse_short"
+      ],
+      "w": 0.4
+    },
+    {
+      "f": [
+        "defusing"
+      ],
+      "w": -1.0
+    },
+    {
+      "f": [
+        "time_pressure"
+      ],
+      "w": -0.2
+    },
+    {
+      "f": [
+        "time_pressure",
+        "time_pressure"
+      ],
+      "w": -5.6
+    }
+  ],
+  "fill": {
+    "defuse_margin": 0
+  },
+  "sources": [
+    "Man advantage (alive counts): nomiun.substack.com 'Which Players Win the Most Rounds?' (pro CS2, 2025); cryptm.org CS:GO MM table (~400k rounds, Kaggle csgo-matchmaking-damage); scope.gg 2026 first-kill conversion (Premier/FACEIT)",
+    "Round start: CT 51.1% in tier-1 CS2 2025-26 (TaiZo1, ~32k rounds)",
+    "Plant: T ~70% right after the plant in an even mid-round state; ~78-82% expected post-plant in pro gun rounds (HLTV/EDGE 2024)",
+    "Economy: full buy vs full eco ~96% (HLTV Rating 3.0 example); eco wins ~3% vs any buy (Xenopoulos et al. 2021)",
+    "Clock and defuse race: set by hand (no public source quantifies them); the trained model replaces them",
+    "Model form and validation: Xenopoulos, Doraiswamy, Silva, 'Valuing Player Actions in CS:GO' (arXiv 2011.01324)"
+  ]
+}

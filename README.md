@@ -60,6 +60,7 @@ Open [http://localhost:3000](http://localhost:3000)
 ┌──────────────────┴──────────────────────────────┐
 │  PostgreSQL 16 + Prisma ORM                      │
 │  Redis (cache + job queue)                       │
+│  ml/ Python + LightGBM (win-probability trainer) │
 │  Local disk data/demos (Cloudflare R2 planned)   │
 └─────────────────────────────────────────────────┘
 ```

@@ -38,6 +38,8 @@ x-app: &app
     R2_BUCKET: demos
     # The local stack is never the E2E suite.
     E2E_FIXTURE_DEMOS: ""
+    # The worker asks the ml service below to retrain after each analysis (S14).
+    ML_SERVICE_URL: http://ml:8765
   volumes:
     - demos:/app/data/demos
   restart: unless-stopped
@@ -149,6 +151,24 @@ services:
     depends_on:
       setup:
         condition: service_completed_successfully
+
+  # Retrains the round win-probability model as matches come in (S14), also
+  # on its own every ML_TRAIN_INTERVAL_S. The app works without it (it scores
+  # with the shipped prior). With `npm run dev`, start it with
+  # `docker compose up -d ml` and set ML_SERVICE_URL=http://localhost:8765.
+  ml:
+    build:
+      context: .
+      dockerfile: ml/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://cs2analyst:cs2analyst@postgres:5432/cs2analyst
+      ML_TRAIN_INTERVAL_S: "1800"
+    ports:
+      - "8765:8765"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
 volumes:
   postgres_data:
