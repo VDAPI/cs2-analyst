@@ -29,7 +29,7 @@ npx prisma generate
 # 5. Start development server
 npm run dev
 
-# 6. Start the demo parsing worker (needed to analyse uploads)
+# 6. Start the demo parsing worker (needed to analyse uploads; also backfills replay data for old matches)
 npm run worker:parse
 
 # 7. (Optional) FACEIT demo download worker

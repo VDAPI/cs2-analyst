@@ -213,7 +213,7 @@ These positions should be labeled in heatmaps if possible:
 
 ## Coaching Metrics Roadmap (sessions S8–S14)
 
-Planned in `docs/SESSIONS.md`; none of these exist in code yet. Raw inputs come from sampled ticks and events stored in the DB by session S6 (see the demo-parsing skill). Every detected mistake becomes a `Finding` (S10): type, player, round, tick, severity, numbers, one piece of advice, and later a pro comparison (S13).
+Planned in `docs/SESSIONS.md`; none of these metrics exist in code yet. Raw inputs are already in the DB since S6: `RoundTicks` (sampled player state every 4 ticks), `ShotEvent` (every `weapon_fire` with position, `pitch`, `yaw`, velocity) and `DamageEvent` (every `player_hurt` with `hitgroup`) — see the demo-parsing skill. Every detected mistake becomes a `Finding` (S10): type, player, round, tick, severity, numbers, one piece of advice, and later a pro comparison (S13).
 
 **Golden rule:** judge a decision by what the player could know at that moment (sound, what was visible on screen, what teammates had called), never by the all-seeing top-down demo view. A "mistake" that needed wallhack information is not a mistake.
 

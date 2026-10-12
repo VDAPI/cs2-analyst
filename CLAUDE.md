@@ -10,7 +10,7 @@ CS2 demo analysis SaaS for FACEIT (and any other) players. Users upload .dem fil
 - **Palette: Violet Lime (Esport Neon)** — see Design System below and `DESIGN.md`.
 - **Mobile is mandatory.** Every screen works from 360 px wide with no horizontal page scroll.
 - **Demos:** any demo can be uploaded (FACEIT, Premier, other). FACEIT demos are fetched via the Downloads API only on the player's request (selected matches), never automatically in the background.
-- **Delete the .dem after analysis.** The DB keeps the report and sampled replay data; a match can be flagged "keep demo". Prerequisite: replay ticks must be stored in the DB first (session S6) — today the replay endpoint still reads the .dem live.
+- **Delete the .dem after analysis.** The DB keeps the report and sampled replay data; a match can be flagged "keep demo". Replay data is already stored in the DB (S6, see Key Architectural Decisions); deleting demos for every source plus the "keep demo" flag comes in S7.
 - **Analysis is as detailed as possible**, mechanics and tactics. Every detected mistake has a moment in the round, a 2D preview, one piece of advice and a pro comparison.
 - **Judge advice by what the player could know** (sound, visibility, team info), not by the all-seeing top-down demo view.
 - **Business model:** free with a match limit; payments later.
@@ -32,7 +32,7 @@ CS2 demo analysis SaaS for FACEIT (and any other) players. Users upload .dem fil
 ## Commands
 
 ```bash
-npm run dev          # Start dev server (Turbopack)
+npm run dev          # Start dev server (Turbopack); runs `prisma db push` first
 npm run build        # Production build
 npm run lint         # ESLint
 npm run db:push      # Push Prisma schema to DB
@@ -40,6 +40,8 @@ npm run db:migrate   # Run Prisma migrations
 npm run db:generate  # Generate Prisma client
 npm run db:studio    # Open Prisma Studio
 npm run test:clutches # Parser regression test (no demo file needed)
+npm run test:replay   # Replay-data encoding regression test (no demo file needed)
+npm run backfill:replay # Store replay data for old matches whose .dem is still on disk (the parse worker also does this on startup)
 ```
 
 The GitHub CLI (`gh`) is installed and authenticated — use it to inspect CI,
@@ -123,10 +125,11 @@ Revisit once demoparser2 ships correct `optionalDependencies` (0.41.3 is the lat
 ## Key Architectural Decisions
 
 - `@laihoe/demoparser2` is in `serverExternalPackages` (native Node.js bindings, server-only)
-- Demo parsing runs in BullMQ workers, not in API routes — with one exception: `src/app/api/matches/[matchId]/ticks/route.ts` still calls `parseTicks` on the .dem file live for the 2D replay (every 32 ticks: `X`, `Y`, `Z`, `yaw`, `health`, `is_alive`, `team_num`, `active_weapon_name`). `workers/demo-parser.worker.ts` already deletes FACEIT-sourced demos after parsing, so replay breaks for those matches. Session S6 moves sampled ticks (plus `velocity_X/Y`, `pitch`, `weapon_fire`, `player_hurt`) into the DB; do not extend demo deletion before that lands.
+- Demo parsing runs in BullMQ workers, not in API routes (the ticks route only parses the .dem as a fallback for old matches without `RoundTicks`)
 - **Sides are per-half, not per-match**: `parsePlayerInfo.team_number` gives the side a player *finished* on, while `round.winner` is an absolute side. Any logic comparing a player to a round-level side must resolve the side for that half or it silently inverts across the whole first half. Follow the `computeClutchWins()` pattern in `src/lib/parsers/demo-parser.ts`.
 - **`assists` and `flashAssists` are disjoint**: a flash-assisted kill increments `flashAssists` only, never both. This is a deliberate divergence from HLTV (which folds flash assists into assists) — do not "unify" them. Add the columns together at the call site when comparing against HLTV numbers.
 - Parser invariants that are easy to break have a no-demo regression test: `npm run test:clutches`
+- **Replay data lives in the DB, not the .dem**: the parse pipeline stores sampled player state per round (`RoundTicks`, every 4 ticks, format in `src/lib/replay/round-ticks.ts`) plus every `weapon_fire` (`ShotEvent`) and `player_hurt` (`DamageEvent`). `/api/matches/[matchId]/ticks` reads `RoundTicks` and only falls back to parsing the .dem for old matches. Never delete a .dem unless `parseAndPersistDemo` returned `replayStored: true`. Changing the blob layout means bumping `REPLAY_FORMAT_VERSION`.
 - Tailwind v4 uses `@import "tailwindcss"` syntax (no config file needed)
 - Settings page is a server component (queries DB directly for linked account status, not session JWT)
 - FACEIT OAuth uses popup window + `postMessage` for cross-window communication

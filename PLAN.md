@@ -110,7 +110,7 @@
 - [x] **Match Overview**: scoreboard, rundy, K/D/A, ADR, HLTV rating, clutche, trade'y, multi-kille, opening duels
 - [x] **Player Stats**: profil gracza, historia meczów, trend wyników
 - [x] **Round Timeline**: lista rund z wydarzeniami
-- [x] **Basic 2D Replay**: Canvas, pozycje graczy, odtwarzanie tick po ticku (dane czytane z pliku .dem → do bazy w S6)
+- [x] **Basic 2D Replay**: Canvas, pozycje graczy, odtwarzanie tick po ticku, dane replaya w bazie (S6), więc działa bez pliku .dem
 
 ### Phase 2 — Core Analytics
 - [x] **Heatmapy**: zabójstwa, śmierci, pozycje; per mecz i zbiorczo per mapa

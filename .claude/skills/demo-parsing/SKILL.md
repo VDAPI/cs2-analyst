@@ -28,7 +28,7 @@ Native Rust/Node.js bindings. Server-only (in `serverExternalPackages`).
 | `announce_phase_end` | `tick` | Halftime marker |
 | `bomb_planted/defused/exploded` | `user_*`, `X/Y/Z` | Bomb events |
 | `player_blind` | `user_*`, `attacker_*`, `blind_duration` | Flash effectiveness (parsed today) |
-| `weapon_fire` | `user_*`, `weapon`, `tick` | Every shot — base for S8–S9 mechanics (not parsed yet) |
+| `weapon_fire` | `user_*`, `weapon`, `tick` | Every shot — stored as `ShotEvent` (with position, `pitch`, `yaw`, velocity); base for S8–S9 mechanics |
 | `weapon_reload` | `user_*`, `tick` | Reload timing (S9) |
 | `player_footstep` / `player_jump` | `user_*`, `tick` | Sound and movement discipline (S9) |
 | `smokegrenade_detonate`, `flashbang_detonate`, `hegrenade_detonate`, `inferno_startburn` | `X/Y/Z`, `entityid` | Utility landing points |
@@ -42,7 +42,7 @@ Used today:
 - Weapons: `active_weapon_name`
 - Economy: `balance`, `current_equip_value`, `cash_spent_this_round`, `total_cash_spent`
 
-Needed for S6–S12 (names verified against demoparser2 0.41.3):
+Stored for replay since S6 (`REPLAY_TICK_PROPS` in `src/lib/replay/round-ticks.ts`) or useful for S8–S12 (names verified against demoparser2 0.41.3):
 - View: `pitch`, `yaw` (degrees; yaw 0 = +X axis, counter-clockwise), `aim_punch_angle`
 - Movement: `velocity_X`, `velocity_Y`, `velocity_Z` → horizontal speed `hypot(velocity_X, velocity_Y)` in units/s; `is_walking`, `is_strafing`, `duck_amount`, `ducking`
 - Shooting: `shots_fired` (bullets in the current burst), `accuracy_penalty`, `is_scoped`, `is_in_reload`, `active_weapon_ammo`
@@ -91,10 +91,13 @@ pixelY = (mapConfig.posY - gameY) / mapConfig.scale
 ```
 Map configs in `src/lib/utils/maps.ts`. All radar images are 1024x1024.
 
-### Tick Sampling for Replay — current state and S6 plan
-**Today:** `src/app/api/matches/[matchId]/ticks/route.ts` parses the .dem **live** on each request: `range(startTick, endTick, 32)` + the end tick (≈2 frames/s at 64 tick, ~110 frames per round), props `X, Y, Z, yaw, health, is_alive, team_num, active_weapon_name`. It needs `upload.fileUrl` to still exist on disk. `workers/demo-parser.worker.ts` deletes FACEIT-sourced demos after parsing, so replay for those matches fails.
-
-**S6 (planned):** the worker stores sampled ticks in the DB (about every 4 ticks: `X, Y, Z, velocity_X, velocity_Y, pitch, yaw, health, armor_value, is_alive, active_weapon_name, flash_duration`) in a compact per-round format (columnar JSON or bytea), plus all `weapon_fire` and `player_hurt` events; the ticks endpoint reads from the DB; a backfill script covers matches whose file still exists. Only after that may demos be deleted for every source (S7, with a "keep demo" flag).
+### Replay Data in the DB (S6, done)
+- The parse pipeline samples every `REPLAY_SAMPLE_INTERVAL` = 4 ticks (16 frames/s at 64 tick) with `REPLAY_TICK_PROPS` (`X, Y, Z, velocity_X/Y/Z, pitch, yaw, health, armor_value, is_alive, team_num, active_weapon_name, flash_duration`) and stores one gzipped, delta-encoded Int16 blob per round in `RoundTicks` (format and quantisation in `src/lib/replay/round-ticks.ts`; changing the layout means bumping `REPLAY_FORMAT_VERSION`).
+- Every `weapon_fire` → `ShotEvent`, every `player_hurt` → `DamageEvent` (with `hitgroup`, health/armor after, positions).
+- `src/app/api/matches/[matchId]/ticks/route.ts` reads `RoundTicks`; it parses the .dem only as a fallback for old matches. The client still asks for `interval=32`.
+- `workers/demo-parser.worker.ts` deletes a FACEIT demo only when `parseAndPersistDemo` returned `replayStored: true`, and backfills old matches on startup (`npm run backfill:replay` does the same by hand).
+- Regression test without a demo: `npm run test:replay`.
+- Deleting demos for every source and the "keep demo" flag come in S7.
 
 Rule: **never add code that needs the .dem after parsing.** Anything an analysis needs later must be extracted in the worker and persisted.
 
@@ -106,4 +109,5 @@ Rule: **never add code that needs the .dem after parsing.** Anything an analysis
 - Worker: `workers/demo-parser.worker.ts` (parse) and `workers/faceit-demo-download.worker.ts` (FACEIT download, awaiting Downloads API approval)
 - Tick API: `src/app/api/matches/[matchId]/ticks/route.ts`
 - Demo files: local `data/demos/<uploadId>.dem` (R2 planned in S7)
-- No-demo regression test: `npm run test:clutches` (`scripts/test-clutch-wins.ts`) — add new parser invariants here or in a sibling script
+- Replay storage: `src/lib/replay/round-ticks.ts`, `src/lib/parsers/replay-data.ts`, `src/lib/parsers/persist-replay.ts`, `src/lib/parsers/backfill-replay.ts`
+- No-demo regression tests: `npm run test:clutches` (`scripts/test-clutch-wins.ts`), `npm run test:replay` (`scripts/test-replay-ticks.ts`) — add new parser invariants there or in a sibling script

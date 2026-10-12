@@ -8,6 +8,7 @@
  */
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { parseDemoFile } from "./demo-parser";
+import { formatReplayStats, parseAndPersistReplayData } from "./persist-replay";
 
 interface PersistArgs {
   uploadId: string;
@@ -16,14 +17,16 @@ interface PersistArgs {
 
 /**
  * @param onProgress optional 0-100 progress reporter (e.g. job.updateProgress)
- * @returns the created match id
- * On failure, sets the upload to FAILED and rethrows.
+ * @returns the created match id, and whether replay data (sampled ticks,
+ *   shots, damage) was stored — only then may the .dem be deleted.
+ * On failure, sets the upload to FAILED and rethrows. A failure in the replay
+ * step alone does not fail the analysis.
  */
 export async function parseAndPersistDemo(
   prisma: PrismaClient,
   { uploadId, filePath }: PersistArgs,
   onProgress?: (pct: number) => void | Promise<void>
-): Promise<{ matchId: string }> {
+): Promise<{ matchId: string; replayStored: boolean }> {
   try {
     await prisma.demoUpload.update({
       where: { id: uploadId },
@@ -182,7 +185,18 @@ export async function parseAndPersistDemo(
           })),
       });
     }
-    await onProgress?.(95);
+    await onProgress?.(90);
+
+    // Replay data must be in the DB before anyone deletes the .dem.
+    let replayStored = false;
+    try {
+      const stats = await parseAndPersistReplayData(prisma, match.id, filePath);
+      replayStored = true;
+      console.log(`[persist-demo] replay data match=${match.id}: ${formatReplayStats(stats)}`);
+    } catch (error) {
+      console.error(`[persist-demo] replay data FAILED match=${match.id}:`, error);
+    }
+    await onProgress?.(98);
 
     await prisma.demoUpload.update({
       where: { id: uploadId },
@@ -190,7 +204,7 @@ export async function parseAndPersistDemo(
     });
     await onProgress?.(100);
 
-    return { matchId: match.id };
+    return { matchId: match.id, replayStored };
   } catch (error) {
     console.error(
       `[persist-demo] FAILED uploadId=${uploadId} filePath="${filePath}":`,

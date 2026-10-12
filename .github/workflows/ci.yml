@@ -49,3 +49,7 @@ jobs:
       - name: Parser regression tests
         if: ${{ !cancelled() }}
         run: npm run test:clutches
+
+      - name: Replay data regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:replay
