@@ -2,20 +2,45 @@ import { prisma } from "@/lib/db/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { notFound } from "next/navigation";
-import { Card, StatCard, Badge } from "@/components/ui";
-import { mapDisplayName } from "@/lib/utils/mapNames";
-import { weaponDisplayName } from "@/lib/utils/formatters";
+import Link from "next/link";
+import { ExternalLink, GitCompareArrows } from "lucide-react";
+import { InitialsAvatar, PageHeader, StatCard, buttonVariants } from "@/components/ui";
+import { resultFor } from "@/components/match";
+import { BENCHMARKS, weaponDisplayName } from "@/lib/utils/formatters";
 import { detectTradeKills } from "@/lib/utils/tradeKills";
 import { detectClutches } from "@/lib/utils/clutches";
 import { playerSideAtRound } from "@/lib/utils/sideSplit";
 import { BUY_TYPE_COLORS, type BuyTypeKey } from "@/lib/utils/buyType";
 import { WeaponBarChart, type WeaponStat } from "@/components/charts/weapon-bar-chart";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import {
+  BuyTypeCard,
+  FormStrip,
+  MapTable,
+  MatchHistoryTable,
+  MultiKillTable,
+  Section,
+  SectionNav,
+  SideCard,
+  ValueCard,
+  WeaponTable,
+  dash,
+  pluralPl,
+  type FormEntry,
+  type HistoryRow,
+} from "./profile-sections";
 
 interface Props {
   params: Promise<{ steamId: string }>;
 }
+
+const BUY_TYPE_META: Record<"PISTOL" | "ECO" | "FORCE" | "FULL", { label: string; key: BuyTypeKey }> = {
+  PISTOL: { label: "Pistol", key: "PISTOL" },
+  ECO: { label: "Eco", key: "ECO" },
+  FORCE: { label: "Force buy", key: "FORCE_BUY" },
+  FULL: { label: "Full buy", key: "FULL_BUY" },
+};
+
+const FORM_LENGTH = 10;
 
 export default async function PlayerDetailPage({ params }: Props) {
   const { steamId } = await params;
@@ -621,114 +646,225 @@ export default async function PlayerDetailPage({ params }: Props) {
       ? eligibleMaps.reduce((w, m) => (m.avgHltv < w.avgHltv ? m : w)).map
       : null;
 
+
+  // Match history rows + recent form (matchEntries are newest first)
+  const historyRows: HistoryRow[] = matchEntries.map((entry) => {
+    const teamScore = entry.team === "CT" ? entry.match.scoreCT : entry.match.scoreT;
+    const enemyScore = entry.team === "CT" ? entry.match.scoreT : entry.match.scoreCT;
+    return {
+      id: entry.id,
+      matchId: entry.match.id,
+      map: entry.match.map,
+      date: entry.match.date,
+      result: resultFor(entry.team, entry.match.scoreCT, entry.match.scoreT),
+      teamScore,
+      enemyScore,
+      kills: entry.kills,
+      deaths: entry.deaths,
+      assists: entry.assists,
+      adr: entry.adr,
+      rating: entry.hltvRating,
+    };
+  });
+  const formEntries: FormEntry[] = historyRows.slice(0, FORM_LENGTH).map((r) => ({
+    matchId: r.matchId,
+    map: r.map,
+    date: r.date,
+    result: r.result,
+    rating: r.rating,
+    score: `${r.teamScore}:${r.enemyScore}`,
+  }));
+  const formWins = formEntries.filter((e) => e.result === "W").length;
+  const formAvgRating =
+    formEntries.length > 0 ? formEntries.reduce((s, e) => s + e.rating, 0) / formEntries.length : 0;
+
+  // The single strongest headline stat (relative to the "good" benchmark) gets the lime highlight
+  const strengths = {
+    hltv: avgHltv / BENCHMARKS.hltvRating.good,
+    adr: avgAdr / BENCHMARKS.adr.good,
+    kd: avgKd / BENCHMARKS.kd.good,
+    hs: avgHs / 100 / BENCHMARKS.hsPercent.good,
+  };
+  const bestStat = (Object.keys(strengths) as Array<keyof typeof strengths>).reduce((a, b) =>
+    strengths[b] > strengths[a] ? b : a
+  );
+  const bestHint = "Najmocniejsza statystyka";
+
+  const hasMultiKills = threeKs > 0 || fourKs > 0 || aces > 0;
+  const hasStyle = hasMultiKills || totalKills > 0;
+
+  const navItems = [
+    { id: "przeglad", label: "Przegląd", show: true },
+    { id: "forma", label: "Forma", show: formEntries.length > 0 },
+    { id: "strony", label: "CT / T", show: hasSideData },
+    { id: "ekonomia", label: "Ekonomia", show: hasBuyTypeData },
+    { id: "styl", label: "Styl gry", show: hasStyle },
+    { id: "bronie", label: "Bronie", show: weaponStats.length > 0 },
+    { id: "clutche", label: "Clutche", show: clutchesAttempted > 0 },
+    { id: "granaty", label: "Granaty", show: totalUtility > 0 },
+    { id: "multikille", label: "Multi-kille", show: multiKillRounds.length > 0 },
+    { id: "mapy", label: "Mapy", show: mapStats.length > 0 },
+    { id: "mecze", label: "Mecze", show: true },
+  ].filter((i) => i.show);
+
+  const antiEcoColor =
+    antiEcoWinRate === null
+      ? "var(--text-disabled)"
+      : antiEcoWinRate >= 85
+        ? "var(--good)"
+        : antiEcoWinRate < 70
+          ? "var(--mistake)"
+          : "var(--warning)";
+  const antiEcoValueClass =
+    antiEcoWinRate === null
+      ? "text-[var(--text-disabled)]"
+      : antiEcoWinRate >= 85
+        ? "text-[var(--good)]"
+        : antiEcoWinRate < 70
+          ? "text-[var(--mistake)]"
+          : "text-[var(--text-primary)]";
+
+  const pct0 = (n: number) => `${n.toFixed(0)}%`;
+  const pct1 = (n: number) => `${n.toFixed(1)}%`;
+
   return (
-    <div className="space-y-6">
-      <Link
-        href="/players"
-        className="inline-flex items-center gap-1.5 text-sm text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to players
-      </Link>
+    <div className="space-y-8">
+      <PageHeader
+        back={{ href: "/players", label: "Gracze" }}
+        eyebrow="Profil gracza"
+        title={
+          <span className="flex min-w-0 items-center gap-3">
+            <InitialsAvatar name={playerName} size="lg" />
+            <span className="min-w-0 truncate">{playerName}</span>
+          </span>
+        }
+        description={
+          <>
+            <span className="font-mono tabular-nums">{totalMatches}</span>{" "}
+            {pluralPl(totalMatches, "przeanalizowany mecz", "przeanalizowane mecze", "przeanalizowanych meczów")}
+            <span aria-hidden> · </span>
+            <span className="break-all font-mono text-xs tabular-nums text-[var(--text-tertiary)]">
+              SteamID {steamId}
+            </span>
+          </>
+        }
+        actions={
+          <>
+            <Link href={`/compare?p1=${steamId}`} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+              <GitCompareArrows className="h-4 w-4" aria-hidden />
+              Porównaj
+            </Link>
+            <a
+              href={`https://steamcommunity.com/profiles/${steamId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonVariants({ variant: "ghost", size: "sm" })}
+            >
+              <ExternalLink className="h-4 w-4" aria-hidden />
+              Profil Steam
+            </a>
+          </>
+        }
+      />
 
-      {/* Player header */}
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-          {playerName}
-        </h1>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          {totalMatches} match{totalMatches !== 1 ? "es" : ""} analyzed
-        </p>
-      </div>
+      <SectionNav items={navItems} />
 
-      {/* Stat overview */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-4">
-        <StatCard
-          label="K / D / A"
-          value={`${totalKills} / ${totalDeaths} / ${totalAssists}`}
-        />
-        <StatCard label="K/D Ratio" value={avgKd.toFixed(2)} />
-        {/* Disjoint from assists by design — see CLAUDE.md */}
-        <StatCard
-          label="Flash Assists"
-          value={totalFlashAssists}
-          accentColor="var(--t-gold)"
-        />
-        <StatCard label="Avg ADR" value={avgAdr.toFixed(1)} accentColor="var(--ct-blue)" />
-        <StatCard label="Avg HLTV" value={avgHltv.toFixed(2)} accentColor="var(--t-gold)" />
-        <StatCard label="HS%" value={`${avgHs.toFixed(0)}%`} />
-        <StatCard
-          label="Win Rate"
-          value={`${winRate}%`}
-          accentColor="var(--success)"
-        />
-        <StatCard
-          label="Opening Duel WR"
-          value={openingDuelWr === null ? "—" : `${openingDuelWr.toFixed(0)}%`}
-          accentColor="var(--accent)"
-        />
-        <StatCard
-          label="Trade Kill %"
-          value={tradeKillPct === null ? "—" : `${tradeKillPct.toFixed(0)}%`}
-          accentColor="var(--info)"
-        />
-        <StatCard
-          label="Deaths Traded %"
-          value={deathsTradedPct === null ? "—" : `${deathsTradedPct.toFixed(0)}%`}
-          accentColor="var(--info)"
-        />
-      </div>
+      {/* Overview */}
+      <Section id="przeglad" title="Przegląd" description="Sumy i średnie ze wszystkich meczów tego gracza.">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-4 xl:grid-cols-5">
+          <StatCard
+            className="col-span-2 sm:col-span-1"
+            label="K / D / A"
+            value={`${totalKills} / ${totalDeaths} / ${totalAssists}`}
+            hint="Zabójstwa / śmierci / asysty"
+          />
+          <StatCard
+            label="K/D"
+            value={avgKd.toFixed(2)}
+            highlight={bestStat === "kd"}
+            hint={bestStat === "kd" ? bestHint : undefined}
+          />
+          {/* Disjoint from assists by design — see CLAUDE.md */}
+          <StatCard label="Flash asysty" value={totalFlashAssists} hint="Liczone osobno od asyst" />
+          <StatCard
+            label="Śr. ADR"
+            value={avgAdr.toFixed(1)}
+            highlight={bestStat === "adr"}
+            hint={bestStat === "adr" ? bestHint : undefined}
+          />
+          <StatCard
+            label="Śr. rating HLTV"
+            value={avgHltv.toFixed(2)}
+            highlight={bestStat === "hltv"}
+            hint={bestStat === "hltv" ? bestHint : undefined}
+          />
+          <StatCard
+            label="HS%"
+            value={`${avgHs.toFixed(0)}%`}
+            highlight={bestStat === "hs"}
+            hint={bestStat === "hs" ? bestHint : undefined}
+          />
+          <StatCard label="Wygrane mecze" value={`${winRate}%`} hint={`${wins} z ${totalMatches}`} />
+          <StatCard
+            label="Otwierające pojedynki"
+            value={dash(openingDuelWr, pct0)}
+            hint={`Wygrane: ${totalFirstKills}/${totalOpeningDuels}`}
+          />
+          <StatCard
+            label="Trade kill %"
+            value={dash(tradeKillPct, pct0)}
+            hint="Zabójstwa, które pomściły kolegę"
+          />
+          <StatCard
+            label="Śmierci pomszczone %"
+            value={dash(deathsTradedPct, pct0)}
+            hint="Twoje śmierci wymienione przez drużynę"
+          />
+        </div>
+      </Section>
+
+      {/* Recent form */}
+      {formEntries.length > 0 && (
+        <Section
+          id="forma"
+          title="Forma"
+          description={`Ostatnie ${formEntries.length} ${pluralPl(formEntries.length, "mecz", "mecze", "meczów")}, od najnowszego.`}
+        >
+          <div className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-[var(--text-secondary)]">
+            <span>
+              Bilans:{" "}
+              <span className="font-mono tabular-nums text-[var(--text-primary)]">
+                {formWins}–{formEntries.length - formWins}
+              </span>
+            </span>
+            <span>
+              Śr. rating:{" "}
+              <span className="font-mono tabular-nums text-[var(--text-primary)]">{formAvgRating.toFixed(2)}</span>
+            </span>
+          </div>
+          <FormStrip entries={formEntries} />
+        </Section>
+      )}
 
       {/* Side split */}
       {hasSideData && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <SideCard
-            label="CT Side"
-            color="var(--ct-blue)"
-            stats={sideStats.CT}
-            kd={sideKD.CT.kd}
-            hsPct={sideKD.CT.hsPct}
-          />
-          <SideCard
-            label="T Side"
-            color="var(--t-gold)"
-            stats={sideStats.T}
-            kd={sideKD.T.kd}
-            hsPct={sideKD.T.hsPct}
-          />
-        </div>
+        <Section id="strony" title="Strona CT vs T" description="Zabójstwa i śmierci z podziałem na połowy.">
+          <div className="grid gap-3 sm:grid-cols-2 md:gap-4">
+            <SideCard side="CT" stats={sideStats.CT} kd={sideKD.CT.kd} hsPct={sideKD.CT.hsPct} />
+            <SideCard side="T" stats={sideStats.T} kd={sideKD.T.kd} hsPct={sideKD.T.hsPct} />
+          </div>
+        </Section>
       )}
 
-      {/* Performance by Economy */}
+      {/* Performance by economy */}
       {hasBuyTypeData && (
-        <div>
-          <h2 className="mb-3 text-lg font-semibold text-[var(--text-primary)]">
-            Performance by Economy
-          </h2>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+        <Section id="ekonomia" title="Wyniki wg ekonomii" description="Jak grasz w zależności od tego, za ile kupiłeś.">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-4 xl:grid-cols-5">
             {buyTypePerf.map((b) => (
               <BuyTypeCard
                 key={b.key}
-                label={
-                  b.key === "FULL"
-                    ? "Full Buy"
-                    : b.key === "FORCE"
-                      ? "Force Buy"
-                      : b.key === "ECO"
-                        ? "Eco"
-                        : "Pistol"
-                }
-                color={
-                  BUY_TYPE_COLORS[
-                    (b.key === "FULL"
-                      ? "FULL_BUY"
-                      : b.key === "FORCE"
-                        ? "FORCE_BUY"
-                        : b.key === "ECO"
-                          ? "ECO"
-                          : "PISTOL") as BuyTypeKey
-                  ]
-                }
+                label={BUY_TYPE_META[b.key].label}
+                color={BUY_TYPE_COLORS[BUY_TYPE_META[b.key].key]}
                 rounds={b.rounds}
                 kd={b.kd}
                 adr={b.adr}
@@ -736,126 +872,77 @@ export default async function PlayerDetailPage({ params }: Props) {
                 winRate={b.winRate}
               />
             ))}
-            <Card
-              className="border-t-2"
-              style={{
-                borderTopColor:
-                  antiEcoWinRate === null
-                    ? "var(--text-disabled)"
-                    : antiEcoWinRate >= 85
-                      ? "var(--success)"
-                      : antiEcoWinRate < 70
-                        ? "var(--error)"
-                        : "var(--warning)",
-              }}
-            >
-              <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
-                Anti-Eco WR
-              </p>
-              <p
-                className={`stat-number mt-2 ${
-                  antiEcoWinRate === null
-                    ? "text-[var(--text-disabled)]"
-                    : antiEcoWinRate >= 85
-                      ? "text-[var(--success)]"
-                      : antiEcoWinRate < 70
-                        ? "text-[var(--error)]"
-                        : "text-[var(--text-primary)]"
-                }`}
-              >
-                {antiEcoWinRate === null
-                  ? "—"
-                  : `${antiEcoWinRate.toFixed(0)}%`}
-              </p>
-              <p className="mt-1 font-mono text-xs text-[var(--text-tertiary)]">
-                {antiEcoWins}/{antiEcoAttempts} rounds
-              </p>
-            </Card>
+            <ValueCard
+              label="Anti-eco WR"
+              value={dash(antiEcoWinRate, pct0)}
+              sub={`${antiEcoWins}/${antiEcoAttempts} ${pluralPl(antiEcoAttempts, "runda", "rundy", "rund")}`}
+              color={antiEcoColor}
+              valueClassName={antiEcoValueClass}
+            />
           </div>
           {saveCount > 0 && (
-            <div className="mt-4 grid grid-cols-3 gap-4">
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:mt-4 md:gap-4">
+              <StatCard label="Rundy save" value={saveCount} accentColor="var(--info)" />
               <StatCard
-                label="Save Rounds"
-                value={saveCount}
-                accentColor="var(--info)"
-              />
-              <StatCard
-                label="Avg Equip Saved"
+                label="Śr. zachowany sprzęt"
                 value={avgSaveEquip === null ? "—" : `$${Math.round(avgSaveEquip)}`}
                 accentColor="var(--info)"
               />
               <StatCard
-                label="Saves Paid Off"
-                value={
-                  savePaidOffPct === null ? "—" : `${savePaidOffPct.toFixed(0)}%`
-                }
-                accentColor="var(--success)"
+                className="col-span-2 sm:col-span-1"
+                label="Udane save'y"
+                value={dash(savePaidOffPct, pct0)}
+                hint="Pełny zakup w następnej rundzie"
+                accentColor="var(--good)"
               />
             </div>
           )}
-        </div>
+        </Section>
       )}
 
-      {/* Multi-kill stats */}
-      {(threeKs > 0 || fourKs > 0 || aces > 0) && (
-        <div className="grid grid-cols-3 gap-4">
-          <StatCard label="3K Rounds" value={threeKs} />
-          <StatCard label="4K Rounds" value={fourKs} accentColor="var(--ct-blue)" />
-          <StatCard label="Aces" value={aces} accentColor="var(--t-gold)" />
-        </div>
-      )}
-
-      {/* Style — special-kill % + engagement speed */}
-      {totalKills > 0 && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatCard
-            label="Wallbang %"
-            value={wallbangPct === null ? "—" : `${wallbangPct.toFixed(1)}%`}
-            accentColor="var(--accent)"
-          />
-          <StatCard
-            label="Smoke Kill %"
-            value={smokeKillPct === null ? "—" : `${smokeKillPct.toFixed(1)}%`}
-            accentColor="var(--smoke)"
-          />
-          <StatCard
-            label="No-Scope %"
-            value={noScopePct === null ? "—" : `${noScopePct.toFixed(1)}%`}
-            accentColor="var(--warning)"
-          />
-          <StatCard
-            label="Engagement Speed"
-            value={
-              avgEngagementSpeed === null
-                ? "—"
-                : `${avgEngagementSpeed.toFixed(1)}s`
-            }
-            accentColor="var(--info)"
-          />
-        </div>
+      {/* Style — multi-kills, special-kill % + engagement speed */}
+      {hasStyle && (
+        <Section id="styl" title="Styl gry">
+          {hasMultiKills && (
+            <div className="grid grid-cols-3 gap-3 md:gap-4">
+              <StatCard label="Rundy 3K" value={threeKs} />
+              <StatCard label="Rundy 4K" value={fourKs} />
+              <StatCard label="Ace" value={aces} />
+            </div>
+          )}
+          {totalKills > 0 && (
+            <div className={`grid grid-cols-2 gap-3 sm:grid-cols-4 md:gap-4 ${hasMultiKills ? "mt-3 md:mt-4" : ""}`}>
+              <StatCard label="Wallbang %" value={dash(wallbangPct, pct1)} />
+              <StatCard label="Przez smoke %" value={dash(smokeKillPct, pct1)} accentColor="var(--smoke)" />
+              <StatCard label="No-scope %" value={dash(noScopePct, pct1)} />
+              <StatCard
+                label="Tempo zabójstw"
+                value={avgEngagementSpeed === null ? "—" : `${avgEngagementSpeed.toFixed(1)}s`}
+                hint="Śr. odstęp między kolejnymi killami w rundzie"
+              />
+            </div>
+          )}
+        </Section>
       )}
 
       {/* Weapons */}
       {weaponStats.length > 0 && (
-        <div>
-          <h2 className="mb-3 text-lg font-semibold text-[var(--text-primary)]">
-            Weapons
-          </h2>
-          <WeaponBarChart data={weaponStats} />
-        </div>
+        <Section id="bronie" title="Bronie" description="Top 10 broni wg zabójstw.">
+          <div className="grid gap-3 md:gap-4 lg:grid-cols-[3fr_2fr]">
+            <WeaponBarChart data={weaponStats} />
+            <WeaponTable data={weaponStats} />
+          </div>
+        </Section>
       )}
 
       {/* Clutches */}
       {clutchesAttempted > 0 && (
-        <div>
-          <h2 className="mb-3 text-lg font-semibold text-[var(--text-primary)]">
-            Clutches
-          </h2>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-6">
+        <Section id="clutche" title="Clutche">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-4 xl:grid-cols-6">
             <StatCard
-              label="Won / Attempted"
+              label="Wygrane / próby"
               value={`${clutchesWon}/${clutchesAttempted}`}
-              accentColor="var(--success)"
+              accentColor="var(--good)"
             />
             {([1, 2, 3, 4, 5] as const).map((size) => {
               const c = clutchBySize[size];
@@ -864,399 +951,66 @@ export default async function PlayerDetailPage({ params }: Props) {
                   key={size}
                   label={`1v${size}`}
                   value={c.attempted === 0 ? "—" : `${c.won}/${c.attempted}`}
-                  accentColor="var(--accent)"
                 />
               );
             })}
           </div>
-        </div>
+        </Section>
       )}
 
       {/* Utility efficiency */}
       {totalUtility > 0 && (
-        <div>
-          <h2 className="mb-3 text-lg font-semibold text-[var(--text-primary)]">
-            Utility Efficiency
-          </h2>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Section id="granaty" title="Skuteczność granatów">
+          <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
             <StatCard
-              label="Flash Effectiveness"
+              label="Skuteczność flashy"
               value={avgFlashEff === null ? "—" : avgFlashEff.toFixed(2)}
+              hint="Oślepionych na flasha"
               accentColor="var(--flash)"
             />
             <StatCard
-              label="HE Damage / Nade"
+              label="Obrażenia HE / granat"
               value={avgHeDmg === null ? "—" : avgHeDmg.toFixed(0)}
               accentColor="var(--he)"
             />
             <StatCard
-              label="Molly Damage / Nade"
+              label="Obrażenia molotova / granat"
               value={avgMollyDmg === null ? "—" : avgMollyDmg.toFixed(0)}
               accentColor="var(--molotov)"
             />
-            <Card
-              className="border-t-2"
-              style={{ borderTopColor: "var(--accent)" }}
-            >
-              <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
-                Total Utility Thrown
-              </p>
-              <p className="stat-number mt-2 text-[var(--text-primary)]">
-                {totalUtility}
-              </p>
-              <p className="mt-1 font-mono text-xs text-[var(--text-tertiary)]">
-                F: {utilAgg.flashCount} · HE: {utilAgg.heCount} · M: {utilAgg.mollyCount} · S: {utilAgg.smokeCount}
-                {utilAgg.decoyCount > 0 ? ` · D: ${utilAgg.decoyCount}` : ""}
-              </p>
-            </Card>
+            <ValueCard
+              label="Rzucone granaty"
+              value={totalUtility}
+              sub={
+                <>
+                  Flash {utilAgg.flashCount} · HE {utilAgg.heCount} · Molo {utilAgg.mollyCount} · Smoke{" "}
+                  {utilAgg.smokeCount}
+                  {utilAgg.decoyCount > 0 ? ` · Decoy ${utilAgg.decoyCount}` : ""}
+                </>
+              }
+            />
           </div>
-        </div>
+        </Section>
       )}
 
       {/* Multi-kill highlights */}
       {multiKillRounds.length > 0 && (
-        <div>
-          <h2 className="mb-3 text-lg font-semibold text-[var(--text-primary)]">
-            Multi-Kill Highlights
-          </h2>
-          <Card className="overflow-hidden p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-[var(--border)] text-left text-xs font-medium uppercase text-[var(--text-tertiary)]">
-                    <th className="px-5 py-3">Map</th>
-                    <th className="px-3 py-3">Date</th>
-                    <th className="px-3 py-3 text-center">Round</th>
-                    <th className="px-3 py-3 text-center">Type</th>
-                    <th className="px-3 py-3">Weapons</th>
-                    <th className="px-3 py-3 text-center">HS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {multiKillRounds.map((r, i) => {
-                    const type = r.count >= 5 ? "ace" : r.count === 4 ? "4k" : "3k";
-                    const uniqueWeapons = [...new Set(r.weapons)].join(", ");
-
-                    return (
-                      <tr
-                        key={i}
-                        className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(190,160,255,0.04)]"
-                      >
-                        <td className="px-5 py-3">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="h-8 w-8 flex-shrink-0 rounded bg-[var(--surface-3)] bg-cover bg-center"
-                              style={{
-                                backgroundImage: `url(/maps/${r.map}_radar.png)`,
-                                filter: "grayscale(40%) brightness(0.7)",
-                              }}
-                            />
-                            <Link
-                              href={`/matches/${r.matchId}`}
-                              className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)]"
-                            >
-                              {mapDisplayName(r.map)}
-                            </Link>
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 text-[var(--text-tertiary)]">
-                          {r.date.toLocaleDateString()}
-                        </td>
-                        <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
-                          R{r.roundNumber}
-                        </td>
-                        <td className="px-3 py-3 text-center">
-                          <Badge variant={type === "ace" ? "warning" : type === "4k" ? "ct" : "neutral"}>
-                            {type === "ace" ? "ACE" : type.toUpperCase()}
-                          </Badge>
-                        </td>
-                        <td className="px-3 py-3 font-mono text-xs text-[var(--text-secondary)]">
-                          {uniqueWeapons}
-                        </td>
-                        <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
-                          {r.headshots}/{r.count}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </div>
+        <Section id="multikille" title="Najlepsze multi-kille" description="Rundy z 3+ zabójstwami, od najnowszych.">
+          <MultiKillTable rows={multiKillRounds} />
+        </Section>
       )}
 
       {/* Map performance */}
       {mapStats.length > 0 && (
-        <div>
-          <h2 className="mb-3 text-lg font-semibold text-[var(--text-primary)]">
-            Map Performance
-          </h2>
-          <Card className="overflow-hidden p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-[var(--border)] text-left text-xs font-medium uppercase text-[var(--text-tertiary)]">
-                    <th className="px-5 py-3">Map</th>
-                    <th className="px-3 py-3 text-center">Matches</th>
-                    <th className="px-3 py-3 text-center">W%</th>
-                    <th className="px-3 py-3 text-center">K/D</th>
-                    <th className="px-3 py-3 text-center">ADR</th>
-                    <th className="px-3 py-3 text-center">HLTV</th>
-                    <th className="px-3 py-3 text-center"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mapStats.map((m) => {
-                    const isBest = m.map === bestMap;
-                    const isWorst = m.map === worstMap;
-                    return (
-                      <tr
-                        key={m.map}
-                        className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(190,160,255,0.04)]"
-                      >
-                        <td className="px-5 py-3">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="h-8 w-8 flex-shrink-0 rounded bg-[var(--surface-3)] bg-cover bg-center"
-                              style={{
-                                backgroundImage: `url(/maps/${m.map}_radar.png)`,
-                                filter: "grayscale(40%) brightness(0.7)",
-                              }}
-                            />
-                            <span className="font-medium text-[var(--text-primary)]">
-                              {mapDisplayName(m.map)}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
-                          {m.matches}
-                        </td>
-                        <td className="stat-inline px-3 py-3 text-center text-[var(--text-primary)]">
-                          {m.winRate.toFixed(0)}%
-                        </td>
-                        <td className="stat-inline px-3 py-3 text-center text-[var(--text-primary)]">
-                          {m.kd.toFixed(2)}
-                        </td>
-                        <td className="stat-inline px-3 py-3 text-center text-[var(--text-primary)]">
-                          {m.avgAdr.toFixed(1)}
-                        </td>
-                        <td
-                          className={`stat-inline px-3 py-3 text-center font-semibold ${
-                            m.avgHltv >= 1.2
-                              ? "text-[var(--success)]"
-                              : m.avgHltv >= 0.8
-                                ? "text-[var(--text-primary)]"
-                                : "text-[var(--error)]"
-                          }`}
-                        >
-                          {m.avgHltv.toFixed(2)}
-                        </td>
-                        <td className="px-3 py-3 text-center">
-                          {isBest && <Badge variant="success">Best</Badge>}
-                          {isWorst && <Badge variant="error">Worst</Badge>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </div>
+        <Section id="mapy" title="Wyniki na mapach">
+          <MapTable rows={mapStats} bestMap={bestMap} worstMap={worstMap} />
+        </Section>
       )}
 
       {/* Match history */}
-      <div>
-        <h2 className="mb-3 text-lg font-semibold text-[var(--text-primary)]">
-          Match History
-        </h2>
-        <Card className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-[var(--border)] text-left text-xs font-medium uppercase text-[var(--text-tertiary)]">
-                  <th className="px-5 py-3">Map</th>
-                  <th className="px-3 py-3">Date</th>
-                  <th className="px-3 py-3 text-center">Result</th>
-                  <th className="px-3 py-3 text-center">Score</th>
-                  <th className="px-3 py-3 text-center">K</th>
-                  <th className="px-3 py-3 text-center">D</th>
-                  <th className="px-3 py-3 text-center">A</th>
-                  <th className="px-3 py-3 text-center">ADR</th>
-                  <th className="px-3 py-3 text-center">HLTV</th>
-                </tr>
-              </thead>
-              <tbody>
-                {matchEntries.map((entry) => {
-                  const teamScore = entry.team === "CT" ? entry.match.scoreCT : entry.match.scoreT;
-                  const enemyScore = entry.team === "CT" ? entry.match.scoreT : entry.match.scoreCT;
-                  const won = teamScore > enemyScore;
-                  const draw = teamScore === enemyScore;
-
-                  return (
-                    <tr
-                      key={entry.id}
-                      className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(190,160,255,0.04)]"
-                    >
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="h-8 w-8 flex-shrink-0 rounded bg-[var(--surface-3)] bg-cover bg-center"
-                            style={{
-                              backgroundImage: `url(/maps/${entry.match.map}_radar.png)`,
-                              filter: "grayscale(40%) brightness(0.7)",
-                            }}
-                          />
-                          <Link
-                            href={`/matches/${entry.match.id}`}
-                            className="font-medium text-[var(--text-primary)] hover:text-[var(--accent)]"
-                          >
-                            {mapDisplayName(entry.match.map)}
-                          </Link>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-[var(--text-tertiary)]">
-                        {entry.match.date.toLocaleDateString()}
-                      </td>
-                      <td className="px-3 py-3 text-center">
-                        <Badge variant={won ? "success" : draw ? "neutral" : "error"}>
-                          {won ? "W" : draw ? "D" : "L"}
-                        </Badge>
-                      </td>
-                      <td className="stat-inline px-3 py-3 text-center text-[var(--text-primary)]">
-                        {teamScore}:{enemyScore}
-                      </td>
-                      <td className="stat-inline px-3 py-3 text-center text-[var(--text-primary)]">
-                        {entry.kills}
-                      </td>
-                      <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
-                        {entry.deaths}
-                      </td>
-                      <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
-                        {entry.assists}
-                      </td>
-                      <td className="stat-inline px-3 py-3 text-center text-[var(--text-primary)]">
-                        {entry.adr.toFixed(1)}
-                      </td>
-                      <td className={`stat-inline px-3 py-3 text-center font-semibold ${
-                        entry.hltvRating >= 1.2
-                          ? "text-[var(--success)]"
-                          : entry.hltvRating >= 0.8
-                            ? "text-[var(--text-primary)]"
-                            : "text-[var(--error)]"
-                      }`}>
-                        {entry.hltvRating.toFixed(2)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </div>
+      <Section id="mecze" title="Historia meczów">
+        <MatchHistoryTable rows={historyRows} />
+      </Section>
     </div>
-  );
-}
-
-function SideCard({
-  label,
-  color,
-  stats,
-  kd,
-  hsPct,
-}: {
-  label: string;
-  color: string;
-  stats: { kills: number; deaths: number; headshots: number };
-  kd: number | null;
-  hsPct: number | null;
-}) {
-  return (
-    <Card className="border-t-2" style={{ borderTopColor: color }}>
-      <p
-        className="text-xs font-semibold uppercase tracking-wider"
-        style={{ color }}
-      >
-        {label}
-      </p>
-      <div className="mt-3 grid grid-cols-4 gap-2">
-        <SideStat label="K" value={stats.kills} />
-        <SideStat label="D" value={stats.deaths} />
-        <SideStat label="K/D" value={kd === null ? "—" : kd.toFixed(2)} />
-        <SideStat
-          label="HS%"
-          value={hsPct === null ? "—" : `${hsPct.toFixed(0)}%`}
-        />
-      </div>
-    </Card>
-  );
-}
-
-function SideStat({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div>
-      <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
-        {label}
-      </p>
-      <p className="stat-small mt-1 text-[var(--text-primary)]">{value}</p>
-    </div>
-  );
-}
-
-function BuyTypeCard({
-  label,
-  color,
-  rounds,
-  kd,
-  adr,
-  hsPct,
-  winRate,
-}: {
-  label: string;
-  color: string;
-  rounds: number;
-  kd: number | null;
-  adr: number | null;
-  hsPct: number | null;
-  winRate: number | null;
-}) {
-  if (rounds === 0) {
-    return (
-      <Card
-        className="border-t-2 opacity-50"
-        style={{ borderTopColor: color }}
-      >
-        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>
-          {label}
-        </p>
-        <p className="mt-2 text-xs text-[var(--text-tertiary)]">No rounds</p>
-      </Card>
-    );
-  }
-  return (
-    <Card className="border-t-2" style={{ borderTopColor: color }}>
-      <div className="flex items-baseline justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>
-          {label}
-        </p>
-        <p className="font-mono text-[10px] text-[var(--text-tertiary)]">
-          {rounds}r
-        </p>
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-x-2 gap-y-2">
-        <SideStat label="K/D" value={kd === null ? "—" : kd.toFixed(2)} />
-        <SideStat label="ADR" value={adr === null ? "—" : adr.toFixed(0)} />
-        <SideStat
-          label="HS%"
-          value={hsPct === null ? "—" : `${hsPct.toFixed(0)}%`}
-        />
-        <SideStat
-          label="W%"
-          value={winRate === null ? "—" : `${winRate.toFixed(0)}%`}
-        />
-      </div>
-    </Card>
   );
 }

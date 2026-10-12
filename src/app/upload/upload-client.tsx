@@ -16,6 +16,7 @@ import {
   ListOrdered,
 } from "lucide-react";
 import { mapDisplayName } from "@/lib/utils/mapNames";
+import { formatDate } from "@/lib/utils/formatters";
 
 export interface FaceitSlot {
   id: string; // FaceitMatch.id
@@ -47,6 +48,10 @@ interface Props {
   remaining: number;
   monthlyLimit: number;
 }
+
+const demoWord = (n: number) => (n === 1 ? "demo" : "dem");
+const fileWord = (n: number) =>
+  n === 1 ? "plik" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "pliki" : "plików";
 
 const isDem = (f: File) => f.name.toLowerCase().endsWith(".dem");
 
@@ -82,10 +87,10 @@ function sendUpload(
       if (xhr.status >= 200 && xhr.status < 300 && data.uploadId) {
         resolve({ uploadId: data.uploadId });
       } else {
-        reject(new Error(data.error ?? `Upload failed (${xhr.status})`));
+        reject(new Error(data.error ?? `Wysyłanie nie powiodło się (${xhr.status})`));
       }
     };
-    xhr.onerror = () => reject(new Error("Upload failed — check your connection"));
+    xhr.onerror = () => reject(new Error("Wysyłanie nie powiodło się — sprawdź połączenie"));
     xhr.send(form);
   });
 }
@@ -130,12 +135,12 @@ export function UploadClient({
         : itemsRef.current;
       const room = Math.max(0, maxFiles - base.length);
       if (dems.length < files.length) {
-        setNotice("Only .dem files are accepted.");
+        setNotice("Akceptujemy tylko pliki .dem.");
       } else if (dems.length > room) {
         setNotice(
           room === 0
-            ? `You can add up to ${maxFiles} demo${maxFiles === 1 ? "" : "s"} at once.`
-            : `Only the first ${room} file${room === 1 ? "" : "s"} were added (limit ${maxFiles}).`
+            ? `Możesz dodać maksymalnie ${maxFiles} ${demoWord(maxFiles)} naraz.`
+            : `Dodano tylko ${room} ${fileWord(room)} (limit ${maxFiles}).`
         );
       } else {
         setNotice("");
@@ -172,7 +177,7 @@ export function UploadClient({
               else if (data.status === "COMPLETED" && data.matchId)
                 update(it.key, { status: "done", matchId: data.matchId });
               else if (data.status === "FAILED")
-                update(it.key, { status: "error", error: data.error ?? "Parsing failed" });
+                update(it.key, { status: "error", error: data.error ?? "Analiza nie powiodła się" });
             } catch {
               // retry on next poll
             }
@@ -200,7 +205,7 @@ export function UploadClient({
       } catch (err) {
         update(it.key, {
           status: "error",
-          error: err instanceof Error ? err.message : "Upload failed",
+          error: err instanceof Error ? err.message : "Wysyłanie nie powiodło się",
         });
       }
     }
@@ -228,24 +233,29 @@ export function UploadClient({
           href="/matches"
           className="inline-flex items-center gap-1.5 text-sm text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]"
         >
-          <ArrowLeft className="h-4 w-4" />
-          Back to matches
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          Wróć do meczów
         </Link>
       </div>
       <Card className="w-full max-w-xl p-4 sm:p-5">
         <div className="flex flex-col gap-4 py-2 sm:py-4">
           <div className="flex flex-col items-center gap-3 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent-muted)]">
-              <Upload className="h-7 w-7 text-[var(--accent)]" />
+              <Upload className="h-7 w-7 text-[var(--accent)]" aria-hidden />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-[var(--text-primary)]">Upload Demos</h2>
+              <h1 className="font-display text-xl font-bold text-[var(--text-primary)] md:text-2xl">Wgraj demo</h1>
               <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                Any CS2 .dem file: FACEIT, Premier, scrims. Up to {maxFiles} at once.
+                Dowolny plik .dem z CS2: FACEIT, Premier, scrimy. Do{" "}
+                <span className="font-mono tabular-nums">{maxFiles}</span> naraz.
               </p>
               {Number.isFinite(monthlyLimit) && (
-                <p className="mt-1 font-mono text-xs text-[var(--text-tertiary)]">
-                  {remaining}/{monthlyLimit} analyses left this month
+                <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+                  Zostało{" "}
+                  <span className="font-mono tabular-nums">
+                    {remaining}/{monthlyLimit}
+                  </span>{" "}
+                  analiz w tym miesiącu
                 </p>
               )}
             </div>
@@ -255,11 +265,11 @@ export function UploadClient({
           {faceitSlots.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-medium text-[var(--text-primary)]">
-                Your selected FACEIT matches
+                Wybrane mecze FACEIT
               </p>
               <p className="text-xs text-[var(--text-tertiary)]">
-                Open each match room, use &quot;Watch demo&quot; to download it, then drop the
-                file in its slot.
+                Otwórz pokój meczu, pobierz demo przyciskiem &quot;Watch demo&quot;, a potem
+                wrzuć plik w miejsce tego meczu.
               </p>
               {faceitSlots.map((slot) => {
                 const item = items.find((i) => i.faceitMatch === slot.id);
@@ -271,30 +281,30 @@ export function UploadClient({
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-[var(--text-primary)]">
+                        <p className="truncate text-sm font-medium text-[var(--text-primary)]">
                           {mapDisplayName(slot.map)}{" "}
-                          <span className="font-mono text-[var(--text-secondary)]">
+                          <span className="font-mono tabular-nums text-[var(--text-secondary)]">
                             {s1}:{s2}
                           </span>
                         </p>
                         <p className="text-xs text-[var(--text-tertiary)]">
-                          {new Date(slot.date).toLocaleDateString()}
+                          {formatDate(slot.date)}
                         </p>
                       </div>
                       <a
                         href={slot.faceitUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex h-8 items-center gap-1 rounded-lg bg-[rgba(255,85,0,0.15)] px-3 text-xs font-medium text-[#ff5500] hover:bg-[rgba(255,85,0,0.25)]"
+                        className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--faceit-muted)] px-3 text-xs font-medium text-[var(--faceit)] hover:bg-[rgba(255,85,0,0.25)] max-md:min-h-11"
                       >
-                        Download demo from FACEIT <ExternalLink className="h-3 w-3" />
+                        Pobierz demo z FACEIT <ExternalLink className="h-3 w-3" aria-hidden />
                       </a>
                     </div>
                     {item ? (
                       <ItemRow item={item} onRemove={running ? undefined : () => remove(item.key)} />
                     ) : (
                       <label className="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-[var(--border)] px-3 py-3 text-xs text-[var(--text-secondary)] hover:border-[var(--border-hover)]">
-                        <Upload className="h-4 w-4" /> Choose this match&apos;s .dem
+                        <Upload className="h-4 w-4" aria-hidden /> Wybierz plik .dem tego meczu
                         <input
                           type="file"
                           accept=".dem"
@@ -328,12 +338,12 @@ export function UploadClient({
                 addFiles(Array.from(e.dataTransfer.files));
               }}
             >
-              <Upload className="mb-3 h-8 w-8 text-[var(--text-disabled)]" />
+              <Upload className="mb-3 h-8 w-8 text-[var(--text-disabled)]" aria-hidden />
               <p className="text-sm text-[var(--text-secondary)]">
-                {faceitSlots.length > 0 ? "Other demos: drag & drop here" : "Drag & drop .dem files here"}
+                {faceitSlots.length > 0 ? "Inne dema: przeciągnij i upuść tutaj" : "Przeciągnij i upuść pliki .dem tutaj"}
               </p>
               <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-                or tap to browse — max 700 MB each
+                albo dotknij, by wybrać — maks. 700 MB na plik
               </p>
               <input
                 type="file"
@@ -362,7 +372,7 @@ export function UploadClient({
 
           {notice && (
             <p className="flex items-center gap-1.5 text-xs text-[var(--warning)]">
-              <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" /> {notice}
+              <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" aria-hidden /> {notice}
             </p>
           )}
 
@@ -376,8 +386,8 @@ export function UploadClient({
                   onChange={(e) => setKeepDemo(e.target.checked)}
                   disabled={running}
                 />
-                Keep the demo files. By default a demo is deleted once it&apos;s analyzed; the
-                report and the 2D replay stay.
+                Zachowaj pliki demo. Domyślnie demo jest usuwane po analizie; raport i powtórka
+                2D zostają.
               </label>
               <Button
                 variant="cta"
@@ -387,7 +397,7 @@ export function UploadClient({
                 disabled={running}
               >
                 {running ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Upload & Analyze{pending > 1 ? ` (${pending})` : ""}
+                Wgraj i analizuj{pending > 1 ? ` (${pending})` : ""}
               </Button>
             </div>
           )}
@@ -396,13 +406,13 @@ export function UploadClient({
             <div className="flex flex-col gap-2 sm:flex-row">
               <Link href="/queue" className="flex-1">
                 <Button variant="secondary" className="w-full">
-                  <ListOrdered className="h-4 w-4" /> Analysis queue
+                  <ListOrdered className="h-4 w-4" aria-hidden /> Kolejka analiz
                 </Button>
               </Link>
               {allSettled && (
                 <Link href="/library" className="flex-1">
                   <Button variant="secondary" className="w-full">
-                    Library
+                    Biblioteka
                   </Button>
                 </Link>
               )}
@@ -411,8 +421,8 @@ export function UploadClient({
 
           {items.length === 0 && (
             <div className="flex flex-wrap justify-center gap-2">
-              <Badge variant="neutral">CSTV Demos</Badge>
-              <Badge variant="neutral">POV Demos (limited)</Badge>
+              <Badge variant="neutral">Dema CSTV</Badge>
+              <Badge variant="neutral">Dema POV (ograniczone)</Badge>
               <Badge variant="neutral">FACEIT</Badge>
               <Badge variant="neutral">Matchmaking</Badge>
             </div>
@@ -426,28 +436,28 @@ export function UploadClient({
 function ItemRow({ item, onRemove }: { item: Item; onRemove?: () => void }) {
   const label: Record<ItemStatus, string> = {
     pending: formatSize(item.file.size),
-    uploading: `Uploading ${item.uploadPct}%`,
-    queued: "Queued for analysis",
-    parsing: "Analyzing…",
-    done: "Done",
-    error: item.error ?? "Failed",
+    uploading: `Wysyłanie ${item.uploadPct}%`,
+    queued: "W kolejce do analizy",
+    parsing: "Analizowanie…",
+    done: "Gotowe",
+    error: item.error ?? "Błąd",
   };
   const busy = item.status === "uploading" || item.status === "queued" || item.status === "parsing";
   return (
     <div className="mt-2 flex w-full items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
       {item.status === "done" ? (
-        <CheckCircle className="h-6 w-6 flex-shrink-0 text-[var(--success)]" />
+        <CheckCircle className="h-6 w-6 flex-shrink-0 text-[var(--good)]" aria-hidden />
       ) : item.status === "error" ? (
-        <AlertCircle className="h-6 w-6 flex-shrink-0 text-[var(--error)]" />
+        <AlertCircle className="h-6 w-6 flex-shrink-0 text-[var(--mistake)]" aria-hidden />
       ) : busy ? (
-        <Loader2 className="h-6 w-6 flex-shrink-0 animate-spin text-[var(--accent)]" />
+        <Loader2 className="h-6 w-6 flex-shrink-0 animate-spin text-[var(--accent)]" aria-hidden />
       ) : (
-        <FileText className="h-6 w-6 flex-shrink-0 text-[var(--accent)]" />
+        <FileText className="h-6 w-6 flex-shrink-0 text-[var(--accent)]" aria-hidden />
       )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium text-[var(--text-primary)]">{item.file.name}</p>
         <p
-          className={`truncate text-xs ${item.status === "error" ? "text-[var(--error)]" : "text-[var(--text-tertiary)]"}`}
+          className={`truncate text-xs ${item.status === "error" ? "text-[var(--mistake)]" : "text-[var(--text-tertiary)]"}`}
         >
           {label[item.status]}
         </p>
@@ -463,18 +473,18 @@ function ItemRow({ item, onRemove }: { item: Item; onRemove?: () => void }) {
       {item.status === "done" && item.matchId && (
         <Link
           href={`/matches/${item.matchId}`}
-          className="text-xs font-medium text-[var(--accent-hover)] hover:underline"
+          className="inline-flex shrink-0 items-center text-xs font-medium text-[var(--accent-hover)] hover:underline max-md:min-h-11"
         >
-          Open
+          Otwórz
         </Link>
       )}
       {onRemove && (
         <button
           onClick={onRemove}
-          aria-label={`Remove ${item.file.name}`}
-          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--error)]"
+          aria-label={`Usuń ${item.file.name}`}
+          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--mistake)] max-md:h-11 max-md:w-11"
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4" aria-hidden />
         </button>
       )}
     </div>

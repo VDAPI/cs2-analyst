@@ -1,9 +1,12 @@
 import { prisma } from "@/lib/db/prisma";
 import { notFound } from "next/navigation";
-import { Card, Badge } from "@/components/ui";
+import { Card, PageHeader, buttonVariants } from "@/components/ui";
+import { MapThumb } from "@/components/match";
 import Link from "next/link";
-import { ArrowLeft, Crosshair, DollarSign, Flame, Footprints, Play } from "lucide-react";
+import { Crosshair, DollarSign, Flame, Footprints, Play } from "lucide-react";
 import { RoundTimeline } from "./round-timeline";
+import { ScoreboardLegend, ScoreboardTable } from "./scoreboard-table";
+import { formatDate } from "@/lib/utils/formatters";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { detectMultiKills, multiKillsByRound } from "@/lib/utils/multiKills";
 import { detectTradeKills } from "@/lib/utils/tradeKills";
@@ -39,7 +42,10 @@ export default async function MatchDetailPage({ params }: Props) {
 
   const ctPlayers = match.players.filter((p) => p.team === "CT");
   const tPlayers = match.players.filter((p) => p.team === "T");
-  const ctWon = match.scoreCT > match.scoreT;
+  const ctWon = match.scoreCT >= match.scoreT;
+  const tWon = match.scoreT >= match.scoreCT;
+  // Players are ordered by rating, so the first one is the match MVP.
+  const bestSteamId = match.players[0]?.steamId ?? null;
 
   // Team mapping for trade / clutch detection
   const teamBySteamId = new Map<string, "CT" | "T">();
@@ -133,96 +139,83 @@ export default async function MatchDetailPage({ params }: Props) {
   const multiKills = detectMultiKills(roundsData);
   const multiKillMap = Object.fromEntries(multiKillsByRound(multiKills));
 
+  const toolLinks = [
+    { href: `/economy/${matchId}`, label: "Ekonomia", icon: DollarSign },
+    { href: `/heatmaps/${matchId}`, label: "Heatmapa", icon: Flame },
+    { href: `/replay/${matchId}`, label: "Replay 2D", icon: Play },
+    { href: `/grenades/${matchId}`, label: "Granaty", icon: Crosshair },
+    { href: `/mechanics/${matchId}`, label: "Mechanika", icon: Footprints },
+  ];
+
+  const meta = [
+    formatDate(match.date),
+    match.duration > 0 ? formatDuration(match.duration) : null,
+    match.server || null,
+  ].filter((x): x is string => !!x);
+
   return (
     <div className="space-y-6">
-      {/* Back link */}
-      <Link
-        href="/matches"
-        className="inline-flex items-center gap-1.5 text-sm text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to matches
-      </Link>
+      <PageHeader
+        back={{ href: "/matches", label: "Wróć do meczów" }}
+        eyebrow="Analiza meczu"
+        title={mapDisplayName(match.map)}
+        description={
+          <span className="flex flex-wrap gap-x-2">
+            {meta.map((m, i) => (
+              <span key={i} className={i === 1 ? "font-mono tabular-nums" : undefined}>
+                {i > 0 && <span className="mr-2 text-[var(--text-disabled)]">·</span>}
+                {m}
+              </span>
+            ))}
+          </span>
+        }
+      />
 
-      {/* Match header */}
-      <Card className="p-6">
-        <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
-          <div className="flex items-center gap-4">
-            {/* Map thumbnail */}
-            <div
-              className="hidden h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)] bg-cover bg-center sm:block"
-              style={{
-                backgroundImage: `url(/maps/${match.map}_radar.png)`,
-                filter: "grayscale(30%) brightness(0.8)",
-              }}
-            />
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
-                {mapDisplayName(match.map)}
-              </h1>
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                {match.date.toLocaleDateString()}
-                {match.duration > 0 && ` — ${formatDuration(match.duration)}`}
-                {match.server && ` — ${match.server}`}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-xs font-medium uppercase text-[var(--ct-blue)]">CT</p>
-              <p className={`stat-number ${ctWon ? "text-[var(--ct-blue)]" : "text-[var(--text-tertiary)]"}`}>
+      {/* Match hero: score, tools, round timeline */}
+      <Card>
+        <div className="flex items-center justify-between gap-4">
+          <MapThumb map={match.map} size="lg" className="hidden sm:block" />
+          <div className="flex flex-1 items-center justify-center gap-4 sm:gap-6">
+            <div className="text-center">
+              <p className="label-overline text-[var(--ct-blue)]">CT</p>
+              <p
+                className="font-mono text-4xl font-bold leading-none tabular-nums sm:text-5xl"
+                style={{ color: ctWon ? "var(--ct-blue)" : "var(--text-tertiary)" }}
+              >
                 {match.scoreCT}
               </p>
             </div>
-            <span className="text-lg text-[var(--text-disabled)]">:</span>
-            <div>
-              <p className="text-xs font-medium uppercase text-[var(--t-gold)]">T</p>
-              <p className={`stat-number ${!ctWon ? "text-[var(--t-gold)]" : "text-[var(--text-tertiary)]"}`}>
+            <span className="text-2xl text-[var(--text-disabled)]" aria-hidden>
+              :
+            </span>
+            <div className="text-center">
+              <p className="label-overline text-[var(--t-gold)]">T</p>
+              <p
+                className="font-mono text-4xl font-bold leading-none tabular-nums sm:text-5xl"
+                style={{ color: tWon ? "var(--t-gold)" : "var(--text-tertiary)" }}
+              >
                 {match.scoreT}
               </p>
             </div>
           </div>
+          <div className="hidden w-14 sm:block" aria-hidden />
         </div>
 
-        {/* Quick nav */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Link
-            href={`/economy/${matchId}`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-all duration-150 hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
-          >
-            <DollarSign className="h-3.5 w-3.5" />
-            Economy
-          </Link>
-          <Link
-            href={`/heatmaps/${matchId}`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-all duration-150 hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
-          >
-            <Flame className="h-3.5 w-3.5" />
-            Heatmap
-          </Link>
-          <Link
-            href={`/replay/${matchId}`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-all duration-150 hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
-          >
-            <Play className="h-3.5 w-3.5" />
-            2D Replay
-          </Link>
-          <Link
-            href={`/grenades/${matchId}`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-all duration-150 hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
-          >
-            <Crosshair className="h-3.5 w-3.5" />
-            Grenades
-          </Link>
-          <Link
-            href={`/mechanics/${matchId}`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-all duration-150 hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)]"
-          >
-            <Footprints className="h-3.5 w-3.5" />
-            Mechanika
-          </Link>
-        </div>
+        {/* Tool links: one scrollable chip row on phones */}
+        <nav aria-label="Narzędzia meczu" className="-mx-4 mt-5 md:mx-0">
+          <div className="flex gap-2 overflow-x-auto px-4 pb-1 md:flex-wrap md:overflow-visible md:px-0 md:pb-0">
+            {toolLinks.map(({ href, label, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                className={buttonVariants({ variant: "secondary", size: "sm", className: "shrink-0" })}
+              >
+                <Icon className="h-3.5 w-3.5" aria-hidden />
+                {label}
+              </Link>
+            ))}
+          </div>
+        </nav>
 
         {/* Interactive round timeline */}
         {roundsData.length > 0 && (
@@ -234,129 +227,24 @@ export default async function MatchDetailPage({ params }: Props) {
         )}
       </Card>
 
-      {/* CT Scoreboard */}
-      <ScoreboardTable
-        title="Counter-Terrorists"
-        teamColor="ct"
-        players={ctPlayers.map(augmentPlayer)}
-      />
-
-      {/* T Scoreboard */}
-      <ScoreboardTable
-        title="Terrorists"
-        teamColor="t"
-        players={tPlayers.map(augmentPlayer)}
-      />
+      {/* Scoreboards */}
+      <div className="space-y-4">
+        <ScoreboardTable
+          title="Antyterroryści"
+          team="CT"
+          score={match.scoreCT}
+          players={ctPlayers.map(augmentPlayer)}
+          bestSteamId={bestSteamId}
+        />
+        <ScoreboardTable
+          title="Terroryści"
+          team="T"
+          score={match.scoreT}
+          players={tPlayers.map(augmentPlayer)}
+          bestSteamId={bestSteamId}
+        />
+        <ScoreboardLegend />
+      </div>
     </div>
-  );
-}
-
-function ScoreboardTable({
-  title,
-  teamColor,
-  players,
-}: {
-  title: string;
-  teamColor: "ct" | "t";
-  players: {
-    name: string;
-    kills: number;
-    deaths: number;
-    assists: number;
-    adr: number;
-    hltvRating: number;
-    hsPercent: number;
-    firstKills: number;
-    firstDeaths: number;
-    wallbangs: number;
-    smokeKills: number;
-  }[];
-}) {
-  const borderColor = teamColor === "ct" ? "var(--ct-blue)" : "var(--t-gold)";
-  const badgeVariant = teamColor === "ct" ? "ct" : "t";
-
-  return (
-    <Card className="overflow-hidden p-0" style={{ borderTopColor: borderColor, borderTopWidth: 2 }}>
-      <div className="px-5 py-3">
-        <Badge variant={badgeVariant as "ct" | "t"}>{title}</Badge>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-t border-[var(--border)] text-left text-xs font-medium uppercase text-[var(--text-tertiary)]">
-              <th className="px-5 py-2.5">Player</th>
-              <th className="px-3 py-2.5 text-center">K</th>
-              <th className="px-3 py-2.5 text-center">D</th>
-              <th className="px-3 py-2.5 text-center">A</th>
-              <th className="px-3 py-2.5 text-center">+/-</th>
-              <th className="px-3 py-2.5 text-center">ADR</th>
-              <th className="px-3 py-2.5 text-center">HLTV</th>
-              <th className="px-3 py-2.5 text-center">HS%</th>
-              <th className="px-3 py-2.5 text-center" title="Wallbang kills">WB</th>
-              <th className="px-3 py-2.5 text-center" title="Through-smoke kills">SK</th>
-              <th className="px-3 py-2.5 text-center">FK</th>
-              <th className="px-3 py-2.5 text-center">FD</th>
-            </tr>
-          </thead>
-          <tbody>
-            {players.map((p) => (
-              <tr
-                key={p.name}
-                className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(190,160,255,0.02)]"
-              >
-                <td className="px-5 py-3 font-medium text-[var(--text-primary)]">
-                  {p.name}
-                </td>
-                <td className="stat-inline px-3 py-3 text-center text-[var(--text-primary)]">
-                  {p.kills}
-                </td>
-                <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
-                  {p.deaths}
-                </td>
-                <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
-                  {p.assists}
-                </td>
-                <td className={`stat-inline px-3 py-3 text-center ${
-                  p.kills - p.deaths > 0
-                    ? "text-[var(--success)]"
-                    : p.kills - p.deaths < 0
-                      ? "text-[var(--error)]"
-                      : "text-[var(--text-secondary)]"
-                }`}>
-                  {p.kills - p.deaths > 0 ? "+" : ""}{p.kills - p.deaths}
-                </td>
-                <td className="stat-inline px-3 py-3 text-center text-[var(--text-primary)]">
-                  {p.adr.toFixed(1)}
-                </td>
-                <td className={`stat-inline px-3 py-3 text-center font-semibold ${
-                  p.hltvRating >= 1.2
-                    ? "text-[var(--success)]"
-                    : p.hltvRating >= 0.8
-                      ? "text-[var(--text-primary)]"
-                      : "text-[var(--error)]"
-                }`}>
-                  {p.hltvRating.toFixed(2)}
-                </td>
-                <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
-                  {p.hsPercent.toFixed(0)}%
-                </td>
-                <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
-                  {p.wallbangs}
-                </td>
-                <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
-                  {p.smokeKills}
-                </td>
-                <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
-                  {p.firstKills}
-                </td>
-                <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
-                  {p.firstDeaths}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Card>
   );
 }

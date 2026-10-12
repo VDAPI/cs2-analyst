@@ -9,7 +9,8 @@ import {
   ReferenceLine,
   Tooltip,
 } from "recharts";
-import { Card } from "@/components/ui";
+import { Card, SectionTitle } from "@/components/ui";
+import { PLAYER_COLORS } from "../../../compare-ui";
 
 interface RecentMatch {
   date: string;
@@ -40,7 +41,7 @@ function FormTooltip({
       <p className="stat-inline text-sm font-semibold text-[var(--text-primary)]">
         {d.hltv.toFixed(2)}
       </p>
-      <p className="text-xs text-[var(--text-disabled)]">{d.date}</p>
+      <p className="font-mono text-xs tabular-nums text-[var(--text-tertiary)]">{d.date}</p>
     </div>
   );
 }
@@ -54,42 +55,42 @@ function Sparkline({
   color: string;
   name: string;
 }) {
-  if (data.length === 0) {
-    return (
-      <div className="flex h-[120px] items-center justify-center text-xs text-[var(--text-disabled)]">
-        No recent matches
-      </div>
-    );
-  }
+  const avg = data.length > 0 ? data.reduce((sum, d) => sum + d.hltv, 0) / data.length : null;
 
   return (
-    <div>
-      <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
-        {name}
-      </p>
-      <ResponsiveContainer width="100%" height={120}>
-        <LineChart data={data}>
-          <YAxis
-            domain={[0.4, 2.0]}
-            hide
-          />
-          <XAxis dataKey="date" hide />
-          <ReferenceLine
-            y={1.0}
-            stroke="rgba(255,255,255,0.1)"
-            strokeDasharray="3 3"
-          />
-          <Line
-            type="monotone"
-            dataKey="hltv"
-            stroke={color}
-            strokeWidth={2}
-            dot={{ r: 4, fill: color, stroke: "var(--surface-1)", strokeWidth: 2 }}
-            activeDot={{ r: 6, fill: color }}
-          />
-          <Tooltip content={<FormTooltip />} />
-        </LineChart>
-      </ResponsiveContainer>
+    <div className="min-w-0 rounded-lg bg-[var(--surface-2)] p-3">
+      <div className="mb-2 flex items-baseline justify-between gap-2">
+        <p className="truncate text-xs font-semibold" style={{ color }}>
+          {name}
+        </p>
+        {avg !== null && (
+          <p className="shrink-0 text-xs text-[var(--text-tertiary)]">
+            śr. <span className="font-mono tabular-nums text-[var(--text-primary)]">{avg.toFixed(2)}</span>
+          </p>
+        )}
+      </div>
+      {data.length === 0 ? (
+        <div className="flex h-[120px] items-center justify-center text-xs text-[var(--text-tertiary)]">
+          Brak ostatnich meczów
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={120}>
+          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+            <YAxis domain={[0.4, 2.0]} hide />
+            <XAxis dataKey="date" hide />
+            <ReferenceLine y={1.0} stroke="var(--border-hover)" strokeDasharray="3 3" />
+            <Line
+              type="monotone"
+              dataKey="hltv"
+              stroke={color}
+              strokeWidth={2}
+              dot={{ r: 4, fill: color, stroke: "var(--surface-2)", strokeWidth: 2 }}
+              activeDot={{ r: 6, fill: color }}
+            />
+            <Tooltip content={<FormTooltip />} />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
     </div>
   );
 }
@@ -102,15 +103,13 @@ export function RecentFormChart({
 }: RecentFormChartProps) {
   return (
     <Card>
-      <h2 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">
-        Recent Form
-      </h2>
-      <p className="mb-4 text-xs text-[var(--text-tertiary)]">
-        Last 5 matches — HLTV Rating (1.0 baseline)
+      <SectionTitle>Ostatnia forma</SectionTitle>
+      <p className="-mt-1 mb-4 text-xs text-[var(--text-tertiary)]">
+        Ostatnie 5 meczów — HLTV Rating (linia odniesienia 1.0)
       </p>
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        <Sparkline data={player1Form} color="#5AA9FF" name={player1Name} />
-        <Sparkline data={player2Form} color="#FFC23D" name={player2Name} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Sparkline data={player1Form} color={PLAYER_COLORS.p1} name={player1Name} />
+        <Sparkline data={player2Form} color={PLAYER_COLORS.p2} name={player2Name} />
       </div>
     </Card>
   );

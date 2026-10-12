@@ -2,7 +2,8 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { StatCard } from "@/components/ui";
+import { PageHeader, StatCard, buttonVariants } from "@/components/ui";
+import { ListOrdered } from "lucide-react";
 import { formatLimit, getPlanUsage } from "@/lib/limits";
 import { demoState } from "@/lib/library";
 import { isR2Enabled, demoRetention } from "@/lib/storage/demo-store";
@@ -75,36 +76,35 @@ export default async function LibraryPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Analysis library</h1>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            Your saved reports. Demo files are deleted after analysis
-            {demoRetention() === "keep" ? " (disabled on this server)" : ""}; the report and the
-            2D replay stay. Mark &quot;Keep demo&quot; to hold on to a file
-            {isR2Enabled() ? " (stored in Cloudflare R2)" : ""}.
-          </p>
-        </div>
-        <Link
-          href="/queue"
-          className="inline-flex h-10 items-center justify-center rounded-lg border border-[var(--border)] bg-[rgba(255,255,255,0.06)] px-5 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-        >
-          Analysis queue
-        </Link>
-      </div>
+      <PageHeader
+        eyebrow="Analiza"
+        title="Biblioteka analiz"
+        description={
+          <>
+            Twoje zapisane raporty. Pliki demo są usuwane po analizie
+            {demoRetention() === "keep" ? " (wyłączone na tym serwerze)" : ""}; raport i powtórka
+            2D zostają. Zaznacz &quot;Zachowaj demo&quot;, by zatrzymać plik
+            {isR2Enabled() ? " (przechowywany w Cloudflare R2)" : ""}.
+          </>
+        }
+        actions={
+          <Link href="/queue" className={buttonVariants({ variant: "secondary" })}>
+            <ListOrdered className="h-4 w-4" aria-hidden />
+            Kolejka analiz
+          </Link>
+        }
+      />
 
       {usage && (
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <StatCard label="Saved analyses" value={entries.length} />
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
+          <StatCard label="Zapisane analizy" value={entries.length} />
           <StatCard
-            label="This month"
+            label="W tym miesiącu"
             value={`${usage.used}/${formatLimit(usage.limit)}`}
-            accentColor="var(--ct-blue)"
           />
           <StatCard
-            label="Kept demos"
+            label="Zachowane dema"
             value={`${usage.keptDemos}/${formatLimit(usage.limits.keptDemos)}`}
-            accentColor="var(--t-gold)"
           />
         </div>
       )}

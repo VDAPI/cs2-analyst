@@ -4,7 +4,12 @@ import { authOptions } from "@/lib/auth";
 import { PlayerSelector } from "./player-selector";
 import type { PlayerSummary } from "./types";
 
-export default async function ComparePage() {
+export default async function ComparePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ p1?: string }>;
+}) {
+  const { p1 } = await searchParams;
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
 
@@ -56,5 +61,5 @@ export default async function ComparePage() {
     }))
     .sort((a, b) => b.matchCount - a.matchCount);
 
-  return <PlayerSelector players={players} />;
+  return <PlayerSelector players={players} initialSteamId={p1} />;
 }

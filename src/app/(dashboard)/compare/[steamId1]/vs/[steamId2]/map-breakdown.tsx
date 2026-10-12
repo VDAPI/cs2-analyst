@@ -1,5 +1,7 @@
-import { Card } from "@/components/ui";
+import { Card, SectionTitle } from "@/components/ui";
+import { MapThumb } from "@/components/match";
 import { mapDisplayName } from "@/lib/utils/mapNames";
+import { PLAYER_COLORS, matchesLabel } from "../../../compare-ui";
 
 interface MapStat {
   matches: number;
@@ -15,6 +17,43 @@ interface MapBreakdownProps {
   player2Maps: Record<string, MapStat>;
 }
 
+type Slot = "p1" | "p2";
+type Metric = "kd" | "avgAdr" | "avgHltv";
+
+const METRICS: Array<{ key: Metric; label: string; format: (v: number) => string }> = [
+  { key: "kd", label: "K/D", format: (v) => v.toFixed(2) },
+  { key: "avgAdr", label: "ADR", format: (v) => v.toFixed(1) },
+  { key: "avgHltv", label: "HLTV", format: (v) => v.toFixed(2) },
+];
+
+/** Value cell: highlighted in the player's color when it beats the other player on this map. */
+function MetricValue({
+  self,
+  other,
+  metric,
+  slot,
+  format,
+  className,
+}: {
+  self: MapStat | undefined;
+  other: MapStat | undefined;
+  metric: Metric;
+  slot: Slot;
+  format: (v: number) => string;
+  className?: string;
+}) {
+  if (!self) return <span className={`text-[var(--text-disabled)] ${className ?? ""}`}>—</span>;
+  const wins = other !== undefined && self[metric] > other[metric];
+  return (
+    <span
+      className={`font-mono tabular-nums ${wins ? "font-bold" : "text-[var(--text-primary)]"} ${className ?? ""}`}
+      style={wins ? { color: PLAYER_COLORS[slot] } : undefined}
+    >
+      {format(self[metric])}
+    </span>
+  );
+}
+
 export function MapBreakdown({
   player1Name,
   player2Name,
@@ -28,131 +67,107 @@ export function MapBreakdown({
   if (allMaps.length === 0) return null;
 
   return (
-    <Card className="overflow-hidden p-0">
-      <div className="p-5 pb-0">
-        <h2 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">
-          Map Performance
-        </h2>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+    <Card>
+      <SectionTitle>Wyniki na mapach</SectionTitle>
+
+      {/* Phones: one card per map */}
+      <ul className="space-y-3 md:hidden">
+        {allMaps.map((map) => {
+          const p1 = player1Maps[map];
+          const p2 = player2Maps[map];
+          return (
+            <li key={map} className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="mb-2 flex items-center gap-3">
+                <MapThumb map={map} size="sm" />
+                <p className="min-w-0 truncate font-display font-semibold text-[var(--text-primary)]">
+                  {mapDisplayName(map)}
+                </p>
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-sm">
+                <span className="truncate text-xs font-semibold" style={{ color: PLAYER_COLORS.p1 }}>
+                  {player1Name}
+                </span>
+                <span />
+                <span className="truncate text-right text-xs font-semibold" style={{ color: PLAYER_COLORS.p2 }}>
+                  {player2Name}
+                </span>
+
+                <span className="stat-inline text-[var(--text-secondary)]">
+                  {p1 ? matchesLabel(p1.matches) : "—"}
+                </span>
+                <span className="label-overline self-center text-center text-[var(--text-tertiary)]">Mecze</span>
+                <span className="stat-inline text-right text-[var(--text-secondary)]">
+                  {p2 ? matchesLabel(p2.matches) : "—"}
+                </span>
+
+                {METRICS.map((m) => (
+                  <MetricRow key={m.key} label={m.label}>
+                    <MetricValue self={p1} other={p2} metric={m.key} slot="p1" format={m.format} />
+                    <MetricValue
+                      self={p2}
+                      other={p1}
+                      metric={m.key}
+                      slot="p2"
+                      format={m.format}
+                      className="text-right"
+                    />
+                  </MetricRow>
+                ))}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* Tablet / desktop: table */}
+      <div className="table-scroll hidden md:block">
+        <table className="data-table">
           <thead>
-            <tr className="border-b border-[var(--border)] text-xs font-medium uppercase text-[var(--text-tertiary)]">
-              <th className="px-5 py-3 text-left">Map</th>
-              <th
-                className="px-3 py-3 text-center"
-                colSpan={4}
-                style={{ color: "var(--ct-blue)" }}
-              >
+            <tr>
+              <th>Mapa</th>
+              <th colSpan={4} className="max-w-[12rem] truncate" style={{ color: PLAYER_COLORS.p1 }}>
                 {player1Name}
               </th>
-              <th
-                className="px-3 py-3 text-center"
-                colSpan={4}
-                style={{ color: "var(--t-gold)" }}
-              >
+              <th colSpan={4} className="max-w-[12rem] truncate" style={{ color: PLAYER_COLORS.p2 }}>
                 {player2Name}
               </th>
             </tr>
-            <tr className="border-b border-[var(--border)] text-xs font-medium uppercase text-[var(--text-tertiary)]">
-              <th className="px-5 py-2" />
-              <th className="px-3 py-2 text-center">M</th>
-              <th className="px-3 py-2 text-center">K/D</th>
-              <th className="px-3 py-2 text-center">ADR</th>
-              <th className="px-3 py-2 text-center">HLTV</th>
-              <th className="px-3 py-2 text-center">M</th>
-              <th className="px-3 py-2 text-center">K/D</th>
-              <th className="px-3 py-2 text-center">ADR</th>
-              <th className="px-3 py-2 text-center">HLTV</th>
+            <tr>
+              <th aria-hidden />
+              <th title="Mecze">M</th>
+              {METRICS.map((m) => (
+                <th key={`p1-${m.key}`}>{m.label}</th>
+              ))}
+              <th title="Mecze">M</th>
+              {METRICS.map((m) => (
+                <th key={`p2-${m.key}`}>{m.label}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {allMaps.map((map) => {
               const p1 = player1Maps[map];
               const p2 = player2Maps[map];
-
               return (
-                <tr
-                  key={map}
-                  className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(190,160,255,0.02)]"
-                >
-                  <td className="px-5 py-3 font-medium text-[var(--text-primary)]">
-                    {mapDisplayName(map)}
+                <tr key={map}>
+                  <td className="font-medium text-[var(--text-primary)]">
+                    <span className="flex items-center gap-2.5">
+                      <MapThumb map={map} size="sm" />
+                      {mapDisplayName(map)}
+                    </span>
                   </td>
-                  {/* P1 stats */}
-                  <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
-                    {p1?.matches ?? "—"}
-                  </td>
-                  <td
-                    className={`stat-inline px-3 py-3 text-center font-semibold ${
-                      p1 && p2
-                        ? p1.kd > p2.kd
-                          ? "text-[var(--success)]"
-                          : "text-[var(--text-primary)]"
-                        : "text-[var(--text-primary)]"
-                    }`}
-                  >
-                    {p1 ? p1.kd.toFixed(2) : "—"}
-                  </td>
-                  <td
-                    className={`stat-inline px-3 py-3 text-center ${
-                      p1 && p2
-                        ? p1.avgAdr > p2.avgAdr
-                          ? "text-[var(--success)]"
-                          : "text-[var(--text-primary)]"
-                        : "text-[var(--text-primary)]"
-                    }`}
-                  >
-                    {p1 ? p1.avgAdr.toFixed(1) : "—"}
-                  </td>
-                  <td
-                    className={`stat-inline px-3 py-3 text-center font-semibold ${
-                      p1 && p2
-                        ? p1.avgHltv > p2.avgHltv
-                          ? "text-[var(--success)]"
-                          : "text-[var(--text-primary)]"
-                        : "text-[var(--text-primary)]"
-                    }`}
-                  >
-                    {p1 ? p1.avgHltv.toFixed(2) : "—"}
-                  </td>
-                  {/* P2 stats */}
-                  <td className="stat-inline px-3 py-3 text-center text-[var(--text-secondary)]">
-                    {p2?.matches ?? "—"}
-                  </td>
-                  <td
-                    className={`stat-inline px-3 py-3 text-center font-semibold ${
-                      p1 && p2
-                        ? p2.kd > p1.kd
-                          ? "text-[var(--success)]"
-                          : "text-[var(--text-primary)]"
-                        : "text-[var(--text-primary)]"
-                    }`}
-                  >
-                    {p2 ? p2.kd.toFixed(2) : "—"}
-                  </td>
-                  <td
-                    className={`stat-inline px-3 py-3 text-center ${
-                      p1 && p2
-                        ? p2.avgAdr > p1.avgAdr
-                          ? "text-[var(--success)]"
-                          : "text-[var(--text-primary)]"
-                        : "text-[var(--text-primary)]"
-                    }`}
-                  >
-                    {p2 ? p2.avgAdr.toFixed(1) : "—"}
-                  </td>
-                  <td
-                    className={`stat-inline px-3 py-3 text-center font-semibold ${
-                      p1 && p2
-                        ? p2.avgHltv > p1.avgHltv
-                          ? "text-[var(--success)]"
-                          : "text-[var(--text-primary)]"
-                        : "text-[var(--text-primary)]"
-                    }`}
-                  >
-                    {p2 ? p2.avgHltv.toFixed(2) : "—"}
-                  </td>
+                  <td>{p1?.matches ?? "—"}</td>
+                  {METRICS.map((m) => (
+                    <td key={`p1-${m.key}`}>
+                      <MetricValue self={p1} other={p2} metric={m.key} slot="p1" format={m.format} />
+                    </td>
+                  ))}
+                  <td>{p2?.matches ?? "—"}</td>
+                  {METRICS.map((m) => (
+                    <td key={`p2-${m.key}`}>
+                      <MetricValue self={p2} other={p1} metric={m.key} slot="p2" format={m.format} />
+                    </td>
+                  ))}
                 </tr>
               );
             })}
@@ -160,5 +175,15 @@ export function MapBreakdown({
         </table>
       </div>
     </Card>
+  );
+}
+
+function MetricRow({ label, children }: { label: string; children: [React.ReactNode, React.ReactNode] }) {
+  return (
+    <>
+      {children[0]}
+      <span className="label-overline self-center text-center text-[var(--text-tertiary)]">{label}</span>
+      {children[1]}
+    </>
   );
 }

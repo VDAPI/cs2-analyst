@@ -1,19 +1,35 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Card, Button, InitialsAvatar } from "@/components/ui";
-import { Search, GitCompare, X } from "lucide-react";
+import {
+  Card,
+  Button,
+  buttonVariants,
+  InitialsAvatar,
+  Input,
+  PageHeader,
+  EmptyState,
+} from "@/components/ui";
+import { Search, GitCompare, X, Users, Upload } from "lucide-react";
+import { cn } from "@/lib/utils/cn";
+import { PLAYER_COLORS, PLAYER_MUTED, matchesLabel } from "./compare-ui";
 import type { PlayerSummary } from "./types";
 
 interface PlayerSelectorProps {
   players: PlayerSummary[];
+  /** Pre-fills slot 1 (from `/compare?p1=<steamId>`, e.g. the player profile). */
+  initialSteamId?: string;
 }
 
-export function PlayerSelector({ players }: PlayerSelectorProps) {
+export function PlayerSelector({ players, initialSteamId }: PlayerSelectorProps) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selected, setSelected] = useState<[PlayerSummary | null, PlayerSummary | null]>([null, null]);
+  const [selected, setSelected] = useState<[PlayerSummary | null, PlayerSummary | null]>(() => [
+    players.find((p) => p.steamId === initialSteamId) ?? null,
+    null,
+  ]);
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return players;
@@ -42,10 +58,6 @@ export function PlayerSelector({ players }: PlayerSelectorProps) {
     }
   }
 
-  function isSelected(steamId: string) {
-    return selected[0]?.steamId === steamId || selected[1]?.steamId === steamId;
-  }
-
   function getSlotIndex(steamId: string): 1 | 2 | null {
     if (selected[0]?.steamId === steamId) return 1;
     if (selected[1]?.steamId === steamId) return 2;
@@ -56,104 +68,143 @@ export function PlayerSelector({ players }: PlayerSelectorProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-          Compare Players
-        </h1>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Select two players to compare their stats side by side.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Analiza"
+        title="Porównaj graczy"
+        description="Wybierz dwóch graczy, aby zestawić ich statystyki obok siebie."
+      />
 
-      {/* Selected players bar */}
-      <Card className="flex items-center gap-4">
-        <SelectedSlot
-          player={selected[0]}
-          label="Player 1"
-          color="var(--ct-blue)"
-          onClear={() => setSelected([selected[1], null])}
-        />
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--surface-3)]">
-          <GitCompare className="h-4 w-4 text-[var(--text-tertiary)]" />
+      {/* Selected players */}
+      <Card className="space-y-4">
+        <div className="grid grid-cols-1 items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+          <SelectedSlot
+            player={selected[0]}
+            label="Gracz 1"
+            slot="p1"
+            onClear={() => setSelected([selected[1], null])}
+          />
+          <div className="flex justify-center">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-3)]">
+              <GitCompare className="h-4 w-4 text-[var(--text-tertiary)]" aria-hidden />
+            </div>
+          </div>
+          <SelectedSlot
+            player={selected[1]}
+            label="Gracz 2"
+            slot="p2"
+            onClear={() => setSelected([selected[0], null])}
+          />
         </div>
-        <SelectedSlot
-          player={selected[1]}
-          label="Player 2"
-          color="var(--t-gold)"
-          onClear={() => setSelected([selected[0], null])}
-        />
-        <Button
-          disabled={!canCompare}
-          onClick={() => {
-            if (selected[0] && selected[1]) {
-              router.push(`/compare/${selected[0].steamId}/vs/${selected[1].steamId}`);
-            }
-          }}
-          className="ml-auto shrink-0"
-        >
-          Compare
-        </Button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-[var(--text-tertiary)]">
+            {canCompare
+              ? "Gotowe — możesz porównać."
+              : "Dotknij gracza na liście, aby dodać go do porównania."}
+          </p>
+          <Button
+            variant="cta"
+            disabled={!canCompare}
+            onClick={() => {
+              if (selected[0] && selected[1]) {
+                router.push(`/compare/${selected[0].steamId}/vs/${selected[1].steamId}`);
+              }
+            }}
+            className="w-full sm:w-auto"
+          >
+            <GitCompare className="h-4 w-4" aria-hidden />
+            Porównaj
+          </Button>
+        </div>
       </Card>
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-tertiary)]" />
-        <input
-          type="text"
-          placeholder="Search players..."
+        <Search
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-tertiary)]"
+          aria-hidden
+        />
+        <Input
+          type="search"
+          placeholder="Szukaj gracza…"
+          aria-label="Szukaj gracza"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] pl-10 pr-4 text-sm text-[var(--text-primary)] placeholder-[var(--text-disabled)] outline-none transition-colors focus:border-[var(--accent)]"
+          className="min-h-11 pl-10"
         />
       </div>
 
-      {/* Player grid */}
+      {/* Player list */}
       {filtered.length === 0 ? (
-        <Card>
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-sm text-[var(--text-secondary)]">
-              {players.length === 0
-                ? "No player data yet. Upload demos to get started."
-                : "No players match your search."}
-            </p>
-          </div>
-        </Card>
+        players.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title="Brak danych o graczach"
+            description="Wgraj dema, aby zacząć porównywać graczy."
+            action={
+              <Link href="/upload" className={buttonVariants({ variant: "secondary", size: "md" })}>
+                <Upload className="h-4 w-4" aria-hidden />
+                Wgraj demo
+              </Link>
+            }
+          />
+        ) : (
+          <EmptyState
+            icon={Search}
+            title="Brak wyników"
+            description="Żaden gracz nie pasuje do wyszukiwania."
+          />
+        )
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {filtered.map((player) => {
-            const sel = isSelected(player.steamId);
             const slot = getSlotIndex(player.steamId);
-            const slotColor = slot === 1 ? "var(--ct-blue)" : slot === 2 ? "var(--t-gold)" : undefined;
+            const key = slot === 1 ? "p1" : slot === 2 ? "p2" : null;
 
             return (
               <button
                 key={player.steamId}
+                type="button"
+                aria-pressed={slot !== null}
                 onClick={() => togglePlayer(player)}
-                className={`flex flex-col items-center gap-3 rounded-xl border p-4 text-left transition-all duration-150 ${
-                  sel
-                    ? "border-[var(--accent)] bg-[rgba(155,107,255,0.08)]"
+                className={cn(
+                  "flex min-h-16 w-full min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all duration-150 focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--accent-glow)]",
+                  key
+                    ? ""
                     : "border-[var(--border)] bg-[var(--surface-1)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-2)]"
-                }`}
-                style={sel && slotColor ? { borderColor: slotColor } : undefined}
+                )}
+                style={key ? { borderColor: PLAYER_COLORS[key], backgroundColor: PLAYER_MUTED[key] } : undefined}
               >
-                <InitialsAvatar name={player.name} size="lg" />
-                <div className="text-center">
-                  <p className="text-sm font-medium text-[var(--text-primary)]">
+                <InitialsAvatar name={player.name} size="md" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-[var(--text-primary)]">
                     {player.name}
                   </p>
-                  <p className="stat-inline mt-0.5 text-xs text-[var(--text-tertiary)]">
-                    {player.matchCount} match{player.matchCount !== 1 ? "es" : ""}
-                  </p>
-                  <div className="mt-1.5 flex items-center justify-center gap-3 text-xs">
-                    <span className="font-mono text-[var(--text-secondary)]">
-                      {player.avgKd.toFixed(2)} <span className="text-[var(--text-disabled)]">K/D</span>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+                    <span className="stat-inline text-[var(--text-tertiary)]">
+                      {matchesLabel(player.matchCount)}
                     </span>
-                    <span className="font-mono text-[var(--t-gold)]">
-                      {player.avgHltv.toFixed(2)} <span className="text-[var(--text-disabled)]">HLTV</span>
+                    <span className="font-mono tabular-nums text-[var(--text-secondary)]">
+                      {player.avgKd.toFixed(2)} <span className="text-[var(--text-tertiary)]">K/D</span>
+                    </span>
+                    <span className="font-mono tabular-nums text-[var(--text-secondary)]">
+                      {player.avgHltv.toFixed(2)} <span className="text-[var(--text-tertiary)]">HLTV</span>
                     </span>
                   </div>
                 </div>
+                {key ? (
+                  <span
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-xs font-bold text-[var(--on-accent)]"
+                    style={{ backgroundColor: PLAYER_COLORS[key] }}
+                    aria-label={`Gracz ${slot}`}
+                  >
+                    {slot}
+                  </span>
+                ) : (
+                  <span
+                    className="h-6 w-6 shrink-0 rounded-full border border-[var(--border)]"
+                    aria-hidden
+                  />
+                )}
               </button>
             );
           })}
@@ -166,43 +217,55 @@ export function PlayerSelector({ players }: PlayerSelectorProps) {
 function SelectedSlot({
   player,
   label,
-  color,
+  slot,
   onClear,
 }: {
   player: PlayerSummary | null;
   label: string;
-  color: string;
+  slot: "p1" | "p2";
   onClear: () => void;
 }) {
+  const color = PLAYER_COLORS[slot];
+
   if (!player) {
     return (
-      <div className="flex flex-1 items-center gap-3 rounded-lg border border-dashed border-[var(--border)] px-4 py-2">
-        <div className="h-8 w-8 rounded-full bg-[var(--surface-3)]" />
-        <span className="text-sm text-[var(--text-disabled)]">{label}</span>
+      <div className="flex min-h-14 min-w-0 items-center gap-3 rounded-lg border border-dashed border-[var(--border)] px-3 py-2">
+        <div className="h-8 w-8 shrink-0 rounded-full bg-[var(--surface-3)]" />
+        <div className="min-w-0">
+          <p className="label-overline" style={{ color }}>
+            {label}
+          </p>
+          <p className="text-sm text-[var(--text-disabled)]">Nie wybrano</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div
-      className="flex flex-1 items-center gap-3 rounded-lg border px-4 py-2"
-      style={{ borderColor: color }}
+      className="flex min-h-14 min-w-0 items-center gap-3 rounded-lg border px-3 py-2"
+      style={{ borderColor: color, backgroundColor: PLAYER_MUTED[slot] }}
     >
       <InitialsAvatar name={player.name} size="sm" />
-      <div className="flex-1">
-        <p className="text-sm font-medium text-[var(--text-primary)]">{player.name}</p>
+      <div className="min-w-0 flex-1">
+        <p className="label-overline" style={{ color }}>
+          {label}
+        </p>
+        <p className="truncate text-sm font-medium text-[var(--text-primary)]">{player.name}</p>
         <p className="stat-inline text-xs text-[var(--text-tertiary)]">
-          {player.matchCount} match{player.matchCount !== 1 ? "es" : ""}
+          {matchesLabel(player.matchCount)}
         </p>
       </div>
       <button
+        type="button"
         onClick={(e) => {
           e.stopPropagation();
           onClear();
         }}
-        className="rounded p-1 text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-secondary)]"
+        aria-label={`Usuń: ${player.name}`}
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-secondary)] md:h-8 md:w-8"
       >
-        <X className="h-3.5 w-3.5" />
+        <X className="h-4 w-4" aria-hidden />
       </button>
     </div>
   );
