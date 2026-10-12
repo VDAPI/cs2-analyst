@@ -6,6 +6,9 @@ import bcrypt from "bcryptjs";
 import { normalizeEmail } from "@/lib/email";
 
 const DEV_EMAIL = "dev@cs2analyst.local";
+
+/** Steam login is optional (CLAUDE.md): only offered when STEAM_API_KEY is set. */
+export const isSteamLoginEnabled = () => !!process.env.STEAM_API_KEY;
 const DEV_PASSWORD = "dev";
 
 export const authOptions: AuthOptions = {

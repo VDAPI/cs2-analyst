@@ -13,14 +13,10 @@ import {
   sampleTickList,
   type EncodedRoundTicks,
 } from "@/lib/replay/round-ticks";
+import { loadDemoParser } from "./load-parser";
 
-let demoparser: typeof import("@laihoe/demoparser2") | null = null;
-async function getParser() {
-  if (!demoparser) {
-    demoparser = await import("@laihoe/demoparser2");
-  }
-  return demoparser;
-}
+// demoparser2 (native bindings), or the E2E fixture parser.
+const getParser = loadDemoParser;
 
 /**
  * parseTicks returns one JS object per player per tick, so a whole match at

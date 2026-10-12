@@ -11,15 +11,10 @@ import {
   subsampleFrames,
   type ReplayFrame,
 } from "@/lib/replay/round-ticks";
+import { loadDemoParser } from "@/lib/parsers/load-parser";
 
-// Dynamic import — demoparser2 uses native Node bindings
-let demoparser: typeof import("@laihoe/demoparser2") | null = null;
-async function getParser() {
-  if (!demoparser) {
-    demoparser = await import("@laihoe/demoparser2");
-  }
-  return demoparser;
-}
+// demoparser2 (native bindings), or the E2E fixture parser.
+const getParser = loadDemoParser;
 
 interface Props {
   params: Promise<{ matchId: string }>;
