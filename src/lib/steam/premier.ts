@@ -2,7 +2,7 @@
  * Premier / Steam matches the player added (S18): shared helpers for the
  * routes and the upload page. Mirrors src/lib/faceit/analyze.ts.
  */
-import type { SteamMatch } from "@prisma/client";
+import type { Prisma, SteamMatch } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { steamDemoDownloadQueue, STEAM_DOWNLOAD_JOB_OPTS } from "@/lib/queue";
 
@@ -22,8 +22,11 @@ export function activeSteamUploadId(sm: SteamMatchWithUpload): string | null {
 }
 
 /** Detach a failed / deleted upload so the match can be analyzed again. */
-export async function releaseSteamMatch(steamMatchId: string): Promise<void> {
-  await prisma.steamMatch.update({ where: { id: steamMatchId }, data: { uploadId: null } });
+export async function releaseSteamMatch(
+  steamMatchId: string,
+  db: Prisma.TransactionClient = prisma
+): Promise<void> {
+  await db.steamMatch.update({ where: { id: steamMatchId }, data: { uploadId: null } });
 }
 
 /** Creates the upload and queues the replay download. Caller checked ownership and limits. */

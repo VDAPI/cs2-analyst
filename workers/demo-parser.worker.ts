@@ -6,11 +6,11 @@
  * uploaded .dem files, storing results in PostgreSQL.
  */
 
-import { Worker, UnrecoverableError, type Job } from "bullmq";
+import { QueueEvents, Worker, UnrecoverableError, type Job } from "bullmq";
 import { stat, mkdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { parseAndPersistDemo } from "../src/lib/parsers/persist-demo";
+import { failUploadIfInFlight, parseAndPersistDemo } from "../src/lib/parsers/persist-demo";
 import { backfillReplayData } from "../src/lib/parsers/backfill-replay";
 import {
   deleteStoredDemo,
@@ -22,7 +22,7 @@ import {
 import { deleteAnalysis } from "../src/lib/library";
 import { notifyUploadFinished } from "../src/lib/notifications/notify";
 import { downloadReplayDemo, ReplayGoneError } from "../src/lib/steam/demo-download";
-import { demoParseQueue, type SteamDemoDownloadJobData } from "../src/lib/queue";
+import { demoParseQueue, steamDemoDownloadQueue, type SteamDemoDownloadJobData } from "../src/lib/queue";
 import { backfillNormSamples, refreshNorms, refreshNormsIfStale } from "../src/lib/norms/persist";
 import { initWorkerSentry, reportJobFailure, reportWorkerError } from "../src/lib/monitoring/worker-sentry";
 
@@ -117,6 +117,11 @@ async function processDemo(job: Job<DemoParseJobData>) {
 const worker = new Worker("demo-parse", processDemo, {
   connection: { url: REDIS_URL },
   concurrency: 2,
+  // demoparser2 blocks the event loop for a whole native parse, so the lock
+  // can't be renewed meanwhile. With BullMQ's 30 s default a big demo lost its
+  // lock and was parsed a second time by the other slot. Same as the
+  // download workers.
+  lockDuration: 10 * 60 * 1000,
   limiter: {
     max: 10,
     duration: 60_000,
@@ -131,12 +136,34 @@ worker.on("completed", (job) => {
 worker.on("failed", (job, err) => {
   console.error(`Demo parse failed: ${job?.id}`, err.message);
   reportJobFailure("demo-parse", job, err);
-  // Parse jobs run once; the upload is FAILED now (no-op if it isn't).
-  if (job) void notifyUploadFinished(prisma, job.data.uploadId);
+  // Parse jobs run once. Our own catch normally left the upload FAILED; if it
+  // didn't (e.g. a lost lock), mark it FAILED here or it stays PARSING and can
+  // never be retried. Stalled jobs come through parseEvents below instead.
+  if (job) {
+    const { uploadId } = job.data;
+    void failUploadIfInFlight(prisma, uploadId, err.message).then(() =>
+      notifyUploadFinished(prisma, uploadId)
+    );
+  }
 });
 
 worker.on("ready", () => {
   console.log("Demo parser worker ready, waiting for jobs...");
+});
+
+// A job that stalled more often than allowed (the process died or was killed
+// mid-parse) is failed by BullMQ's stalled checker, which emits no "failed"
+// on the Worker and runs none of our code: settle its upload from the queue's
+// event stream instead.
+const parseEvents = new QueueEvents("demo-parse", { connection: { url: REDIS_URL } });
+parseEvents.on("failed", ({ jobId, failedReason }) => {
+  void (async () => {
+    const job = await demoParseQueue.getJob(jobId);
+    const uploadId = (job?.data as DemoParseJobData | undefined)?.uploadId;
+    if (!uploadId) return;
+    await failUploadIfInFlight(prisma, uploadId, failedReason);
+    await notifyUploadFinished(prisma, uploadId);
+  })().catch((err) => console.error(`[parser] settling failed job ${jobId} failed`, err));
 });
 
 // ─── Premier / Steam replay downloads (S18) ──────────────
@@ -209,6 +236,18 @@ const steamWorker = new Worker("steam-demo-download", processSteamDownload, {
 steamWorker.on("failed", (job, err) => {
   console.error(`Steam replay download failed: ${job?.id}`, err.message);
   reportJobFailure("steam-demo-download", job, err);
+});
+
+// Same as the parse queue: a download that stalled too often never reached our catch.
+const steamEvents = new QueueEvents("steam-demo-download", { connection: { url: REDIS_URL } });
+steamEvents.on("failed", ({ jobId, failedReason }) => {
+  void (async () => {
+    const job = await steamDemoDownloadQueue.getJob(jobId);
+    const uploadId = job?.data.uploadId;
+    if (!uploadId) return;
+    await failUploadIfInFlight(prisma, uploadId, failedReason);
+    await notifyUploadFinished(prisma, uploadId);
+  })().catch((err) => console.error(`[steam-download] settling failed job ${jobId} failed`, err));
 });
 
 // Store replay data for older matches that still have their .dem, so nobody

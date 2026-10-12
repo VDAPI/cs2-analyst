@@ -6,7 +6,7 @@
  * Downloads API isn't configured, the UI sends the player to the upload page
  * with a "download the demo from FACEIT" hint instead.
  */
-import type { FaceitMatch } from "@prisma/client";
+import type { FaceitMatch, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { faceitDemoDownloadQueue, FACEIT_DOWNLOAD_JOB_OPTS } from "@/lib/queue";
 
@@ -34,12 +34,15 @@ export function activeUploadId(fm: FaceitMatchWithUpload): string | null {
  * take the (unique) faceitMatchId. A failed one also leaves the queue screen,
  * since the retry replaces it.
  */
-export async function releaseFaceitMatch(faceitMatchId: string): Promise<void> {
-  await prisma.demoUpload.updateMany({
+export async function releaseFaceitMatch(
+  faceitMatchId: string,
+  db: Prisma.TransactionClient = prisma
+): Promise<void> {
+  await db.demoUpload.updateMany({
     where: { faceitMatchId, OR: [{ status: "FAILED" }, { deletedAt: { not: null } }] },
     data: { faceitMatchId: null, deletedAt: new Date() },
   });
-  await prisma.faceitMatch.update({
+  await db.faceitMatch.update({
     where: { faceitMatchId },
     data: { uploadId: null },
   });

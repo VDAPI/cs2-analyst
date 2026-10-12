@@ -10,7 +10,7 @@
  * concurrency: 1 — demo downloads are processed sequentially so signed URLs
  * are never exchanged in parallel (gateway rate limit 20 req/s).
  */
-import { Worker, UnrecoverableError, type Job } from "bullmq";
+import { QueueEvents, Worker, UnrecoverableError, type Job } from "bullmq";
 import { PrismaClient } from "@prisma/client";
 import { stat, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -21,14 +21,14 @@ import {
   DemoNotReadyError,
 } from "../src/lib/faceit/downloads";
 import { refreshDemoResource } from "../src/lib/faceit/sync";
-import { parseAndPersistDemo } from "../src/lib/parsers/persist-demo";
+import { failUploadIfInFlight, parseAndPersistDemo } from "../src/lib/parsers/persist-demo";
 import {
   demoRetention,
   shouldDeleteDemo,
   storeDemoFile,
 } from "../src/lib/storage/demo-store";
 import { deleteAnalysis } from "../src/lib/library";
-import type { FaceitDemoDownloadJobData } from "../src/lib/queue";
+import { faceitDemoDownloadQueue, type FaceitDemoDownloadJobData } from "../src/lib/queue";
 import { notifyUploadFinished } from "../src/lib/notifications/notify";
 import { initWorkerSentry, reportJobFailure } from "../src/lib/monitoring/worker-sentry";
 
@@ -220,6 +220,20 @@ worker.on("failed", (job, err) => {
   reportJobFailure("faceit-demo-download", job, err);
   // Only the last attempt leaves the upload FAILED; earlier ones are a no-op.
   if (job) void notifyUploadFinished(prisma, job.data.uploadId);
+});
+
+// A job that stalled more often than allowed (the process died mid-download or
+// mid-parse) is failed by BullMQ's stalled checker without running our catch,
+// so its upload would stay in flight forever: settle it from the event stream.
+const downloadEvents = new QueueEvents("faceit-demo-download", { connection: { url: REDIS_URL } });
+downloadEvents.on("failed", ({ jobId, failedReason }) => {
+  void (async () => {
+    const job = await faceitDemoDownloadQueue.getJob(jobId);
+    const uploadId = job?.data.uploadId;
+    if (!uploadId) return;
+    await failUploadIfInFlight(prisma, uploadId, failedReason);
+    await notifyUploadFinished(prisma, uploadId);
+  })().catch((err) => console.error(`[faceit-download] settling failed job ${jobId} failed`, err));
 });
 
 worker.on("ready", () => {

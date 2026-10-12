@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { checkMonthlyDemoLimit, limitReachedMessage } from "@/lib/limits";
+import { getPlanUsage, keepDemoSlotsLeft, limitReachedMessage } from "@/lib/limits";
 import { activeSteamUploadId, enqueueSteamDownload, STEAM_UPLOAD_INCLUDE } from "@/lib/steam/premier";
 
 /**
@@ -25,11 +25,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const active = activeSteamUploadId(sm);
   if (active) return NextResponse.json({ uploadId: active });
 
-  const limit = await checkMonthlyDemoLimit(userId);
-  if (!limit.allowed) {
-    return NextResponse.json({ error: limitReachedMessage(limit), code: "limit" }, { status: 403 });
+  const usage = await getPlanUsage(userId);
+  if (!usage.allowed) {
+    return NextResponse.json({ error: limitReachedMessage(usage), code: "limit" }, { status: 403 });
   }
 
-  const uploadId = await enqueueSteamDownload(userId, sm, body.keepDemo === true);
+  // Over the plan's "keep demo" cap the analysis still runs, without keeping the .dem.
+  const keepDemo = body.keepDemo === true && keepDemoSlotsLeft(usage) > 0;
+  const uploadId = await enqueueSteamDownload(userId, sm, keepDemo);
   return NextResponse.json({ uploadId }, { status: 201 });
 }

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { allowedBatch, getPlanUsage } from "@/lib/limits";
+import { allowedBatch, getPlanUsage, keepDemoSlotsLeft } from "@/lib/limits";
 import {
   activeUploadId,
   enqueueFaceitDownload,
@@ -68,9 +68,13 @@ export async function POST(req: Request) {
 
   const usage = await getPlanUsage(userId);
   const n = allowedBatch(todo.length, usage.remaining, usage.limits.batchSize);
+  // "Keep demo" only for as many as the plan's cap still allows.
+  let keepSlots = parsed.data.keepDemo ? keepDemoSlotsLeft(usage) : 0;
   const queued: { id: string; uploadId: string }[] = [];
   for (const m of todo.slice(0, n)) {
-    const uploadId = await enqueueFaceitDownload(userId, m, parsed.data.keepDemo ?? false);
+    const keep = keepSlots > 0;
+    if (keep) keepSlots--;
+    const uploadId = await enqueueFaceitDownload(userId, m, keep);
     queued.push({ id: m.id, uploadId });
   }
   for (const m of todo.slice(n)) skipped.push({ id: m.id, reason: "limit" });
