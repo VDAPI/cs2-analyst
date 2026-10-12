@@ -2,14 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { demoParseQueue } from "@/lib/queue";
-import { checkMonthlyDemoLimit, limitReachedMessage } from "@/lib/limits";
-import {
-  enqueueFaceitDownload,
-  faceitDownloadsEnabled,
-  FACEIT_UPLOAD_INCLUDE,
-} from "@/lib/faceit/analyze";
-import { enqueueSteamDownload, STEAM_UPLOAD_INCLUDE } from "@/lib/steam/premier";
+import { retryUpload } from "@/lib/retry";
 
 /**
  * POST /api/uploads/[id]/retry — run a failed analysis again: re-parse the
@@ -30,44 +23,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Only failed analyses can be retried" }, { status: 409 });
   }
 
-  // A failed upload isn't counted; running it again is.
-  const limit = await checkMonthlyDemoLimit(userId);
-  if (!limit.allowed) {
-    return NextResponse.json({ error: limitReachedMessage(limit) }, { status: 403 });
-  }
-
-  if (upload.fileUrl && !upload.demoDeletedAt) {
-    await prisma.demoUpload.update({
-      where: { id },
-      data: { status: "QUEUED", error: null, progress: 0 },
-    });
-    await demoParseQueue.add("parse", { uploadId: id, filePath: upload.fileUrl, userId });
-    return NextResponse.json({ uploadId: id });
-  }
-
-  if (upload.faceitMatchId && faceitDownloadsEnabled()) {
-    const fm = await prisma.faceitMatch.findUnique({
-      where: { faceitMatchId: upload.faceitMatchId },
-      include: FACEIT_UPLOAD_INCLUDE,
-    });
-    if (fm && fm.userId === userId) {
-      const uploadId = await enqueueFaceitDownload(userId, fm, upload.keepDemo);
-      return NextResponse.json({ uploadId });
-    }
-  }
-
-  const sm = await prisma.steamMatch.findUnique({
-    where: { uploadId: id },
-    include: STEAM_UPLOAD_INCLUDE,
-  });
-  if (sm && sm.userId === userId && sm.demoUrl) {
-    const uploadId = await enqueueSteamDownload(userId, sm, upload.keepDemo);
-    await prisma.demoUpload.update({ where: { id }, data: { deletedAt: new Date() } });
-    return NextResponse.json({ uploadId });
-  }
-
-  return NextResponse.json(
-    { error: "The demo file is gone. Upload it again to retry." },
-    { status: 409 }
-  );
+  const result = await retryUpload(upload, { enforceLimit: true });
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+  return NextResponse.json({ uploadId: result.uploadId });
 }

@@ -88,7 +88,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Społeczność | Ranking znajomych, wyzwania tygodniowe | 🆕 | S25 |
 | Integracje | Bot Discord: powiadomienia i komenda /stats | 🆕 | S26 |
 | Integracje | Rozszerzenie przeglądarki: przycisk „Analizuj” na stronie meczu FACEIT | 🆕 | S26 |
-| Platforma | Panel admina, monitoring kolejki, błędy (Sentry), statystyki użycia | 🆕 | S27 |
+| Platforma | Panel admina, monitoring kolejki, błędy (Sentry), statystyki użycia | ✅ | S27 |
 | Platforma | Wydajność: szybsze parsowanie, cache, Lighthouse mobile ≥ 90 | 🆕 | S28 |
 | Platforma | Bezpieczeństwo i RODO: usunięcie konta i danych, polityka prywatności, rate limiting | 🆕 | S29 |
 | Platforma | Plan Pro i płatności (Stripe) | 🆕 | S30 |

@@ -1,4 +1,7 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs/config";
+
+const sentryDsn = process.env.SENTRY_DSN;
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@laihoe/demoparser2"],
@@ -19,6 +22,24 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // One DSN for server, workers and browser (sentry.client.config.ts).
+  env: sentryDsn
+    ? {
+        NEXT_PUBLIC_SENTRY_DSN: sentryDsn,
+        NEXT_PUBLIC_SENTRY_ENVIRONMENT: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? "",
+      }
+    : {},
 };
 
-export default nextConfig;
+// Sentry's build plugin only runs when Sentry is set up; source maps are
+// uploaded only with SENTRY_AUTH_TOKEN (+ SENTRY_ORG, SENTRY_PROJECT).
+export default sentryDsn
+  ? withSentryConfig(nextConfig, {
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      silent: !process.env.CI,
+      telemetry: false,
+      sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+    })
+  : nextConfig;

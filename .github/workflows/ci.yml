@@ -77,3 +77,7 @@ jobs:
       - name: Findings and report regression tests
         if: ${{ !cancelled() }}
         run: npm run test:findings
+
+      - name: Admin panel metrics regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:admin

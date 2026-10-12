@@ -29,6 +29,14 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
   },
 };
 
+/**
+ * Monthly demo limit for a user: the admin panel's per-user override when set,
+ * otherwise the plan's default.
+ */
+export function effectiveMonthlyLimit(plan: Plan, override: number | null): number {
+  return override != null && override >= 0 ? override : PLAN_LIMITS[plan].monthlyDemos;
+}
+
 export function startOfMonthUTC(now: Date = new Date()): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
@@ -59,10 +67,10 @@ export interface PlanUsage extends DemoLimitStatus {
 export async function checkMonthlyDemoLimit(userId: string): Promise<DemoLimitStatus> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { plan: true },
+    select: { plan: true, monthlyDemoLimit: true },
   });
   const plan: Plan = user?.plan ?? "FREE";
-  const limit = PLAN_LIMITS[plan].monthlyDemos;
+  const limit = effectiveMonthlyLimit(plan, user?.monthlyDemoLimit ?? null);
 
   const used = await prisma.demoUpload.count({
     where: {
@@ -81,7 +89,7 @@ export async function getPlanUsage(userId: string): Promise<PlanUsage> {
   const keptDemos = await prisma.demoUpload.count({
     where: { userId, keepDemo: true, deletedAt: null, demoDeletedAt: null },
   });
-  return { ...status, limits: PLAN_LIMITS[status.plan], keptDemos };
+  return { ...status, limits: { ...PLAN_LIMITS[status.plan], monthlyDemos: status.limit }, keptDemos };
 }
 
 export function formatLimit(n: number): string {
