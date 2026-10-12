@@ -24,8 +24,8 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Konto | Email + hasło, Steam opcjonalnie, dev login | ✅ | S2 (wygląd) |
 | Konto | Połączenie FACEIT (OAuth PKCE), synchronizacja historii | ✅ | S7 |
 | Konto | Ustawienia, avatar, odłączanie kont | 🎨 | S4 |
-| Strona główna | Hero z biegającymi neonowymi żołnierzami CT/T | 🆕 | S3 |
-| Strona główna | Sekcje: jak to działa, przykładowy raport, FAQ, CTA | 🆕 | S3 |
+| Strona główna | Hero z biegającymi neonowymi żołnierzami CT/T | ✅ | S3 |
+| Strona główna | Sekcje: jak to działa, przykładowy raport, FAQ, CTA | ✅ | S3 |
 | Mecze | Lista meczów (upload + FACEIT) | 🎨 | S4 |
 | Mecze | Zaznaczanie wielu meczów z historii FACEIT i „Analizuj zaznaczone” | 🆕 | S7 |
 | Mecze | Kolejka analizy ze statusem każdego meczu | 🆕 | S7 |
@@ -94,6 +94,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S2.
 - **Zakres:** hero z Canvas: neonowe sylwetki żołnierzy (CT: hełm, plecak, M4; T: kominiarka, AK) biegające po trasach mapy ze śladem. Wzór w artefakcie z próbkami. Animacja pauzuje przy ukrytej karcie, przy `prefers-reduced-motion` stoi. Docelowo trasy z prawdziwych dem pro (po S13). Sekcje: jak to działa (3 kroki), przykładowy raport, funkcje, FAQ, CTA „Połącz FACEIT” i „Wgraj demo”. OG image.
 - **Gotowe, gdy:** strona główna działa płynnie na telefonie i desktopie.
+- **Status:** ✅ zrobione. Canvas `src/components/landing/hero-runners.tsx` (CT: hełm, plecak, M4; T: kominiarka, AK; ślad za biegaczem; pauza przy ukrytej karcie i poza ekranem; przy `prefers-reduced-motion` stoi), sekcje jak to działa, przykładowy raport, funkcje, FAQ, CTA „Połącz FACEIT” i „Wgraj demo”, OG image (`src/app/opengraph-image.tsx`). Logowanie wraca pod `callbackUrl`. Trasy są ręczne; prawdziwe trasy pro po S13.
 
 ### S4. Przebudowa ekranów: mecze, mecz, gracze, porównanie, ustawienia
 - **Wymaga:** S2.

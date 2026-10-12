@@ -57,7 +57,7 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
         return;
       }
 
-      router.push("/matches");
+      router.push(safeCallbackUrl());
     } catch {
       setError("Coś poszło nie tak, spróbuj ponownie");
       setLoading(false);
@@ -143,4 +143,17 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
       </Button>
     </form>
   );
+}
+
+/** Where to go after login: the middleware's `callbackUrl` when it is a same-site path. */
+function safeCallbackUrl(): string {
+  const raw = new URLSearchParams(window.location.search).get("callbackUrl");
+  if (!raw) return "/matches";
+  try {
+    const url = new URL(raw, window.location.origin);
+    if (url.origin !== window.location.origin || url.pathname.startsWith("/api/")) return "/matches";
+    return url.pathname + url.search + url.hash;
+  } catch {
+    return "/matches";
+  }
 }
