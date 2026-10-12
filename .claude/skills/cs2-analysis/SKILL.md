@@ -198,8 +198,61 @@ These positions should be labeled in heatmaps if possible:
 - Flash effectiveness (player_blind event exists but duration varies)
 - Clutch situations (need to calculate alive players at key moments)
 
+### Current implementation status
+- Trade kills: implemented in `src/lib/utils/tradeKills.ts` (5 s window)
+- Clutches: implemented (`src/lib/utils/clutches.ts`, `computeClutchWins()` in the parser — per-half sides)
+- Multi-kills: `src/lib/utils/multiKills.ts`; buy types and buy coordination: `buyType.ts`, `buySync.ts`
+- KAST: **not computed** — the HLTV rating in `src/lib/parsers/demo-parser.ts` uses a constant `kast = 70` approximation
+- Assists vs flash assists are **disjoint** (a flash-assisted kill counts only in `flashAssists`); add them together when comparing with HLTV
+
 ### ADR Calculation
 - Use player_hurt events, NOT kill damage
 - Cap damage at victim's remaining HP (no overkill)
 - Exclude friendly fire (attacker and victim on same team)
 - Divide by total rounds played (not rounds alive)
+
+## Coaching Metrics Roadmap (sessions S8–S14)
+
+Planned in `docs/SESSIONS.md`; none of these exist in code yet. Raw inputs come from sampled ticks and events stored in the DB by session S6 (see the demo-parsing skill). Every detected mistake becomes a `Finding` (S10): type, player, round, tick, severity, numbers, one piece of advice, and later a pro comparison (S13).
+
+**Golden rule:** judge a decision by what the player could know at that moment (sound, what was visible on screen, what teammates had called), never by the all-seeing top-down demo view. A "mistake" that needed wallhack information is not a mistake.
+
+### Mechanics 1 — movement while shooting (S8)
+| Metric | Definition | Notes |
+|---|---|---|
+| Shot while moving | `weapon_fire` where horizontal speed `hypot(velocity_X, velocity_Y)` > the weapon's accurate-speed threshold | Per-weapon table; start at ~1/3 of the weapon's max speed (rifles ~70–80 u/s, AWP stricter). Score only the first shot of a duel, and bursts/sprays separately |
+| Counter-strafe time | Ticks from a direction change (or key release) until speed ≈ 0 before the shot | Good: ≤ ~80 ms. Report median and worst moments |
+| First-bullet accuracy | Share of first shots in a duel that hit (`player_hurt` from the same attacker in the next few ticks) | Per weapon |
+| HS% per weapon | Headshot hits / hits per weapon | Not kills — hits, from `player_hurt.hitgroup` |
+
+### Mechanics 2 — aim and duels (S9)
+| Metric | Definition |
+|---|---|
+| Crosshair placement | Angle between view direction (`pitch`, `yaw`) and the enemy's head at the tick the enemy becomes visible (approx. line of sight + FOV, or `spotted` flags) |
+| Time to damage | Time from the enemy becoming visible to the first damage dealt |
+| Reaction time | Time from visibility to the first meaningful view-angle change towards the enemy |
+| Spray control | Spread of hits / angle error across a burst (`shots_fired` count) |
+| Flick vs tracking | Angular velocity of the view in the ticks before the hit; overflick = overshoot then correction |
+| Peek types | Wide, jiggle, shoulder, dry peek — from velocity profile around an angle and whether utility preceded it |
+| Movement & sound | Running (not walking) near enemies, unnecessary jumps |
+| Bad reload | Reload started with enemies nearby/likely and a usable magazine |
+
+### Tactics 1 — utility (S11)
+- Smoke too early or into nothing: time since round start, no enemy within the smoke's influence area, no info for the player, no team action within a few seconds (example: "smoke on A main at 1:45 as CT with nobody there")
+- Flash: enemy blind time, teammates flashed, flash without a peek following it
+- Molotov / HE with no effect (no damage, no forced movement)
+- Death with unused utility
+- Lineup database per map: throw position + angle → named lineup (e.g. "Window smoke"), suggest a better lineup
+
+### Tactics 2 — team, economy, positions (S12)
+- Death not traded (distance and time to nearest teammate), failing to trade a teammate (~3 s window — the existing trade-kill stat in `src/lib/utils/tradeKills.ts` uses a 5 s window (`windowSeconds = 5`); keep them consistent or document the difference)
+- Rotations too early / onto a fake
+- Economy mistakes: force at the wrong moment, no drop for a teammate, dying with lots of money
+- Predictable position: same CT spot many rounds in a row
+- Entry, lurk, post-plant, retake, clutch decisions
+- **Sides are per half** — resolve the player's side per round (see `computeClutchWins()` and CLAUDE.md)
+
+### Pro comparison and win probability (S13–S14)
+- Pro norms: same parser and metrics over hand-picked pro demos → percentiles per map, side and situation. Check HLTV's terms before automating any download.
+- Round win-probability model (Python service, LightGBM/XGBoost) over alive players, HP, economy, bomb, time, positions, utility. Impact of a decision = change in win probability.
+- "What would a pro do": find similar pro situations and show the most common choice with a 2D clip.

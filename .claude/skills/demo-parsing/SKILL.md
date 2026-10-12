@@ -27,12 +27,30 @@ Native Rust/Node.js bindings. Server-only (in `serverExternalPackages`).
 | `begin_new_match` | `tick` | Real match start (last occurrence) |
 | `announce_phase_end` | `tick` | Halftime marker |
 | `bomb_planted/defused/exploded` | `user_*`, `X/Y/Z` | Bomb events |
+| `player_blind` | `user_*`, `attacker_*`, `blind_duration` | Flash effectiveness (parsed today) |
+| `weapon_fire` | `user_*`, `weapon`, `tick` | Every shot — base for S8–S9 mechanics (not parsed yet) |
+| `weapon_reload` | `user_*`, `tick` | Reload timing (S9) |
+| `player_footstep` / `player_jump` | `user_*`, `tick` | Sound and movement discipline (S9) |
+| `smokegrenade_detonate`, `flashbang_detonate`, `hegrenade_detonate`, `inferno_startburn` | `X/Y/Z`, `entityid` | Utility landing points |
+
+Pass extra player props to `parseEvent` (e.g. `["X","Y","Z","velocity_X","velocity_Y","pitch","yaw"]`) to get the shooter's state at the event tick without a separate `parseTicks` call.
 
 ### Tick Data Fields (parseTicks)
+Used today:
 - Position: `X`, `Y`, `Z`, `yaw`
 - State: `health`, `is_alive`, `team_num`
 - Weapons: `active_weapon_name`
 - Economy: `balance`, `current_equip_value`, `cash_spent_this_round`, `total_cash_spent`
+
+Needed for S6–S12 (names verified against demoparser2 0.41.3):
+- View: `pitch`, `yaw` (degrees; yaw 0 = +X axis, counter-clockwise), `aim_punch_angle`
+- Movement: `velocity_X`, `velocity_Y`, `velocity_Z` → horizontal speed `hypot(velocity_X, velocity_Y)` in units/s; `is_walking`, `is_strafing`, `duck_amount`, `ducking`
+- Shooting: `shots_fired` (bullets in the current burst), `accuracy_penalty`, `is_scoped`, `is_in_reload`, `active_weapon_ammo`
+- State: `armor_value`, `has_helmet`, `has_defuser`, `flash_duration`, `flash_max_alpha`
+- Visibility: `spotted`, `approximate_spotted_by` (approximate — validate before trusting for "could the player see him")
+- Inventory: `inventory` (utility left at death)
+
+Sanity-check a new field on a real demo before building on it; props can be missing on some demos/builds, and `parseTicks` can throw (the economy code already wraps it in try/catch).
 
 ## Critical Patterns
 
@@ -73,14 +91,19 @@ pixelY = (mapConfig.posY - gameY) / mapConfig.scale
 ```
 Map configs in `src/lib/utils/maps.ts`. All radar images are 1024x1024.
 
-### Tick Sampling for Replay
-- Sample every 32 ticks for smooth playback (~2 frames/second at 64 tick)
-- Get round boundaries from DB, generate tick list: `range(startTick, endTick, 32)`
-- Yields ~110 frames per round
+### Tick Sampling for Replay — current state and S6 plan
+**Today:** `src/app/api/matches/[matchId]/ticks/route.ts` parses the .dem **live** on each request: `range(startTick, endTick, 32)` + the end tick (≈2 frames/s at 64 tick, ~110 frames per round), props `X, Y, Z, yaw, health, is_alive, team_num, active_weapon_name`. It needs `upload.fileUrl` to still exist on disk. `workers/demo-parser.worker.ts` deletes FACEIT-sourced demos after parsing, so replay for those matches fails.
+
+**S6 (planned):** the worker stores sampled ticks in the DB (about every 4 ticks: `X, Y, Z, velocity_X, velocity_Y, pitch, yaw, health, armor_value, is_alive, active_weapon_name, flash_duration`) in a compact per-round format (columnar JSON or bytea), plus all `weapon_fire` and `player_hurt` events; the ticks endpoint reads from the DB; a backfill script covers matches whose file still exists. Only after that may demos be deleted for every source (S7, with a "keep demo" flag).
+
+Rule: **never add code that needs the .dem after parsing.** Anything an analysis needs later must be extracted in the worker and persisted.
 
 ## File Locations
 - Parser: `src/lib/parsers/demo-parser.ts`
 - Map configs: `src/lib/utils/maps.ts`
 - Types: `src/types/index.ts` (ParsedDemo, ParsedRound, ParsedKill, etc.)
-- Worker: `workers/demo-parser.worker.ts`
+- Persistence: `src/lib/parsers/persist-demo.ts`
+- Worker: `workers/demo-parser.worker.ts` (parse) and `workers/faceit-demo-download.worker.ts` (FACEIT download, awaiting Downloads API approval)
 - Tick API: `src/app/api/matches/[matchId]/ticks/route.ts`
+- Demo files: local `data/demos/<uploadId>.dem` (R2 planned in S7)
+- No-demo regression test: `npm run test:clutches` (`scripts/test-clutch-wins.ts`) — add new parser invariants here or in a sibling script

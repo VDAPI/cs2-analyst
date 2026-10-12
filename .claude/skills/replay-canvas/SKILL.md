@@ -5,6 +5,9 @@ description: Canvas rendering patterns for the 2D replay viewer and heatmap visu
 
 # Canvas Rendering — Replay & Heatmaps
 
+> **Roadmap (`docs/SESSIONS.md`):** S5 restyles canvases to Violet Lime and makes replay controls touch-friendly (works at 360 px). S6 moves tick data from live .dem parsing to the DB — the store's fetch contract (`/api/matches/[matchId]/ticks`) should stay the same so the viewer doesn't change. S10 adds FOV cones, utility timers, mistake markers on the timeline and jump-to-moment; S16 adds map notes and shareable moment links.
+> Colors below are today's code values. Target colors (CT `#5AA9FF`, T `#FFC23D`, mistake `#FF4D6A`, violet/lime heatmap gradient) are in `DESIGN.md` §7. Prefer reading team colors from CSS tokens (`getComputedStyle(document.documentElement).getPropertyValue("--ct-blue")`) over new hard-coded hex.
+
 ## Architecture
 
 ### Replay Viewer (`/replay/[matchId]`)

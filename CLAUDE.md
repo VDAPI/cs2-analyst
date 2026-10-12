@@ -1,20 +1,33 @@
 # CS2 Analyst
 
-CS2 demo analysis SaaS. Users upload .dem files and get analytics: player stats, heatmaps, 2D replay, economy tracking, grenade analysis.
+CS2 demo analysis SaaS for FACEIT (and any other) players. Users upload .dem files or pick matches from their FACEIT history and get analytics: player stats, heatmaps, 2D replay, economy tracking, grenade analysis, clutches/trades/multi-kills. The goal is a coach-grade report of mechanical and tactical mistakes compared against pro play.
+
+**Roadmap:** `docs/SESSIONS.md` is the session-by-session plan (S1–S18) and the full feature list with status. Start a session with `Zrób sesję S<n> z docs/SESSIONS.md`. Each session = one branch, one PR. The project owner writes Polish.
+
+## Product Decisions (apply to every change)
+
+- **Never remove existing features.** All current screens stay (matches, players, compare, heatmaps, grenades, economy, 2D replay, clutches, trades, multi-kills, FACEIT, Steam, upload). Redesign and add, don't delete.
+- **Palette: Violet Lime (Esport Neon)** — see Design System below and `DESIGN.md`.
+- **Mobile is mandatory.** Every screen works from 360 px wide with no horizontal page scroll.
+- **Demos:** any demo can be uploaded (FACEIT, Premier, other). FACEIT demos are fetched via the Downloads API only on the player's request (selected matches), never automatically in the background.
+- **Delete the .dem after analysis.** The DB keeps the report and sampled replay data; a match can be flagged "keep demo". Prerequisite: replay ticks must be stored in the DB first (session S6) — today the replay endpoint still reads the .dem live.
+- **Analysis is as detailed as possible**, mechanics and tactics. Every detected mistake has a moment in the round, a 2D preview, one piece of advice and a pro comparison.
+- **Judge advice by what the player could know** (sound, visibility, team info), not by the all-seeing top-down demo view.
+- **Business model:** free with a match limit; payments later.
 
 ## Tech Stack
 
 - **Framework**: Next.js 15 (App Router, Turbopack) + React 19 + TypeScript
 - **Styling**: Tailwind CSS 4 + Radix UI primitives
-- **State**: Zustand (client) + React Query / tRPC (server)
+- **State**: Zustand (replay store) on the client; data is fetched from Route Handlers under `src/app/api/` with plain `fetch` or read directly in Server Components via Prisma. tRPC / React Query are installed but not used.
 - **Database**: PostgreSQL + Prisma ORM
 - **Cache/Queue**: Redis + BullMQ
 - **Demo Parser**: @laihoe/demoparser2 (Rust/Node.js native bindings)
-- **Auth**: NextAuth.js with Steam OpenID
-- **Storage**: Cloudflare R2 (S3-compatible)
-- **Charts**: Recharts + D3.js
+- **Auth**: NextAuth.js — email + password (Credentials provider, bcrypt) is the primary login; Steam (`next-auth-steam`) is optional, as a login button or linked from Settings; dev login (`dev@cs2analyst.local`) in development only. FACEIT is linked separately (see below).
+- **Storage**: demos are written to local disk (`data/demos/`). Cloudflare R2 is planned (session S7), not implemented yet.
+- **Charts**: Recharts
 - **2D Replay**: HTML5 Canvas API
-- **Fonts**: Geist Sans + Geist Mono
+- **Fonts**: Geist Sans + Geist Mono today; Chakra Petch for headings arrives with the Violet Lime redesign (session S2)
 
 ## Commands
 
@@ -56,9 +69,12 @@ DB credentials: `cs2analyst:cs2analyst@localhost:5432/cs2analyst`
 src/app/              — Next.js App Router pages
 src/components/       — React components (ui/, charts/, maps/, replay/, layout/, auth/)
 src/lib/              — Parsers, analysis, Steam API, utilities
+src/stores/           — Zustand stores (replay)
 src/styles/           — Global CSS with design tokens
 workers/              — BullMQ worker processes
 prisma/               — Schema & migrations
+scripts/              — Backfills, debug scripts, no-demo regression tests
+docs/                 — SESSIONS.md (roadmap)
 ```
 
 ## Code Conventions
@@ -74,17 +90,16 @@ prisma/               — Schema & migrations
 ## Design System
 
 - Dark-mode only — no light theme
-- Design tokens defined as CSS custom properties in `src/styles/globals.css`
-- CT Blue (`#60a5fa`) / T Gold (`#fbbf24`) for team colors
-- Brand accent: `#3b82f6`
-- See `DESIGN.md` for full spec (if present)
+- **Target palette: Violet Lime (Esport Neon).** Background `#08070D`, panel `#100E19`, raised panel `#181528`, text `#F3F0FF`, accent 1 violet `#9B6BFF`, accent 2 lime `#C6FF3D`, lines `rgba(190,160,255,0.12)`. Fixed meanings: CT `#5AA9FF`, T `#FFC23D`, mistake `#FF4D6A`, good decision `#3DF5A0`, warning `#FFB020`. Fonts: Chakra Petch (headings), Geist (text), Geist Mono (numbers).
+- Design tokens are CSS custom properties in `src/styles/globals.css`. **They still hold the old blue palette** (`--accent: #3b82f6`, CT `#60a5fa`, T `#fbbf24`) until session S2 migrates them. New UI should use the token names (`var(--accent)`, `var(--ct-blue)` …), never hard-coded hex, so S2 can recolor everything in one place.
+- Full spec: `DESIGN.md`; quick reference: `.claude/skills/design-system/SKILL.md`
 
 ## FACEIT Integration
 
 - **OAuth**: Manual OAuth2 + PKCE flow (NOT via NextAuth) at `/api/faceit/link` and `/api/faceit/link/callback`
 - **Token exchange**: Uses HTTP Basic Auth header (`Authorization: Basic base64(client_id:client_secret)`)
 - **Sync**: Fetches match history from FACEIT Data API, stores metadata in `FaceitMatch` model (map, score, date, faceitUrl)
-- **Demo downloads**: Not available — FACEIT demo CDN requires Downloads API approval (pending). Users upload demos manually from FACEIT matchroom.
+- **Demo downloads**: Code exists (`/api/faceit/matches/[id]/download`, `workers/faceit-demo-download.worker.ts`, webhook `/api/faceit/webhooks/demo-ready`) but the FACEIT demo CDN requires Downloads API approval (pending). Until then users upload demos manually from the FACEIT matchroom. Downloads must only ever start on the player's explicit request.
 - **HTTPS required**: FACEIT OAuth requires HTTPS redirect URIs. Dev server uses `--experimental-https` flag.
 - **Dev cookies**: Self-signed cert breaks Secure cookies — all NextAuth cookies set to `secure: false` in dev via cookies config in `auth.ts`.
 - **Routes**: FACEIT routes live under `/api/faceit/*` (NOT `/api/auth/*`) to avoid NextAuth `[...nextauth]` catch-all interception.
@@ -108,7 +123,7 @@ Revisit once demoparser2 ships correct `optionalDependencies` (0.41.3 is the lat
 ## Key Architectural Decisions
 
 - `@laihoe/demoparser2` is in `serverExternalPackages` (native Node.js bindings, server-only)
-- Demo parsing runs in BullMQ workers, not in API routes
+- Demo parsing runs in BullMQ workers, not in API routes — with one exception: `src/app/api/matches/[matchId]/ticks/route.ts` still calls `parseTicks` on the .dem file live for the 2D replay (every 32 ticks: `X`, `Y`, `Z`, `yaw`, `health`, `is_alive`, `team_num`, `active_weapon_name`). `workers/demo-parser.worker.ts` already deletes FACEIT-sourced demos after parsing, so replay breaks for those matches. Session S6 moves sampled ticks (plus `velocity_X/Y`, `pitch`, `weapon_fire`, `player_hurt`) into the DB; do not extend demo deletion before that lands.
 - **Sides are per-half, not per-match**: `parsePlayerInfo.team_number` gives the side a player *finished* on, while `round.winner` is an absolute side. Any logic comparing a player to a round-level side must resolve the side for that half or it silently inverts across the whole first half. Follow the `computeClutchWins()` pattern in `src/lib/parsers/demo-parser.ts`.
 - **`assists` and `flashAssists` are disjoint**: a flash-assisted kill increments `flashAssists` only, never both. This is a deliberate divergence from HLTV (which folds flash assists into assists) — do not "unify" them. Add the columns together at the call site when comparing against HLTV numbers.
 - Parser invariants that are easy to break have a no-demo regression test: `npm run test:clutches`
