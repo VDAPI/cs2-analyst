@@ -1,93 +1,75 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import {
-  BarChart3,
-  Upload,
-  Users,
-  DollarSign,
-  Crosshair,
-  Play,
-  GitCompare,
-  Settings,
-  Flame,
-  ListOrdered,
-  Library,
-} from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { cn } from "@/lib/utils/cn";
+import { Logo } from "./logo";
+import { NavGroups } from "./nav-groups";
+import { NavLink } from "./nav-link";
+import { settingsItem, isActivePath } from "./nav-items";
 
-const navItems = [
-  { href: "/matches", label: "Matches", icon: BarChart3 },
-  { href: "/upload", label: "Upload Demo", icon: Upload },
-  { href: "/queue", label: "Analysis Queue", icon: ListOrdered },
-  { href: "/library", label: "Library", icon: Library },
-  { href: "/players", label: "Players", icon: Users },
-  { href: "/heatmaps", label: "Heatmaps", icon: Flame },
-  { href: "/economy", label: "Economy", icon: DollarSign },
-  { href: "/grenades", label: "Grenades", icon: Crosshair },
-  { href: "/replay", label: "2D Replay", icon: Play },
-  { href: "/compare", label: "Compare", icon: GitCompare },
-];
+const STORAGE_KEY = "cs2a:sidebar-collapsed";
 
-const bottomItems = [
-  { href: "/settings", label: "Settings", icon: Settings },
-];
-
+/** Desktop sidebar (≥1024px). Below that the top bar drawer and mobile bottom bar take over. */
 export function Sidebar() {
   const pathname = usePathname();
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem(STORAGE_KEY) === "1");
+    } catch {
+      // storage unavailable — keep expanded
+    }
+  }, []);
+
+  function toggle() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }
 
   return (
-    <aside className="flex h-full w-[var(--sidebar-width)] flex-col border-r border-[var(--border)] bg-[var(--surface-1)]">
-      {/* Logo */}
-      <Link
-        href="/matches"
-        className="flex h-[var(--topbar-height)] items-center gap-2.5 border-b border-[var(--border)] px-5 transition-colors hover:bg-[rgba(255,255,255,0.04)]"
+    <aside
+      className={cn(
+        "hidden h-full shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface-1)] transition-[width] duration-200 ease-out lg:flex",
+        collapsed ? "w-[var(--sidebar-collapsed)]" : "w-[var(--sidebar-width)]"
+      )}
+    >
+      <div
+        className={cn(
+          "flex h-[var(--topbar-height)] shrink-0 items-center border-b border-[var(--border)]",
+          collapsed ? "justify-center px-0" : "px-5"
+        )}
       >
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent)]">
-          <Crosshair className="h-4 w-4 text-white" />
-        </div>
-        <span className="text-sm font-semibold text-[var(--text-primary)]">
-          CS2 Analyst
-        </span>
-      </Link>
+        <Logo compact={collapsed} />
+      </div>
 
-      {/* Navigation */}
-      <nav className="flex flex-1 flex-col gap-1 p-3">
-        {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.href);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-all duration-150 ${
-                isActive
-                  ? "bg-[rgba(59,130,246,0.15)] text-[#60a5fa] shadow-[inset_0_0_12px_rgba(59,130,246,0.08),0_0_16px_rgba(59,130,246,0.12)]"
-                  : "text-[var(--text-tertiary)] hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--text-secondary)]"
-              }`}
-            >
-              <Icon className={`h-[18px] w-[18px] transition-colors duration-150 ${isActive ? "text-[#60a5fa]" : ""}`} />
-              {item.label}
-            </Link>
-          );
-        })}
+      <nav aria-label="Główna nawigacja" className="flex-1 overflow-y-auto p-3">
+        <NavGroups collapsed={collapsed} />
       </nav>
 
-      {/* Bottom */}
-      <div className="border-t border-[var(--border)] p-3">
-        {bottomItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-[var(--text-tertiary)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--text-secondary)]"
-            >
-              <Icon className="h-[18px] w-[18px]" />
-              {item.label}
-            </Link>
-          );
-        })}
+      <div className="flex flex-col gap-0.5 border-t border-[var(--border)] p-3">
+        <NavLink item={settingsItem} active={isActivePath(pathname, settingsItem.href)} collapsed={collapsed} />
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={collapsed ? "Rozwiń menu" : "Zwiń menu"}
+          className={cn(
+            "flex items-center gap-3 rounded-md px-3 py-2 text-sm text-[var(--text-tertiary)] transition-colors hover:bg-[rgba(190,160,255,0.06)] hover:text-[var(--text-secondary)]",
+            collapsed && "justify-center px-0"
+          )}
+        >
+          {collapsed ? <PanelLeftOpen className="h-[18px] w-[18px]" /> : <PanelLeftClose className="h-[18px] w-[18px]" />}
+          {!collapsed && "Zwiń"}
+        </button>
       </div>
     </aside>
   );

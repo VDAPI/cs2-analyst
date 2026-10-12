@@ -132,7 +132,7 @@ export function PlayerSelector({ players }: PlayerSelectorProps) {
                 onClick={() => togglePlayer(player)}
                 className={`flex flex-col items-center gap-3 rounded-xl border p-4 text-left transition-all duration-150 ${
                   sel
-                    ? "border-[var(--accent)] bg-[rgba(59,130,246,0.08)]"
+                    ? "border-[var(--accent)] bg-[rgba(155,107,255,0.08)]"
                     : "border-[var(--border)] bg-[var(--surface-1)] hover:border-[var(--border-hover)] hover:bg-[var(--surface-2)]"
                 }`}
                 style={sel && slotColor ? { borderColor: slotColor } : undefined}

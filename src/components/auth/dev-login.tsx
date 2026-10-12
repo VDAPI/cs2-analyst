@@ -8,7 +8,7 @@ export function DevLoginButton() {
 
   return (
     <Button
-      variant="danger"
+      variant="secondary"
       size="md"
       className="w-full"
       onClick={() =>
@@ -19,7 +19,7 @@ export function DevLoginButton() {
         })
       }
     >
-      Dev Login (skip auth)
+      Dev login (pomiń logowanie)
     </Button>
   );
 }

@@ -222,7 +222,7 @@ export function UploadClient({
   const generalItems = items.filter((i) => !i.faceitMatch);
 
   return (
-    <div className="flex min-h-[80vh] flex-col items-center justify-center px-4 py-6 sm:px-6">
+    <div className="flex min-h-[70vh] flex-col items-center justify-center">
       <div className="mb-4 w-full max-w-xl">
         <Link
           href="/matches"
@@ -380,7 +380,7 @@ export function UploadClient({
                 report and the 2D replay stay.
               </label>
               <Button
-                variant="primary"
+                variant="cta"
                 size="lg"
                 className="w-full"
                 onClick={startAll}

@@ -46,7 +46,7 @@ export default async function EconomyListPage() {
             </p>
             <Link
               href="/upload"
-              className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--accent)] px-5 text-sm font-medium text-white transition-all hover:bg-[var(--accent-hover)]"
+              className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--accent)] px-5 text-sm font-medium text-[var(--on-accent)] transition-all hover:bg-[var(--accent-hover)]"
             >
               Upload Demo
             </Link>

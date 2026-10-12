@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui";
+import { Button, Input } from "@/components/ui";
 
 interface CredentialsFormProps {
   mode: "login" | "register";
@@ -26,7 +26,7 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
     try {
       if (mode === "register") {
         if (password !== confirmPassword) {
-          setError("Passwords do not match");
+          setError("Hasła nie są takie same");
           setLoading(false);
           return;
         }
@@ -39,7 +39,7 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
 
         if (!res.ok) {
           const data = await res.json();
-          setError(data.error ?? "Registration failed");
+          setError(data.error ?? "Rejestracja nie powiodła się");
           setLoading(false);
           return;
         }
@@ -52,101 +52,94 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
       });
 
       if (result?.error) {
-        setError("Invalid email or password");
+        setError("Nieprawidłowy email lub hasło");
         setLoading(false);
         return;
       }
 
       router.push("/matches");
     } catch {
-      setError("Something went wrong");
+      setError("Coś poszło nie tak, spróbuj ponownie");
       setLoading(false);
     }
   }
-
-  const inputClass =
-    "w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-disabled)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {mode === "register" && (
         <div>
-          <label htmlFor="name" className="mb-1.5 block text-sm text-[var(--text-secondary)]">
-            Name
+          <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]">
+            Nazwa
           </label>
-          <input
+          <Input
             id="name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Your name (optional)"
-            className={inputClass}
+            placeholder="Twój nick (opcjonalnie)"
           />
         </div>
       )}
 
       <div>
-        <label htmlFor="email" className="mb-1.5 block text-sm text-[var(--text-secondary)]">
+        <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]">
           Email
         </label>
-        <input
+        <Input
           id="email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
+          placeholder="ty@przyklad.pl"
           required
-          className={inputClass}
         />
       </div>
 
       <div>
-        <label htmlFor="password" className="mb-1.5 block text-sm text-[var(--text-secondary)]">
-          Password
+        <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]">
+          Hasło
         </label>
-        <input
+        <Input
           id="password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder={mode === "register" ? "Min. 8 characters" : "Your password"}
+          placeholder={mode === "register" ? "Min. 8 znaków" : "Twoje hasło"}
           required
           minLength={mode === "register" ? 8 : undefined}
-          className={inputClass}
         />
       </div>
 
       {mode === "register" && (
         <div>
-          <label htmlFor="confirmPassword" className="mb-1.5 block text-sm text-[var(--text-secondary)]">
-            Confirm Password
+          <label htmlFor="confirmPassword" className="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]">
+            Powtórz hasło
           </label>
-          <input
+          <Input
             id="confirmPassword"
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Repeat your password"
+            placeholder="Powtórz hasło"
             required
-            className={inputClass}
           />
         </div>
       )}
 
       {error && (
-        <p className="rounded-lg bg-[var(--error-muted)] px-3 py-2 text-sm text-[var(--error)]">
+        <p role="alert" className="rounded-lg border-l-[3px] border-[var(--mistake)] bg-[var(--mistake-muted)] px-3 py-2 text-sm text-[var(--mistake)]">
           {error}
         </p>
       )}
 
-      <Button type="submit" size="lg" className="w-full" disabled={loading}>
+      <Button type="submit" variant="cta" size="lg" className="w-full" disabled={loading}>
         {loading
           ? mode === "register"
-            ? "Creating account..."
-            : "Signing in..."
+            ? "Zakładam konto..."
+            : "Loguję..."
           : mode === "register"
-            ? "Create Account"
-            : "Sign In"}
+            ? "Załóż konto"
+            : "Zaloguj się"}
       </Button>
     </form>
   );

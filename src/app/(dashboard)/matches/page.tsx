@@ -130,7 +130,7 @@ export default async function MatchesPage() {
             </p>
             <Link
               href="/upload"
-              className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--accent)] px-5 text-sm font-medium text-white transition-all hover:bg-[var(--accent-hover)]"
+              className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--accent)] px-5 text-sm font-medium text-[var(--on-accent)] transition-all hover:bg-[var(--accent-hover)]"
             >
               Upload Demo
             </Link>
@@ -156,9 +156,9 @@ export default async function MatchesPage() {
             }
 
             const borderColor =
-              result === "win" ? "#22c55e" :
-              result === "loss" ? "#ef4444" :
-              "#71717a";
+              result === "win" ? "#3DF5A0" :
+              result === "loss" ? "#FF4D6A" :
+              "#8A83A8";
 
             // Detect aces in this match
             let aceInfo: { playerName: string; roundNumber: number } | null = null;
@@ -202,10 +202,10 @@ export default async function MatchesPage() {
                           <span
                             className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
                               result === "win"
-                                ? "bg-[rgba(34,197,94,0.15)] text-[#22c55e]"
+                                ? "bg-[rgba(61,245,160,0.15)] text-[#3DF5A0]"
                                 : result === "loss"
-                                  ? "bg-[rgba(239,68,68,0.15)] text-[#ef4444]"
-                                  : "bg-[rgba(113,113,122,0.15)] text-[#71717a]"
+                                  ? "bg-[rgba(255,77,106,0.15)] text-[#FF4D6A]"
+                                  : "bg-[rgba(113,113,122,0.15)] text-[#8A83A8]"
                             }`}
                           >
                             {result === "win" ? "W" : result === "loss" ? "L" : "D"}
@@ -217,7 +217,7 @@ export default async function MatchesPage() {
                           </span>
                         )}
                         {aceInfo && (
-                          <span className="rounded-full bg-[rgba(251,191,36,0.15)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--t-gold)]">
+                          <span className="rounded-full bg-[rgba(255,194,61,0.15)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--t-gold)]">
                             ACE by {aceInfo.playerName} (R{aceInfo.roundNumber})
                           </span>
                         )}

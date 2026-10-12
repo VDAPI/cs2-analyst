@@ -23,6 +23,7 @@ export const config = {
     "/heatmaps/:path*",
     "/economy/:path*",
     "/grenades/:path*",
+    "/mechanics/:path*",
     "/replay/:path*",
     "/compare/:path*",
     "/settings/:path*",

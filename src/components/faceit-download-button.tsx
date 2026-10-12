@@ -125,7 +125,7 @@ export function FaceitDownloadButton({
       <button
         onClick={handleClick}
         title={error}
-        className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--error-muted)] px-3 text-xs font-medium text-[var(--error)] transition-colors hover:bg-[rgba(239,68,68,0.25)]"
+        className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--error-muted)] px-3 text-xs font-medium text-[var(--error)] transition-colors hover:bg-[rgba(255,77,106,0.25)]"
       >
         <AlertCircle className="h-3.5 w-3.5" />
         {label}
@@ -137,7 +137,7 @@ export function FaceitDownloadButton({
     <button
       onClick={handleClick}
       disabled={busy || state === "done"}
-      className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 text-xs font-medium text-white transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-70"
+      className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 text-xs font-medium text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-70"
     >
       {busy ? (
         <Loader2 className="h-3.5 w-3.5 animate-spin" />

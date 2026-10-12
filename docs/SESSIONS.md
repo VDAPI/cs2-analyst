@@ -88,6 +88,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S1.
 - **Zakres:** tokeny w `src/styles/globals.css`, font Chakra Petch obok Geist, komponenty w `src/components/ui/` (button, card, badge, stat-card i nowe: checkbox, tabs, toast, progress, tag błędu), sidebar i topbar z grupami Analiza / Narzędzia / Pro i drużyna, nawigacja mobilna (dolny pasek lub szuflada). Ekrany logowania i rejestracji w nowym stylu.
 - **Gotowe, gdy:** cała aplikacja ma nowe kolory, a nawigacja działa na 360 px.
+- **Status:** ✅ zrobione. Tokeny Violet Lime, Chakra Petch, nowe komponenty ui (checkbox, tabs, toast, progress, input, tag błędu), pogrupowany sidebar, szuflada i dolny pasek na telefonie, logowanie i rejestracja w nowym stylu.
 
 ### S3. Strona główna
 - **Wymaga:** S2.

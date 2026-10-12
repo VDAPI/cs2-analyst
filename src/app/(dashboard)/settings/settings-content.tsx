@@ -213,7 +213,7 @@ export function SettingsContent({ user }: SettingsContentProps) {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingAvatar}
-                className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[var(--surface-1)] bg-[var(--accent)] text-white transition-colors hover:bg-[var(--accent-hover)]"
+                className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[var(--surface-1)] bg-[var(--accent)] text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-hover)]"
                 title="Change avatar"
               >
                 <Camera className="h-3 w-3" />
@@ -431,7 +431,7 @@ export function SettingsContent({ user }: SettingsContentProps) {
                 size="sm"
                 onClick={handleUnlinkFaceit}
                 disabled={unlinking}
-                className="!border-[var(--error)] !text-[var(--error)] hover:!bg-[rgba(239,68,68,0.1)]"
+                className="!border-[var(--error)] !text-[var(--error)] hover:!bg-[rgba(255,77,106,0.1)]"
               >
                 {unlinking ? "Unlinking..." : "Unlink"}
               </Button>

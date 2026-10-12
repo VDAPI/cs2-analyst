@@ -9,6 +9,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { parseDemoFile } from "./demo-parser";
 import { formatReplayStats, parseAndPersistReplayData } from "./persist-replay";
+import { computeAndPersistMechanics } from "../analysis/persist-mechanics";
 
 interface PersistArgs {
   uploadId: string;
@@ -202,6 +203,16 @@ export async function parseAndPersistDemo(
       console.log(`[persist-demo] replay data match=${match.id}: ${formatReplayStats(stats)}`);
     } catch (error) {
       console.error(`[persist-demo] replay data FAILED match=${match.id}:`, error);
+    }
+    // Mechanics read the replay data just stored; a failure here is not fatal
+    // (the mechanics page recomputes missing stats on first view).
+    if (replayStored) {
+      try {
+        const players = await computeAndPersistMechanics(prisma, match.id);
+        console.log(`[persist-demo] mechanics match=${match.id}: ${players} players`);
+      } catch (error) {
+        console.error(`[persist-demo] mechanics FAILED match=${match.id}:`, error);
+      }
     }
     await onProgress?.(98);
 

@@ -940,7 +940,7 @@ export default async function PlayerDetailPage({ params }: Props) {
                     return (
                       <tr
                         key={i}
-                        className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(255,255,255,0.04)]"
+                        className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(190,160,255,0.04)]"
                       >
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-3">
@@ -1013,7 +1013,7 @@ export default async function PlayerDetailPage({ params }: Props) {
                     return (
                       <tr
                         key={m.map}
-                        className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(255,255,255,0.04)]"
+                        className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(190,160,255,0.04)]"
                       >
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-3">
@@ -1097,7 +1097,7 @@ export default async function PlayerDetailPage({ params }: Props) {
                   return (
                     <tr
                       key={entry.id}
-                      className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(255,255,255,0.04)]"
+                      className="border-t border-[var(--border)] transition-colors hover:bg-[rgba(190,160,255,0.04)]"
                     >
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
