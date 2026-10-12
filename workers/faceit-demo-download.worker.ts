@@ -12,7 +12,7 @@
  */
 import { Worker, UnrecoverableError, type Job } from "bullmq";
 import { PrismaClient } from "@prisma/client";
-import { unlink } from "node:fs/promises";
+import { stat, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -22,6 +22,12 @@ import {
 } from "../src/lib/faceit/downloads";
 import { refreshDemoResource } from "../src/lib/faceit/sync";
 import { parseAndPersistDemo } from "../src/lib/parsers/persist-demo";
+import {
+  demoRetention,
+  shouldDeleteDemo,
+  storeDemoFile,
+} from "../src/lib/storage/demo-store";
+import { deleteAnalysis } from "../src/lib/library";
 import type { FaceitDemoDownloadJobData } from "../src/lib/queue";
 
 const prisma = new PrismaClient();
@@ -36,11 +42,22 @@ async function processDownload(job: Job<FaceitDemoDownloadJobData>) {
   );
 
   const destPath = join(tmpdir(), `${uploadId}.dem`);
-  // Kept only if the replay data failed to store, so the replay can still
-  // fall back to the file (and `npm run backfill:replay` can retry it).
-  let keepDemo = false;
 
   try {
+    // Cancelled from the queue screen before we got to it.
+    const upload = await prisma.demoUpload.findUnique({
+      where: { id: uploadId },
+      select: { deletedAt: true },
+    });
+    if (!upload || upload.deletedAt) {
+      console.log(`[faceit-download] skip uploadId=${uploadId}: removed by the user`);
+      return null;
+    }
+    await prisma.demoUpload.update({
+      where: { id: uploadId },
+      data: { status: "DOWNLOADING", error: null },
+    });
+
     const faceitMatch = await prisma.faceitMatch.findUnique({
       where: { faceitMatchId },
     });
@@ -70,6 +87,11 @@ async function processDownload(job: Job<FaceitDemoDownloadJobData>) {
     //    Exchange immediately before download — never persist the signed URL.
     const signedUrl = await getSignedDemoUrl(resourceUrl);
     await downloadAndDecompressDemo(signedUrl, destPath);
+    const { size } = await stat(destPath);
+    await prisma.demoUpload.update({
+      where: { id: uploadId },
+      data: { fileSize: size },
+    });
 
     // 3. Parse + persist inline (drives the DemoUpload status machine).
     const result = await parseAndPersistDemo(
@@ -77,30 +99,60 @@ async function processDownload(job: Job<FaceitDemoDownloadJobData>) {
       { uploadId, filePath: destPath },
       (pct) => job.updateProgress(pct)
     );
-    keepDemo = !result.replayStored;
 
     await prisma.faceitMatch.update({
       where: { faceitMatchId },
       data: { demoStatus: "DOWNLOADED" },
     });
 
+    // 4. Keep the .dem only for "keep demo", or when the replay data failed
+    //    to store (so the replay can fall back to the file and
+    //    `npm run backfill:replay` can retry it). Otherwise it goes now.
+    const after = await prisma.demoUpload.findUnique({
+      where: { id: uploadId },
+      select: { keepDemo: true, deletedAt: true },
+    });
+    if (after?.deletedAt) {
+      await deleteAnalysis(prisma, uploadId);
+    } else if (
+      shouldDeleteDemo({
+        replayStored: result.replayStored,
+        keepDemo: after?.keepDemo ?? false,
+        retention: demoRetention(),
+      })
+    ) {
+      await prisma.demoUpload.update({
+        where: { id: uploadId },
+        data: { demoDeletedAt: new Date() },
+      });
+    } else {
+      try {
+        const fileUrl = await storeDemoFile(uploadId, destPath);
+        await prisma.demoUpload.update({ where: { id: uploadId }, data: { fileUrl } });
+      } catch (storeErr) {
+        // The analysis itself succeeded; only the copy of the .dem is lost.
+        console.error(`[faceit-download] storing demo failed uploadId=${uploadId}`, storeErr);
+        await prisma.demoUpload.update({
+          where: { id: uploadId },
+          data: { demoDeletedAt: new Date() },
+        });
+      }
+    }
+
     console.log(
       `[faceit-download] done uploadId=${uploadId} matchId=${result.matchId}`
     );
     return result;
   } catch (err) {
-    if (err instanceof DemoNotReadyError) {
-      console.log(
-        `[faceit-download] not ready uploadId=${uploadId}: ${err.message} (attempt ${job.attemptsMade + 1})`
-      );
-      // Leave the DemoUpload QUEUED so the UI keeps polling; rethrow to retry.
-      throw err;
-    }
-
     // Permanent failure only once retries are exhausted (or unrecoverable).
     const isLastAttempt =
       err instanceof UnrecoverableError ||
       job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
+    if (err instanceof DemoNotReadyError) {
+      console.log(
+        `[faceit-download] not ready uploadId=${uploadId}: ${err.message} (attempt ${job.attemptsMade + 1})`
+      );
+    }
     if (isLastAttempt) {
       await failUpload(uploadId, err instanceof Error ? err.message : "Unknown error");
       await prisma.faceitMatch
@@ -109,13 +161,30 @@ async function processDownload(job: Job<FaceitDemoDownloadJobData>) {
           data: { demoStatus: "FAILED" },
         })
         .catch(() => {});
+    } else {
+      // Back to QUEUED so the UI keeps polling; rethrow to retry.
+      await requeueUpload(
+        uploadId,
+        err instanceof DemoNotReadyError
+          ? "Demo not ready on FACEIT yet, retrying"
+          : `${err instanceof Error ? err.message : "Unknown error"} (retrying)`
+      );
     }
     throw err;
   } finally {
     // Clean up the decompressed .dem from temp (the .zst is removed
-    // inside downloadAndDecompressDemo). Parse already read it by now.
-    if (!keepDemo) await unlink(destPath).catch(() => {});
+    // inside downloadAndDecompressDemo). A kept demo was moved out already.
+    await unlink(destPath).catch(() => {});
   }
+}
+
+async function requeueUpload(uploadId: string, note: string) {
+  await prisma.demoUpload
+    .update({
+      where: { id: uploadId },
+      data: { status: "QUEUED", error: note },
+    })
+    .catch(() => {});
 }
 
 async function failUpload(uploadId: string, message: string) {

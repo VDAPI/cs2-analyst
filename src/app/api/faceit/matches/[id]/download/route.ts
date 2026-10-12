@@ -2,18 +2,21 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { checkMonthlyDemoLimit } from "@/lib/limits";
+import { checkMonthlyDemoLimit, limitReachedMessage } from "@/lib/limits";
 import {
-  faceitDemoDownloadQueue,
-  FACEIT_DOWNLOAD_JOB_OPTS,
-} from "@/lib/queue";
+  activeUploadId,
+  enqueueFaceitDownload,
+  faceitDownloadsEnabled,
+  FACEIT_UPLOAD_INCLUDE,
+} from "@/lib/faceit/analyze";
 
 /**
  * POST /api/faceit/matches/[id]/download
  *
- * Enqueue an automated FACEIT demo download + analysis for the given
- * FaceitMatch (id = FaceitMatch.id). Returns { uploadId } for the existing
- * upload status polling UI.
+ * Enqueue a FACEIT demo download + analysis for the given FaceitMatch
+ * (id = FaceitMatch.id). Returns { uploadId } for the upload status polling
+ * UI. Without the Downloads API, answers 409 { uploadUrl } so the UI can send
+ * the player to the upload page instead.
  */
 export async function POST(
   _req: Request,
@@ -28,7 +31,7 @@ export async function POST(
 
   const faceitMatch = await prisma.faceitMatch.findUnique({
     where: { id },
-    include: { upload: { select: { id: true, status: true } } },
+    include: FACEIT_UPLOAD_INCLUDE,
   });
 
   // Ownership check
@@ -37,66 +40,29 @@ export async function POST(
   }
 
   // Already downloaded / in-flight — return the existing upload for polling
-  // instead of creating a duplicate. A prior FAILED upload is reused below.
-  const existing = faceitMatch.upload;
-  if (existing && existing.status !== "FAILED") {
-    return NextResponse.json({ uploadId: existing.id }, { status: 200 });
+  // instead of creating a duplicate.
+  const existing = activeUploadId(faceitMatch);
+  if (existing) {
+    return NextResponse.json({ uploadId: existing }, { status: 200 });
   }
 
-  // Enforce the monthly demo limit (same as manual upload). A FAILED upload
-  // being retried isn't counted (it's excluded from the tally), so a retry
-  // right at the limit is still allowed to re-run.
-  const limit = await checkMonthlyDemoLimit(userId);
-  if (!limit.allowed) {
+  if (!faceitDownloadsEnabled()) {
     return NextResponse.json(
       {
-        error: `Monthly demo limit reached (${limit.used}/${limit.limit} on ${limit.plan} plan). Upgrade for more.`,
+        error: "Automatic FACEIT downloads are not available yet. Download the demo from the FACEIT match room and upload it.",
+        uploadUrl: `/upload?faceit=${faceitMatch.id}`,
       },
-      { status: 403 }
+      { status: 409 }
     );
   }
 
-  // Reuse a prior FAILED upload (its unique faceitMatchId would otherwise
-  // collide) or create a fresh one, then link it to the match.
-  let upload: { id: string };
-  if (existing) {
-    upload = await prisma.demoUpload.update({
-      where: { id: existing.id },
-      data: { status: "QUEUED", error: null, matchId: null },
-      select: { id: true },
-    });
-  } else {
-    upload = await prisma.demoUpload.create({
-      data: {
-        userId,
-        fileName: `${faceitMatch.faceitMatchId}.dem`,
-        fileSize: 0,
-        fileUrl: "",
-        status: "QUEUED",
-        source: "FACEIT",
-        faceitMatchId: faceitMatch.faceitMatchId,
-      },
-      select: { id: true },
-    });
-    await prisma.faceitMatch.update({
-      where: { id: faceitMatch.id },
-      data: { uploadId: upload.id },
-    });
+  // Enforce the monthly demo limit (same as manual upload). A FAILED upload
+  // being retried isn't counted (it's excluded from the tally).
+  const limit = await checkMonthlyDemoLimit(userId);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: limitReachedMessage(limit) }, { status: 403 });
   }
 
-  await faceitDemoDownloadQueue.add(
-    "download",
-    {
-      uploadId: upload.id,
-      faceitMatchId: faceitMatch.faceitMatchId,
-      userId,
-    },
-    FACEIT_DOWNLOAD_JOB_OPTS
-  );
-
-  console.log(
-    `[faceit-download] queued uploadId=${upload.id} faceitMatchId=${faceitMatch.faceitMatchId}`
-  );
-
-  return NextResponse.json({ uploadId: upload.id }, { status: 201 });
+  const uploadId = await enqueueFaceitDownload(userId, faceitMatch);
+  return NextResponse.json({ uploadId }, { status: 201 });
 }
