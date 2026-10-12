@@ -34,11 +34,16 @@ export const authOptions: AuthOptions = {
         }
 
         // Emails are stored normalized; accounts registered before that keep
-        // their original spelling, so fall back to the address as typed.
-        const typed = credentials.email.trim();
-        const user =
-          (await prisma.user.findUnique({ where: { email } })) ??
-          (typed !== email ? await prisma.user.findUnique({ where: { email: typed } }) : null);
+        // their original spelling (e.g. "John@X.com"), so fall back to a
+        // case-insensitive match, used only when it is unambiguous.
+        const legacyByEmail = async () => {
+          const rows = await prisma.user.findMany({
+            where: { email: { equals: email, mode: "insensitive" } },
+            take: 2,
+          });
+          return rows.length === 1 ? rows[0] : null;
+        };
+        const user = (await prisma.user.findUnique({ where: { email } })) ?? (await legacyByEmail());
         if (!user?.password) return null;
 
         const valid = await bcrypt.compare(credentials.password, user.password);

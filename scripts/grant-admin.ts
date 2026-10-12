@@ -7,8 +7,10 @@
  *   npm run admin:grant -- owner@example.com [other@example.com ...]
  *   npm run admin:grant            # every address in ADMIN_EMAILS
  *
- * Prints each account's creation date and sign-in methods so you can check
- * it is really yours before the change sticks. Revoke in /admin/users.
+ * The role is set immediately; the output shows each account's id, creation
+ * date and sign-in methods so you can check it is really yours (an address
+ * on ADMIN_EMAILS registered before you did would belong to someone else).
+ * Revoke in /admin/users or by setting the role back in the DB.
  */
 import { PrismaClient } from "@prisma/client";
 import { parseAdminEmails } from "../src/lib/admin/access";
