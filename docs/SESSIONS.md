@@ -73,8 +73,8 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Postęp | Trendy metryk w czasie, cele, odznaki | 🆕 | S16 |
 | Społeczność | Publiczny profil, udostępnianie raportu | 🆕 | S16 |
 | Drużyna | Dashboard drużyny, anti-strat przeciwnika, tablica taktyczna | 🆕 | S17 |
-| Inne źródła | Premier/Steam (share code lub upload) dla chętnych | 🆕 | S18 |
-| Platforma | PWA, powiadomienia „analiza gotowa”, PL/EN | 🆕 | S18 |
+| Inne źródła | Premier/Steam (share code lub upload) dla chętnych | ✅ | S18 |
+| Platforma | PWA, powiadomienia „analiza gotowa”, PL/EN | ✅ | S18 |
 | Platforma | Storage R2, limity darmowego planu | 🆕 | S7 |
 | Jakość | Testy E2E (Playwright) głównych ścieżek, desktop i telefon, w CI | 🆕 | S19 |
 | Jakość | Lokalne środowisko testowe jednym poleceniem (Docker), dostęp z telefonu w sieci Wi-Fi | 🆕 | S20 |
@@ -188,6 +188,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S7.
 - **Zakres:** Premier/Steam dla chętnych (share code lub upload), PWA (instalacja na telefonie), powiadomienia „analiza gotowa”, tłumaczenie PL/EN.
 - **Gotowe, gdy:** aplikację da się zainstalować na telefonie i dostać powiadomienie.
+- **Status:** ✅ zrobione. Ekran `/premier`: mecze Premier po kodzie udostępniania (opcjonalnie z linkiem do powtórki Valve, wtedy demo pobiera serwer po kliknięciu „Analizuj”), opcjonalna historia ze Steam (kod uwierzytelniający + „Synchronizuj”, wymaga `STEAM_API_KEY`), bez linku: upload z `?steam=`. PWA: manifest, ikony, service worker z ekranem offline, instalacja z Ustawień (Android/desktop przyciskiem, iOS instrukcją). Powiadomienia: dzwonek w górnym pasku + Web Push „analiza gotowa / nie powiodła się” z workerów (klucze VAPID z env albo generowane raz i trzymane w bazie). PL/EN: słowniki w `src/lib/i18n/`, przełącznik w Ustawieniach, menu konta i na logowaniu. Przetłumaczone: nawigacja, logowanie, rejestracja, ustawienia, upload, Premier, powiadomienia, offline. **Do zrobienia:** reszta ekranów (mecze, gracze, porównanie, mechanika, narzędzia, kolejka, biblioteka) nadal po polsku; dopóki ich nie ma, język przeglądarki nie jest wykrywany (`DETECT_BROWSER_LANGUAGE`). Pobieranie dem po samym kodzie udostępniania wymagałoby bota Steam Game Coordinator — świadomie pominięte.
 
 ## Sesje — etap 2 (dopisane 12.10.2026 po S1–S9)
 

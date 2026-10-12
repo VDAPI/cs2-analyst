@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { navGroups, mobilePrimaryHrefs, isActivePath, type NavItem } from "./nav-items";
+import { useT } from "@/lib/i18n/client";
 
 const allItems: NavItem[] = navGroups.flatMap((g) => g.items);
 const primaryItems = mobilePrimaryHrefs
@@ -14,11 +15,12 @@ const primaryItems = mobilePrimaryHrefs
 /** Mobile (<768px) bottom bar: four main destinations plus "Więcej" for the drawer. */
 export function BottomNav({ onMore }: { onMore: () => void }) {
   const pathname = usePathname();
+  const t = useT();
   const moreActive = !primaryItems.some((i) => isActivePath(pathname, i.href));
 
   return (
     <nav
-      aria-label="Nawigacja dolna"
+      aria-label={t("nav.bottomNav")}
       className="glass fixed inset-x-0 bottom-0 z-50 border-t border-[var(--border)] pb-safe md:hidden"
     >
       <ul className="grid h-[var(--bottom-nav-height)] grid-cols-5">
@@ -39,7 +41,7 @@ export function BottomNav({ onMore }: { onMore: () => void }) {
                   <span aria-hidden className="absolute top-0 h-[2px] w-8 rounded-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)]" />
                 )}
                 <Icon className="h-5 w-5" />
-                <span className="max-w-full truncate px-1">{item.label}</span>
+                <span className="max-w-full truncate px-1">{t(item.shortLabelKey ?? item.labelKey)}</span>
               </Link>
             </li>
           );
@@ -54,7 +56,7 @@ export function BottomNav({ onMore }: { onMore: () => void }) {
             )}
           >
             <Menu className="h-5 w-5" />
-            Więcej
+            {t("nav.more")}
           </button>
         </li>
       </ul>

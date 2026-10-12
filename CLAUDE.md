@@ -44,6 +44,7 @@ npm run test:replay   # Replay-data encoding regression test (no demo file neede
 npm run test:library  # Demo storage / deletion rule / limits / FACEIT filters test (no DB needed)
 npm run test:mechanics # Movement/counter-strafe analysis regression test (no demo file needed)
 npm run test:aim     # Aim/duels analysis regression test (no demo file needed)
+npm run test:platform # Share codes, replay links, Steam history, PL/EN parity, notification text (S18)
 npm run test:scouting # Scouting room-link parsing / map strength / veto test (no DB or network needed)
 npm run backfill:replay # Store replay data for old matches whose .dem is still on disk (the parse worker also does this on startup)
 ```
@@ -142,5 +143,9 @@ Revisit once demoparser2 ships correct `optionalDependencies` (0.41.3 is the lat
 - **Opponent scouting (S23)**: `/scouting` takes a FACEIT room link; `POST /api/scouting` fetches the room plus profile, lifetime stats and last 20 matches of all 10 players from the Data API (no demos), each through the Postgres cache `FaceitApiCache` (`src/lib/scouting/cache.ts`, TTLs in `CACHE_TTL`). Map strength and the veto suggestion are pure (`src/lib/scouting/analysis.ts`) and run on the client so the player can switch sides and who bans first.
 - **Tool canvases share one toolkit** (S5): replay, heatmaps and grenades draw through `src/lib/canvas/` (token-mirroring colors, world→canvas, radar, heatmap layer, replay drawing) inside `MapViewport` (`src/components/maps/`, touch pan/zoom + tap-to-select). Size markers with `useCanvasUiScale` so they stay readable at 360 px. Details: `.claude/skills/replay-canvas/SKILL.md`.
 - Tailwind v4 uses `@import "tailwindcss"` syntax (no config file needed)
+- **PL/EN (S18)**: `src/lib/i18n/` — `messages/pl.ts` is the source, `messages/en.ts` must have the same keys (type-checked + `test:platform`). Server: `const { t } = await getT()` (`@/lib/i18n/server`); client: `const t = useT()` (`@/lib/i18n/client`). Locale = `locale` cookie (set by `/api/user/locale`, also stored in `User.locale` for push), default Polish. New UI copy goes through `t()`. Screens not yet migrated still have inline Polish; browser-language detection stays off (`DETECT_BROWSER_LANGUAGE`) until they are.
+- **Notifications (S18)**: workers call `notifyUploadFinished()` (`src/lib/notifications/notify.ts`) when an upload ends COMPLETED/FAILED → `Notification` row (top-bar bell) + Web Push via `web-push` to every `PushSubscription`. Text is rendered from type + data in the reader's language, never stored. VAPID keys: `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`, otherwise generated once into `AppSetting`.
+- **PWA (S18)**: `src/app/manifest.ts`, icons in `public/pwa/`, service worker `public/sw.js` (registered by `PwaProvider` in the root layout; `?dev=1` in dev disables asset caching). Pages are never cached (per-user); offline falls back to `/offline`.
+- **Premier / Steam (S18, opt-in)**: `/premier`. Share codes decode in `src/lib/steam/share-code.ts`; `SteamMatch` rows. Only Valve replay links (`replayN.valve.net/730/…dem.bz2`, checked by `parseReplayUrl`) are ever downloaded, by the `steam-demo-download` queue that lives inside the parse worker, and only after the player clicks "Analyze". History sync uses the player's own Steam auth code + `STEAM_API_KEY` and only runs on "Sync". `UploadSource.STEAM`.
 - Settings page is a server component (queries DB directly for linked account status, not session JWT)
 - FACEIT OAuth uses popup window + `postMessage` for cross-window communication

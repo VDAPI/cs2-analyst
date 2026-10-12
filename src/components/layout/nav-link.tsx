@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils/cn";
 import type { NavItem } from "./nav-items";
+import { useT } from "@/lib/i18n/client";
 
 interface NavLinkProps {
   item: NavItem;
@@ -12,7 +13,9 @@ interface NavLinkProps {
 }
 
 export function NavLink({ item, active, collapsed, onNavigate }: NavLinkProps) {
+  const t = useT();
   const Icon = item.icon;
+  const label = t(item.labelKey);
   const base = cn(
     "relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors duration-150 max-lg:min-h-11",
     collapsed && "justify-center px-0"
@@ -22,15 +25,15 @@ export function NavLink({ item, active, collapsed, onNavigate }: NavLinkProps) {
     return (
       <span
         aria-disabled
-        title={collapsed ? `${item.label} (wkrótce)` : undefined}
+        title={collapsed ? `${label} (${t("common.soon")})` : undefined}
         className={cn(base, "cursor-default text-[var(--text-disabled)]")}
       >
         <Icon className="h-[18px] w-[18px] shrink-0" />
         {!collapsed && (
           <>
-            <span className="truncate">{item.label}</span>
+            <span className="truncate">{label}</span>
             <span className="ml-auto rounded-full bg-[rgba(190,160,255,0.08)] px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
-              wkrótce
+              {t("common.soon")}
             </span>
           </>
         )}
@@ -43,7 +46,7 @@ export function NavLink({ item, active, collapsed, onNavigate }: NavLinkProps) {
       href={item.href}
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
-      title={collapsed ? item.label : undefined}
+      title={collapsed ? label : undefined}
       className={cn(
         base,
         active
@@ -55,7 +58,7 @@ export function NavLink({ item, active, collapsed, onNavigate }: NavLinkProps) {
         <span aria-hidden className="absolute inset-y-1.5 left-0 w-[2px] rounded-full bg-[var(--accent)] shadow-[0_0_8px_var(--accent-glow)]" />
       )}
       <Icon className="h-[18px] w-[18px] shrink-0" />
-      {!collapsed && <span className="truncate">{item.label}</span>}
+      {!collapsed && <span className="truncate">{label}</span>}
     </Link>
   );
 }

@@ -2,13 +2,17 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
-import { Search, Bell, LogOut, Settings, ChevronDown, Menu } from "lucide-react";
+import { Search, LogOut, Settings, ChevronDown, Menu } from "lucide-react";
 import { UserAvatar } from "@/components/ui";
 import Link from "next/link";
 import { Logo } from "./logo";
+import { useT } from "@/lib/i18n/client";
+import { NotificationBell } from "@/components/notifications/notification-bell";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 
 export function Topbar({ onMenu }: { onMenu?: () => void }) {
   const { data: session } = useSession();
+  const t = useT();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -29,7 +33,7 @@ export function Topbar({ onMenu }: { onMenu?: () => void }) {
         <button
           type="button"
           onClick={onMenu}
-          aria-label="Otwórz menu"
+          aria-label={t("nav.openMenu")}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[rgba(190,160,255,0.06)] hover:text-[var(--text-primary)]"
         >
           <Menu className="h-5 w-5" />
@@ -42,7 +46,7 @@ export function Topbar({ onMenu }: { onMenu?: () => void }) {
         <Search className="h-4 w-4 shrink-0 text-[var(--text-disabled)]" />
         <input
           type="text"
-          placeholder="Szukaj meczów, graczy..."
+          placeholder={t("topbar.search")}
           className="w-40 min-w-0 bg-transparent text-sm text-[var(--text-primary)] placeholder:text-[var(--text-disabled)] focus:outline-none xl:w-64"
         />
         <kbd className="hidden rounded border border-[var(--border)] bg-[var(--surface-3)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text-tertiary)] lg:inline">
@@ -52,14 +56,7 @@ export function Topbar({ onMenu }: { onMenu?: () => void }) {
 
       {/* Right side */}
       <div className="flex shrink-0 items-center gap-1 md:gap-3">
-        <button
-          type="button"
-          aria-label="Powiadomienia"
-          className="relative flex h-11 w-11 items-center justify-center rounded-lg text-[var(--text-tertiary)] transition-colors hover:bg-[rgba(190,160,255,0.06)] hover:text-[var(--text-secondary)] md:h-9 md:w-9"
-        >
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-[var(--accent-2)] md:right-1.5 md:top-1.5" />
-        </button>
+        {session?.user && <NotificationBell />}
 
         {/* User dropdown */}
         {session?.user && (
@@ -68,7 +65,7 @@ export function Topbar({ onMenu }: { onMenu?: () => void }) {
               type="button"
               onClick={() => setOpen(!open)}
               aria-expanded={open}
-              aria-label="Menu konta"
+              aria-label={t("topbar.accountMenu")}
               className="flex min-h-11 items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-[rgba(190,160,255,0.06)] md:min-h-0"
             >
               <UserAvatar
@@ -90,8 +87,12 @@ export function Topbar({ onMenu }: { onMenu?: () => void }) {
                   className="flex min-h-11 items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] md:min-h-0"
                 >
                   <Settings className="h-4 w-4" />
-                  Ustawienia
+                  {t("nav.settings")}
                 </Link>
+                <div className="flex items-center justify-between gap-2 px-3 py-2">
+                  <span className="text-sm text-[var(--text-secondary)]">{t("topbar.language")}</span>
+                  <LanguageSwitcher size="sm" />
+                </div>
                 <div className="my-1 border-t border-[var(--border)]" />
                 <button
                   type="button"
@@ -99,7 +100,7 @@ export function Topbar({ onMenu }: { onMenu?: () => void }) {
                   className="flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] md:min-h-0"
                 >
                   <LogOut className="h-4 w-4" />
-                  Wyloguj
+                  {t("topbar.signOut")}
                 </button>
               </div>
             )}

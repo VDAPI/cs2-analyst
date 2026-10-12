@@ -4,6 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button, Input } from "@/components/ui";
+import { useT } from "@/lib/i18n/client";
 
 interface CredentialsFormProps {
   mode: "login" | "register";
@@ -11,6 +12,7 @@ interface CredentialsFormProps {
 
 export function CredentialsForm({ mode }: CredentialsFormProps) {
   const router = useRouter();
+  const t = useT();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,7 +28,7 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
     try {
       if (mode === "register") {
         if (password !== confirmPassword) {
-          setError("Hasła nie są takie same");
+          setError(t("auth.passwordsDiffer"));
           setLoading(false);
           return;
         }
@@ -39,7 +41,7 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
 
         if (!res.ok) {
           const data = await res.json();
-          setError(data.error ?? "Rejestracja nie powiodła się");
+          setError(data.error ?? t("auth.registerFailed"));
           setLoading(false);
           return;
         }
@@ -52,14 +54,14 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
       });
 
       if (result?.error) {
-        setError("Nieprawidłowy email lub hasło");
+        setError(t("auth.invalidCredentials"));
         setLoading(false);
         return;
       }
 
       router.push(safeCallbackUrl());
     } catch {
-      setError("Coś poszło nie tak, spróbuj ponownie");
+      setError(t("common.error"));
       setLoading(false);
     }
   }
@@ -69,42 +71,42 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
       {mode === "register" && (
         <div>
           <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]">
-            Nazwa
+            {t("auth.name")}
           </label>
           <Input
             id="name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Twój nick (opcjonalnie)"
+            placeholder={t("auth.namePlaceholder")}
           />
         </div>
       )}
 
       <div>
         <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]">
-          Email
+          {t("auth.email")}
         </label>
         <Input
           id="email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="ty@przyklad.pl"
+          placeholder={t("auth.emailPlaceholder")}
           required
         />
       </div>
 
       <div>
         <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]">
-          Hasło
+          {t("auth.password")}
         </label>
         <Input
           id="password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder={mode === "register" ? "Min. 8 znaków" : "Twoje hasło"}
+          placeholder={mode === "register" ? t("auth.passwordPlaceholderRegister") : t("auth.passwordPlaceholderLogin")}
           required
           minLength={mode === "register" ? 8 : undefined}
         />
@@ -113,14 +115,14 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
       {mode === "register" && (
         <div>
           <label htmlFor="confirmPassword" className="mb-1.5 block text-sm font-medium text-[var(--text-secondary)]">
-            Powtórz hasło
+            {t("auth.confirmPassword")}
           </label>
           <Input
             id="confirmPassword"
             type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            placeholder="Powtórz hasło"
+            placeholder={t("auth.confirmPassword")}
             required
           />
         </div>
@@ -135,11 +137,11 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
       <Button type="submit" variant="cta" size="lg" className="w-full" disabled={loading}>
         {loading
           ? mode === "register"
-            ? "Zakładam konto..."
-            : "Loguję..."
+            ? t("auth.creatingAccount")
+            : t("auth.signingIn")
           : mode === "register"
-            ? "Załóż konto"
-            : "Zaloguj się"}
+            ? t("auth.createAccount")
+            : t("auth.signIn")}
       </Button>
     </form>
   );

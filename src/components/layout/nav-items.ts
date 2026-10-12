@@ -12,55 +12,63 @@ import {
   Shield,
   ListOrdered,
   Library,
+  Gamepad2,
   Binoculars,
   type LucideIcon,
 } from "lucide-react";
+import type { MessageKey } from "@/lib/i18n/translate";
 
 export interface NavItem {
   href: string;
-  label: string;
+  /** Translation key of the label (src/lib/i18n/messages). */
+  labelKey: MessageKey;
+  /** Shorter label for the mobile bottom bar. */
+  shortLabelKey?: MessageKey;
   icon: LucideIcon;
   /** Planned screen that does not exist yet — shown, but not clickable. */
   soon?: boolean;
 }
 
 export interface NavGroup {
-  label: string;
+  labelKey: MessageKey;
+  /** Shorter label for the mobile bottom bar. */
+  shortLabelKey?: MessageKey;
   items: NavItem[];
 }
 
 export const navGroups: NavGroup[] = [
   {
-    label: "Analiza",
+    labelKey: "nav.groupAnalysis",
     items: [
-      { href: "/matches", label: "Mecze", icon: BarChart3 },
-      { href: "/upload", label: "Wgraj demo", icon: Upload },
-      { href: "/queue", label: "Kolejka analiz", icon: ListOrdered },
-      { href: "/library", label: "Biblioteka", icon: Library },
-      { href: "/players", label: "Gracze", icon: Users },
-      { href: "/compare", label: "Porównanie", icon: GitCompare },
+      { href: "/matches", labelKey: "nav.matches", icon: BarChart3 },
+      { href: "/upload", labelKey: "nav.upload", shortLabelKey: "nav.uploadShort", icon: Upload },
+      { href: "/queue", labelKey: "nav.queue", icon: ListOrdered },
+      { href: "/library", labelKey: "nav.library", icon: Library },
+      { href: "/premier", labelKey: "nav.premier", icon: Gamepad2 },
+      { href: "/players", labelKey: "nav.players", icon: Users },
+      { href: "/compare", labelKey: "nav.compare", icon: GitCompare },
     ],
   },
   {
-    label: "Narzędzia",
+    labelKey: "nav.groupTools",
     items: [
-      { href: "/replay", label: "Replay 2D", icon: Play },
-      { href: "/heatmaps", label: "Heatmapy", icon: Flame },
-      { href: "/grenades", label: "Granaty", icon: Crosshair },
-      { href: "/economy", label: "Ekonomia", icon: DollarSign },
-      { href: "/scouting", label: "Scouting rywali", icon: Binoculars },
+      { href: "/replay", labelKey: "nav.replay", icon: Play },
+      { href: "/heatmaps", labelKey: "nav.heatmaps", icon: Flame },
+      { href: "/grenades", labelKey: "nav.grenades", icon: Crosshair },
+      { href: "/economy", labelKey: "nav.economy", icon: DollarSign },
+      { href: "/scouting", labelKey: "nav.scouting", icon: Binoculars },
     ],
   },
   {
-    label: "Pro i drużyna",
+    labelKey: "nav.groupPro",
     items: [
-      { href: "/pro", label: "Pro", icon: Trophy, soon: true },
-      { href: "/team", label: "Drużyna", icon: Shield, soon: true },
+      { href: "/pro", labelKey: "nav.pro", icon: Trophy, soon: true },
+      { href: "/team", labelKey: "nav.team", icon: Shield, soon: true },
     ],
   },
 ];
 
-export const settingsItem: NavItem = { href: "/settings", label: "Ustawienia", icon: Settings };
+export const settingsItem: NavItem = { href: "/settings", labelKey: "nav.settings", icon: Settings };
 
 /** The four destinations pinned to the mobile bottom bar; the rest live under "Więcej". */
 export const mobilePrimaryHrefs = ["/matches", "/upload", "/replay", "/players"];
