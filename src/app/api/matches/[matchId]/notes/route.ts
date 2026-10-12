@@ -22,6 +22,8 @@ export async function GET(req: Request, { params }: Props) {
   const roundParam = new URL(req.url).searchParams.get("round");
   const round = roundParam ? parseInt(roundParam, 10) : access.round;
   if (round != null && !roundAllowed(access, round)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // The example analysis (/demo) shows the report and clips, not the owner's notes.
+  if (access.demo) return NextResponse.json({ notes: [] });
 
   const notes = await prisma.mapNote.findMany({
     where: { matchId, userId: access.uploaderId, ...(round != null ? { roundNumber: round } : {}) },

@@ -3,8 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { Card, EmptyState, InitialsAvatar, PageHeader, buttonVariants } from "@/components/ui";
 import { cn } from "@/lib/utils/cn";
-import { GitCompareArrows, Upload, Users } from "lucide-react";
+import { GitCompareArrows, Users } from "lucide-react";
 import Link from "next/link";
+import { StartActions } from "@/components/onboarding/getting-started";
 
 export default async function PlayersPage() {
   const session = await getServerSession(authOptions);
@@ -116,12 +117,7 @@ export default async function PlayersPage() {
           icon={Users}
           title="Brak danych o graczach"
           description="Wgraj demo, a statystyki graczy pojawią się tutaj."
-          action={
-            <Link href="/upload" className={buttonVariants({ variant: "cta" })}>
-              <Upload className="h-4 w-4" aria-hidden />
-              Wgraj demo
-            </Link>
-          }
+          action={<StartActions />}
         />
       ) : (
         <Card className="overflow-hidden p-0 md:p-0">

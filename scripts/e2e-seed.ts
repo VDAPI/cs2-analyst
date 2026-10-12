@@ -109,6 +109,8 @@ async function main() {
       monthlyDemoLimit: 100,
       // Admin screens are part of the suite (ADMIN_EMAILS never grants admin at runtime).
       role: "ADMIN",
+      // The report guide (S21) would cover the report screenshots; its own spec opens it by hand.
+      reportTourAt: new Date("2026-09-01T12:00:00Z"),
       createdAt: new Date("2026-09-01T12:00:00Z"),
     },
   });

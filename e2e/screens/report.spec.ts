@@ -33,3 +33,18 @@ test("z raportu do najgorszego momentu w replayu", async ({ page, seed }) => {
   await expect(page.getByRole("button", { name: new RegExp(`^Runda ${round},`) })).toHaveAttribute("aria-current", "true");
   await expectCanvasPainted(page);
 });
+
+test("przewodnik po raporcie otwiera się z przycisku", async ({ page, seed }) => {
+  await page.goto(`/report/${seed.matchIds[0]}`);
+  // The seeded account has finished the guide: it doesn't open by itself.
+  await expect(page.getByRole("link", { name: "Najgorszy moment w replayu" }).first()).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Wybierz gracza" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Jak czytać raport" }).click();
+  const tour = page.getByTestId("report-tour");
+  await expect(tour).toBeVisible();
+  await expect(tour.getByRole("heading", { name: "Wybierz gracza" })).toBeVisible();
+  await tour.getByRole("button", { name: "Dalej" }).click();
+  await expect(tour.getByRole("heading", { name: "Podsumowanie meczu" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(tour).toHaveCount(0);
+});
