@@ -83,14 +83,17 @@ export default async function FriendsPage({ searchParams }: Props) {
       {/* Ranking */}
       <section aria-labelledby="ranking" className="space-y-3">
         <Heading id="ranking" title={t("friends.ranking")} description={t("friends.rankingHint", { n: RANKING_WINDOW, min: MIN_RANKING_MATCHES })} />
-        <nav aria-label={t("friends.metricPicker")} className="flex flex-wrap gap-2">
+        <nav
+          aria-label={t("friends.metricPicker")}
+          className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+        >
           {RANKING_METRICS.map((k) => (
             <Link
               key={k}
               href={k === RANKING_METRICS[0] ? "/friends" : `/friends?metric=${k}`}
               aria-current={k === metric ? "true" : undefined}
               className={cn(
-                "flex min-h-9 items-center rounded-lg border px-3 text-xs font-semibold transition-colors",
+                "flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-lg border px-3 text-xs font-semibold transition-colors",
                 k === metric
                   ? "border-[var(--border-active)] bg-[var(--accent-muted)] text-[var(--text-primary)]"
                   : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]"

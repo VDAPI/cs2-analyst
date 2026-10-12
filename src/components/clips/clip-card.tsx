@@ -35,9 +35,8 @@ export function ClipCard({ matchId, mapName, mapConfig, round, title, meta, play
       <header className="flex min-w-0 items-start gap-2">
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-display text-base font-semibold text-[var(--text-primary)]">{title}</h3>
-          <p className="truncate text-xs text-[var(--text-tertiary)]">
-            {playerName} · <span className="font-mono">{meta}</span>
-          </p>
+          <p className="truncate text-xs text-[var(--text-secondary)]">{playerName}</p>
+          <p className="truncate font-mono text-xs text-[var(--text-tertiary)]">{meta}</p>
         </div>
         <Badge variant={badge.variant} className="shrink-0">
           {badge.label}
