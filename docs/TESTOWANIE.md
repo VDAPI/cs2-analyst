@@ -89,7 +89,7 @@ Wszystko jest gotowe, gdy:
 
 - `app` ma status `Up … (healthy)`,
 - `setup` ma status `Exited (0)` (to jednorazowe przygotowanie, ma się zakończyć),
-- `worker`, `worker-faceit`, `postgres`, `redis`, `minio`, `https` mają `Up`.
+- `worker`, `worker-faceit`, `ml`, `postgres`, `redis`, `minio`, `https` mają `Up`.
 
 Co uruchomił Docker:
 
@@ -98,6 +98,7 @@ Co uruchomił Docker:
 | `app` | Aplikacja: <http://localhost:3000> |
 | `worker` | Analiza dem (parser) i pobieranie dem Premier |
 | `worker-faceit` | Pobieranie dem z FACEIT |
+| `ml` | Trening modelu szansy wygranej rundy (Python, LightGBM); do 20 meczów działa model wyjściowy |
 | `postgres` | Baza danych (raporty, dane replayów) |
 | `redis` | Kolejka analiz |
 | `minio` | Magazyn plików .dem (zamiennik Cloudflare R2), podgląd: <http://localhost:9001>, login `cs2analyst`, hasło `cs2analyst-minio` |

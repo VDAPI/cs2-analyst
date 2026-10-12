@@ -10,7 +10,6 @@ import { fmtFindingValue, fmtRoundTime, replayHref, type FindingView } from "@/l
 import { useT } from "@/lib/i18n/client";
 import { hasLineupPractice } from "@/lib/training/lineup-trainer";
 import { cn } from "@/lib/utils/cn";
-import { useT } from "@/lib/i18n/client";
 import { FindingImpact } from "@/components/winprob/finding-impact";
 import { ProAdvicePanel } from "@/components/winprob/pro-advice";
 
