@@ -76,7 +76,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Inne źródła | Premier/Steam (share code lub upload) dla chętnych | ✅ | S18 |
 | Platforma | PWA, powiadomienia „analiza gotowa”, PL/EN | ✅ | S18 |
 | Platforma | Storage R2, limity darmowego planu | 🆕 | S7 |
-| Jakość | Testy E2E (Playwright) głównych ścieżek, desktop i telefon, w CI | 🆕 | S19 |
+| Jakość | Testy E2E (Playwright) głównych ścieżek, desktop i telefon, w CI | ✅ | S19 |
 | Jakość | Lokalne środowisko testowe jednym poleceniem (Docker), dostęp z telefonu w sieci Wi-Fi | 🆕 | S20 |
 | Start | Demo bez logowania: przykładowa analiza meczu pro, przewodnik po aplikacji | 🆕 | S21 |
 | Trening | Generator treningu: mapy Workshop, configi .cfg, rutyna dnia | 🆕 | S22 |
@@ -199,6 +199,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S10.
 - **Zakres:** Playwright z przykładowym demem (fixture) i seedem bazy: logowanie, upload, kolejka, raport, replay, porównanie, usuwanie dema. Każdy test na 1280 px i 390 px. Zrzuty ekranu do porównań wizualnych. Uruchamianie w CI (Postgres i Redis jako services). Napraw błędy, które testy znajdą.
 - **Gotowe, gdy:** CI uruchamia E2E na każdym PR i są zielone.
+- **Status:** ✅ zrobione. Playwright (`npm run test:e2e`): każdy ekran z `main` (31 zalogowanych + strona główna, logowanie, rejestracja) na 1280 px i 360 px — bez błędów w przeglądarce, bez przewijania w bok, zrzut porównany z wzorcem; ścieżki: rejestracja i wylogowanie, upload → analiza → raport → replay → usunięcie analizy, „zachowaj demo” i ręczne usunięcie pliku, uszkodzone demo w kolejce, porównanie graczy, udostępniony raport bez logowania. Zamiast 100-megabajtowego .dem testy wgrywają symulowane demo (`src/lib/parsers/fixture-demo.ts`, mecz na Mirage z ruchem, strzałami, granatami i bombą), które odpowiada jak parser przy `E2E_FIXTURE_DEMOS=1`; cała reszta pipeline’u jest prawdziwa. W CI osobne zadanie `e2e` w obrazie Playwright z Postgres i Redis. Naprawione przy okazji: logowanie i rejestracja nie działały bez `STEAM_API_KEY` (przycisk Steam jest teraz tylko z kluczem). Demo testowe przechodzi też kontrole parsera z audytu (`npm run test:e2e-demo -- --fixture`, w CI).
 
 ### S20. Lokalne środowisko testowe jednym poleceniem
 - **Wymaga:** S19. Decyzja właściciela (12.10.2026): na razie bez hostingu, testy lokalnie.

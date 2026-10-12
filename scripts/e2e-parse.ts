@@ -2,7 +2,7 @@
  * End-to-end parser check on a real demo.
  * Run: npm run test:e2e-demo -- <path/to/match.dem>
  *
- * Not in CI (no demo in the repo). Parses the demo with parseDemoFile and
+ * In CI only with `--fixture` (no real demo in the repo). Parses the demo with parseDemoFile and
  * checks the result against the demo's own raw data:
  *  - final score = the game's team_rounds_total per team,
  *  - every round's CT/T equipment = the live team_num sides at freeze end,
@@ -11,10 +11,23 @@
  *  - bomb sites are A/B, duration and totalTicks are set.
  */
 import { parseDemoFile } from "@/lib/parsers/demo-parser";
+import { loadDemoParser } from "@/lib/parsers/load-parser";
+import { fixtureDemoText } from "@/lib/parsers/fixture-demo";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-const file = process.argv[2];
+// `--fixture`: check the E2E fixture demo (S19) instead of a real one, so CI
+// runs these checks on every push: the simulated parser output must keep
+// satisfying the same invariants as a real demo.
+let file = process.argv[2];
+if (file === "--fixture") {
+  process.env.E2E_FIXTURE_DEMOS = "1";
+  file = join(mkdtempSync(join(tmpdir(), "cs2a-fixture-")), "fixture.dem");
+  writeFileSync(file, fixtureDemoText(1));
+}
 if (!file) {
-  console.error("usage: npm run test:e2e-demo -- <path.dem>");
+  console.error("usage: npm run test:e2e-demo -- <path.dem> | --fixture");
   process.exit(2);
 }
 
@@ -23,7 +36,7 @@ const check = (label: string, ok: boolean, detail = "") => checks.push([label, o
 const num = (v: unknown) => (typeof v === "number" ? v : Number(v) || 0);
 
 (async () => {
-  const dp = await import("@laihoe/demoparser2");
+  const dp = await loadDemoParser();
   const d = await parseDemoFile(file);
   const lastRound = d.rounds[d.rounds.length - 1];
   check("has rounds", d.rounds.length > 0, `${d.rounds.length}`);

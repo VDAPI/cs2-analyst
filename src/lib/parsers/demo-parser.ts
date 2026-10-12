@@ -19,6 +19,7 @@ import type {
 import { detectClutchesBySide, type ClutchInputKill } from "@/lib/utils/clutches";
 import { otherSide, ruleSideAtRound, sideInRound, type Side } from "@/lib/utils/sideSplit";
 import { parseRoundWinner, parseWinReason } from "@/lib/parsers/round-end";
+import { loadDemoParser } from "./load-parser";
 
 /**
  * Weapons whose player_hurt damage counts as utility damage.
@@ -32,15 +33,8 @@ import { parseRoundWinner, parseWinReason } from "@/lib/parsers/round-end";
 const UTILITY_WEAPONS = new Set(["hegrenade", "inferno", "molotov"]);
 const FIRE_WEAPONS = new Set(["inferno", "molotov"]);
 
-// Dynamic import — demoparser2 uses native Node bindings
-let demoparser: typeof import("@laihoe/demoparser2") | null = null;
-
-async function getParser() {
-  if (!demoparser) {
-    demoparser = await import("@laihoe/demoparser2");
-  }
-  return demoparser;
-}
+// demoparser2 (native bindings), or the E2E fixture parser.
+const getParser = loadDemoParser;
 
 // ─── Helper: safe field access ────────────────────────────
 

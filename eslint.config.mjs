@@ -19,9 +19,16 @@ const eslintConfig = [
       "prisma/migrations/**",
       "public/**",
       "data/**",
+      "e2e/.results/**",
+      "e2e/.report/**",
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+  {
+    // Playwright fixtures call `use()`, which is not React's hook.
+    files: ["e2e/**/*.ts"],
+    rules: { "react-hooks/rules-of-hooks": "off" },
+  },
 ];
 
 export default eslintConfig;
