@@ -22,6 +22,7 @@ import {
   fixtureDemoText,
   type FixtureOutcome,
 } from "../src/lib/parsers/fixture-demo";
+import { emptyBoard, nextStep, type BoardData } from "../src/lib/team/board";
 import { E2E_USER, SEED_STATE_FILE, type SeedState } from "../e2e/env";
 
 if (process.env.E2E_FIXTURE_DEMOS !== "1" || !/_e2e\b|e2e/.test(process.env.DATABASE_URL ?? "")) {
@@ -137,6 +138,48 @@ async function main() {
     select: { steamId: true, team: true },
   });
   const own = players.find((p) => p.steamId === FIXTURE_PLAYER_STEAM_ID)!;
+
+  // A team (S17): the account owns it, its fixture teammates are the roster
+  // players without an account, so all three seeded matches are team matches.
+  // The opponents of the first match are a scouted rival; one saved board.
+  const fixed = new Date("2026-10-04T12:00:00Z");
+  const team = await prisma.team.create({
+    data: {
+      name: "E2E Drużyna",
+      tag: "E2E",
+      inviteCode: "e2eInviteCod",
+      extraSteamIds: players.filter((p) => p.team === own.team && p.steamId !== own.steamId).map((p) => p.steamId),
+      createdAt: fixed,
+      members: { create: { userId: user.id, role: "OWNER", joinedAt: fixed } },
+    },
+  });
+  const rival = await prisma.teamRival.create({
+    data: {
+      teamId: team.id,
+      name: "Rywale E2E",
+      steamIds: players.filter((p) => p.team !== own.team).map((p) => p.steamId),
+      notes: "Na B wchodzą szybko, molotov na wyjście.",
+      createdById: user.id,
+      createdAt: fixed,
+      updatedAt: fixed,
+    },
+  });
+  const first = emptyBoard();
+  const items = first.steps[0].items;
+  first.steps[0] = {
+    name: "1",
+    note: "Default: smoke na CT i Window.",
+    items: [
+      ...items,
+      { id: "s1", kind: "util", type: "SMOKE", x: 0.42, y: 0.52 },
+      { id: "a1", kind: "arrow", color: "lime", points: [[0.3, 0.9], [0.32, 0.7], [0.4, 0.6]] },
+      { id: "x1", kind: "text", color: "white", text: "Window", x: 0.45, y: 0.45 },
+    ],
+  };
+  const board: BoardData = { ...first, steps: [first.steps[0], nextStep(first.steps[0], "2")] };
+  const tacticBoard = await prisma.tacticBoard.create({
+    data: { teamId: team.id, name: "Mirage: B split", map: "de_mirage", side: "T", data: board, rivalId: rival.id, createdById: user.id, createdAt: fixed, updatedAt: fixed },
+  });
   const state: SeedState = {
     userId: user.id,
     matchIds: uploads.map((u) => u.matchId),
@@ -145,6 +188,9 @@ async function main() {
     playerSteamId: own.steamId,
     teammateSteamId: players.find((p) => p.team === own.team && p.steamId !== own.steamId)!.steamId,
     opponentSteamId: players.find((p) => p.team !== own.team)!.steamId,
+    teamId: team.id,
+    rivalId: rival.id,
+    boardId: tacticBoard.id,
   };
   await mkdir(dirname(SEED_STATE_FILE), { recursive: true });
   await writeFile(SEED_STATE_FILE, JSON.stringify(state, null, 2));

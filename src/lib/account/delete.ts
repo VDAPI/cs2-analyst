@@ -2,8 +2,10 @@
  * "Delete my account" (S29, GDPR art. 17): removes the user and everything
  * that is theirs in one go. Demo files (disk or R2) first, then the matches
  * of their uploads (rounds, replay data, analyses, findings, norm samples,
- * shares and notes cascade with Match), the uploads, team memberships, and
- * finally the user row, which cascades accounts, sessions, FACEIT / Steam
+ * shares and notes cascade with Match), the uploads, team memberships (team
+ * ownership passes to the next member, an emptied team is deleted; boards
+ * and rivals they made stay with the team, unattributed), and finally the
+ * user row, which cascades accounts, sessions, FACEIT / Steam
  * history, notifications, push subscriptions, goals, shares, notes, plans,
  * AI coach texts, feedback and lineup marks. Their MatchPlayer rows in other
  * players' matches lose the link to the account (onDelete SetNull); the stats
@@ -15,6 +17,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { join } from "node:path";
 import { deleteStoredDemo, LOCAL_DEMO_DIR } from "@/lib/storage/demo-store";
+import { leaveAllTeams } from "@/lib/team/membership";
 
 export interface DeleteAccountResult {
   uploads: number;
@@ -52,6 +55,8 @@ export async function deleteAccount(prisma: PrismaClient, userId: string): Promi
   }
 
   const matchIds = uploads.map((u) => u.matchId).filter((id): id is string => Boolean(id));
+  // Teams first (S17): ownership passes on, a team left empty goes with its boards.
+  await prisma.$transaction((tx) => leaveAllTeams(tx, userId));
   await prisma.$transaction([
     // FaceitMatch / SteamMatch rows point at uploads; they go with the user,
     // but the uploads go first, so unlink them.

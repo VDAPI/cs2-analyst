@@ -66,6 +66,8 @@ interface ReplayViewerProps {
   initialPlayer?: string | null;
   /** Finding to highlight on open (from a report card). */
   initialFindingId?: string | null;
+  /** A teammate's match (S17): no notes or share links, those belong to the uploader. */
+  readOnly?: boolean;
 }
 
 /** Seconds of lead-in shown before a deep-linked tick. */
@@ -120,6 +122,7 @@ export function ReplayViewer({
   initialTick = null,
   initialPlayer = null,
   initialFindingId = null,
+  readOnly = false,
 }: ReplayViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
@@ -517,20 +520,22 @@ export function ReplayViewer({
             onPick={goToFinding}
           />
 
-          <MomentTools
-            matchId={matchId}
-            round={currentRound}
-            tick={currentTick}
-            roundStartTick={firstTick}
-            selectedSteamId={selectedSteamId}
-            notes={roundNotes}
-            mode={noteMode}
-            pending={pendingNote}
-            onModeChange={changeNoteMode}
-            onSave={saveNote}
-            onRemove={removeNote}
-            onJump={goToNote}
-          />
+          {!readOnly && (
+            <MomentTools
+              matchId={matchId}
+              round={currentRound}
+              tick={currentTick}
+              roundStartTick={firstTick}
+              selectedSteamId={selectedSteamId}
+              notes={roundNotes}
+              mode={noteMode}
+              pending={pendingNote}
+              onModeChange={changeNoteMode}
+              onSave={saveNote}
+              onRemove={removeNote}
+              onJump={goToNote}
+            />
+          )}
 
           <SidePanel
             side="CT"

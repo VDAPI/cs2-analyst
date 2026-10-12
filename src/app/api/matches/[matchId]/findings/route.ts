@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getFindings } from "@/lib/findings/persist";
 import { toFindingView } from "@/lib/findings/view";
+import { teamCanSeeMatch } from "@/lib/team/load";
 
 interface Props {
   params: Promise<{ matchId: string }>;
@@ -14,6 +15,7 @@ interface Props {
  *
  * Every finding of the match (or one player's), with the catalog label, for
  * the replay's mistake markers. Built on first request for older matches.
+ * Teammates read team and rival matches of a shared team too (S17).
  */
 export async function GET(req: Request, { params }: Props) {
   const session = await getServerSession(authOptions);
@@ -26,7 +28,7 @@ export async function GET(req: Request, { params }: Props) {
     where: { id: matchId, upload: { userId: session.user.id } },
     select: { id: true },
   });
-  if (!match) {
+  if (!match && !(await teamCanSeeMatch(prisma, session.user.id, matchId))) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
