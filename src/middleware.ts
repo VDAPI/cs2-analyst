@@ -33,6 +33,7 @@ export const config = {
     "/report/:path*",
     "/scouting/:path*",
     "/lineups/:path*",
+    "/training/:path*",
     "/pro/:path*",
   ],
 };

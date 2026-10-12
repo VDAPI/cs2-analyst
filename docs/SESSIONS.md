@@ -79,8 +79,8 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Jakość | Testy E2E (Playwright) głównych ścieżek, desktop i telefon, w CI | ✅ | S19 |
 | Jakość | Lokalne środowisko testowe jednym poleceniem (Docker), dostęp z telefonu w sieci Wi-Fi | 🆕 | S20 |
 | Start | Demo bez logowania: przykładowa analiza meczu pro, przewodnik po aplikacji | 🆕 | S21 |
-| Trening | Generator treningu: mapy Workshop, configi .cfg, rutyna dnia | 🆕 | S22 |
-| Trening | Trener lineupów: komendy setpos/setang do skopiowania, config do ćwiczenia granatów | 🆕 | S22 |
+| Trening | Generator treningu: mapy Workshop, configi .cfg, rutyna dnia | ✅ | S22 |
+| Trening | Trener lineupów: komendy setpos/setang do skopiowania, config do ćwiczenia granatów | ✅ | S22 |
 | Przed meczem | Scouting rywali z linku do pokoju FACEIT, sugestia veto map | 🆕 | S23 |
 | Pro | „Graj jak pro”: porównanie z wybranym zawodowcem per mapa i rola | 🆕 | S24 |
 | ML | Wykrywanie roli (entry, AWP, support, lurk, anchor) i rady pod rolę | 🆕 | S24 |
@@ -215,6 +215,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S11, S15.
 - **Zakres:** na podstawie Findingów rutyna dnia (konkretne mapy Workshop, czas, cel liczbowy) i plik `.cfg` do pobrania. Trener lineupów: z bazy lineupów z S11 komendy `setpos`/`setang` do skopiowania jednym kliknięciem i config do ćwiczenia granatów (`sv_cheats`, `sv_infinite_ammo`, `sv_grenade_trajectory_prac_pipreview`). Zaznaczanie lineupów jako „opanowane”.
 - **Gotowe, gdy:** z karty błędu „smoke za wcześnie” da się przejść do ćwiczenia lepszego lineupu.
+- **Status:** ✅ zrobione. Ekran `/training` („Trening” w menu, link z Trenera): rutyna na dziś (albo dowolny dzień tygodnia) z planu S15 — każde ćwiczenie z konkretną mapą Workshop (link do wyszukiwarki Workshop), czasem i liczbą do osiągnięcia, mecze z celem liczbowym (momenty na mecz i metryka), odhaczanie dnia, lineupy dnia do nauki i plik `cs2a_routine.cfg` (wypisuje rutynę w konsoli, skróty `cs2a_practice`, `cs2a_1…`, `cs2a_rethrow`; bez bindów). Trener lineupów na `/lineups`: kopiowanie setpos/setang jednym kliknięciem, „Opanowany” przy każdym lineupie (filtr Do nauki / Opanowane, licznik %), plik `cs2a_lineups_<mapa>.cfg` z ustawieniami serwera do granatów (`sv_cheats 1`, `sv_infinite_ammo 1`, `sv_grenade_trajectory_prac_pipreview 1` i reszta) i aliasem na każdy nieopanowany lineup. Karta błędu „Smoke za wcześnie” (też smoke w próżnię, molotov bez efektu, lineup obok celu) w raporcie i w replayu ma przycisk „Ćwicz lineup”: otwiera lepsze lineupy na to miejsce z bazy, radar z miejscem twojego granatu i config z tymi lineupami. Test: `npm run test:training`.
 
 ### S23. Scouting rywali przed meczem
 - **Wymaga:** S7.

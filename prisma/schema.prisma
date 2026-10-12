@@ -87,6 +87,7 @@ model User {
   trainingPlans     TrainingPlan[]
   coachTexts        CoachText[]
   coachFeedback     CoachFeedback[]
+  lineupMastery     LineupMastery[]
 }
 
 enum UserRole {
@@ -563,6 +564,20 @@ model AimStats {
 // Per player per match: smokes, flashes, molotovs, HEs and utility left at
 // death (src/lib/analysis/utility.ts). Computed from GrenadeEvent / ShotEvent
 // (grenade throws) / DamageEvent / Kill / RoundTicks, so no .dem is needed.
+// Lineup trainer (S22): lineups a player marked as mastered. `key` is
+// Lineup.key from src/lib/analysis/lineups.ts (type, technique, rounded spots).
+model LineupMastery {
+  id        String   @id @default(cuid())
+  userId    String
+  map       String
+  key       String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, map, key])
+}
+
 model UtilityStats {
   id      String @id @default(cuid())
   matchId String
