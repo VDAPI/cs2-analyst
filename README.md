@@ -15,7 +15,7 @@
 # 1. Install dependencies
 npm install
 
-# 2. Start database & Redis
+# 2. Start database, Redis and the ML trainer (retrains the round win-probability model as matches come in)
 docker compose up -d
 
 # 3. Copy environment variables
@@ -54,6 +54,7 @@ Open [http://localhost:3000](http://localhost:3000)
 ┌──────────────────┴──────────────────────────────┐
 │  PostgreSQL 16 + Prisma ORM                      │
 │  Redis (cache + job queue)                       │
+│  ml/ Python + LightGBM (win-probability trainer) │
 │  Local disk data/demos (Cloudflare R2 planned)   │
 └─────────────────────────────────────────────────┘
 ```

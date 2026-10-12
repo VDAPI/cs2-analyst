@@ -12,6 +12,7 @@ import {
   buildRoundContext,
   matchSnapshots,
   siteCenters,
+  stateAt,
   WP_FEATURES,
   WP_FEATURES_VERSION,
   type RoundContext,
@@ -19,10 +20,24 @@ import {
   type WpFrame,
   type WpMatch,
 } from "./features";
+import { FINDING_TYPES, isFindingType } from "@/lib/findings/catalog";
 import { findingImpact, type Impact, type ImpactTarget } from "./impact";
-import { isModelSpec, type WinProbModelSpec } from "./model";
+import { isModelSpec, predictSide, type WinProbModelSpec } from "./model";
 import { PRIOR_MODEL } from "./prior";
-import { roundSituations, SITUATIONS_VERSION } from "./situations";
+import { matchWpa, type PlayerWpa } from "./series";
+import {
+  ACTION_HORIZON_S,
+  actionAfter,
+  roundSituations,
+  similarSituations,
+  situationAt,
+  SITUATIONS_VERSION,
+  type ActionResult,
+  type Candidate,
+  type ProAction,
+  type SimilarResult,
+  type Situation,
+} from "./situations";
 
 // ─── Loading ─────────────────────────────────────────────
 
@@ -116,12 +131,14 @@ export interface ActiveModel {
   kind: string;
   spec: WinProbModelSpec;
   trained: boolean;
+  /** Matches the model was trained on (0 for the prior). */
+  nMatches: number;
 }
 
 const MODEL_TTL_MS = 60_000;
 let modelCache: { at: number; model: ActiveModel } | null = null;
 
-export const PRIOR: ActiveModel = { id: "prior", kind: "prior", spec: PRIOR_MODEL, trained: false };
+export const PRIOR: ActiveModel = { id: "prior", kind: "prior", spec: PRIOR_MODEL, trained: false, nMatches: 0 };
 
 /** The newest active trained model for the current features, or the prior. Cached for a minute. */
 export async function getActiveModel(prisma: PrismaClient): Promise<ActiveModel> {
@@ -131,9 +148,11 @@ export async function getActiveModel(prisma: PrismaClient): Promise<ActiveModel>
     const row = await prisma.winProbModel.findFirst({
       where: { active: true, featuresVersion: WP_FEATURES_VERSION },
       orderBy: { createdAt: "desc" },
-      select: { id: true, kind: true, spec: true },
+      select: { id: true, kind: true, spec: true, nMatches: true },
     });
-    if (row && isModelSpec(row.spec)) model = { id: row.id, kind: row.kind, spec: row.spec, trained: true };
+    if (row && isModelSpec(row.spec)) {
+      model = { id: row.id, kind: row.kind, spec: row.spec, trained: true, nMatches: row.nMatches };
+    }
   } catch (error) {
     console.error("[winprob] reading the model failed, using the prior:", error);
   }
@@ -246,6 +265,24 @@ export async function backfillWinProb(
   return done;
 }
 
+// ─── WPA ─────────────────────────────────────────────────
+
+const WPA_TTL_MS = 10 * 60_000;
+const wpaCache = new Map<string, { at: number; rows: PlayerWpa[] }>();
+
+/** Win probability added per player over the match (cached per match and model for a few minutes). */
+export async function getMatchWpa(prisma: PrismaClient, matchId: string): Promise<PlayerWpa[]> {
+  const model = await getActiveModel(prisma);
+  const key = `${matchId}:${model.id}`;
+  const hit = wpaCache.get(key);
+  if (hit && Date.now() - hit.at < WPA_TTL_MS) return hit.rows;
+  const match = await loadWinProbMatch(prisma, matchId);
+  const rows = match ? matchWpa(match, model.spec) : [];
+  if (wpaCache.size > 200) wpaCache.clear();
+  wpaCache.set(key, { at: Date.now(), rows });
+  return rows;
+}
+
 // ─── Findings impact ─────────────────────────────────────
 
 /**
@@ -278,4 +315,131 @@ export async function findingImpacts(
     console.error(`[winprob] impacts failed match=${matchId}:`, error);
     return targets.map(() => null);
   }
+}
+
+// ─── Co zrobiłby pro ─────────────────────────────────────
+
+/** Most candidates read per search; the index narrows them to one map, side, bomb state and ±1 alive. */
+const MAX_CANDIDATES = 6000;
+
+export interface ProExample {
+  matchId: string;
+  label: string;
+  roundNumber: number;
+  tick: number;
+  steamId: string;
+  name: string;
+  action: ProAction;
+  deltaPp: number;
+  died: boolean;
+  kill: boolean;
+}
+
+export interface ProAdvice {
+  /** The player's situation at the decision point (a few seconds before the mistake). */
+  situation: Situation;
+  decisionTick: number;
+  /** What the player did from there. */
+  you: ActionResult | null;
+  /** Your team's win probability then and ACTION_HORIZON_S later. */
+  youDeltaPp: number | null;
+  result: Omit<SimilarResult, "nearest">;
+  examples: ProExample[];
+  /** Pro demos on this map with situations. */
+  proMatches: number;
+}
+
+/**
+ * "Co zrobiłby pro" for one stored finding, or null when the moment cannot be
+ * rebuilt (no replay data, the player was not alive at the decision point).
+ * `result.n` is 0 when there are no pro demos of the map yet.
+ */
+export async function proAdviceForFinding(
+  prisma: PrismaClient,
+  finding: { matchId: string; type: string; steamId: string; roundNumber: number; tick: number }
+): Promise<ProAdvice | null> {
+  const match = await loadWinProbMatch(prisma, finding.matchId, { rounds: [finding.roundNumber] });
+  const round = match?.rounds[0];
+  if (!match || !round || round.frames.length === 0) return null;
+  const ctx = buildRoundContext(round, match.tickRate, match.sites);
+  const before = isFindingType(finding.type) ? FINDING_TYPES[finding.type].clip.before : 3;
+  // The decision is made before the mistake shows: the start of the finding's clip.
+  let decisionTick = Math.max(ctx.freezeEnd, finding.tick - Math.round(before * match.tickRate));
+  let situation = situationAt(ctx, finding.steamId, decisionTick);
+  for (let back = 1; !situation && back <= 3; back++) {
+    decisionTick = Math.max(ctx.freezeEnd, finding.tick - back * match.tickRate);
+    situation = situationAt(ctx, finding.steamId, decisionTick);
+  }
+  if (!situation) return null;
+
+  const model = await getActiveModel(prisma);
+  const you = actionAfter(ctx, finding.steamId, decisionTick);
+  const later = Math.min(decisionTick + ACTION_HORIZON_S * match.tickRate, ctx.decided - 1);
+  const youDeltaPp =
+    later > decisionTick
+      ? Math.round(
+          (predictSide(model.spec, stateAt(ctx, later), situation.side) -
+            predictSide(model.spec, stateAt(ctx, decisionTick), situation.side)) *
+            1000
+        ) / 10
+      : null;
+
+  const rows = await prisma.proSituation.findMany({
+    where: {
+      map: match.map,
+      version: SITUATIONS_VERSION,
+      side: situation.side,
+      planted: situation.planted,
+      aliveUs: { gte: situation.aliveUs - 1, lte: situation.aliveUs + 1 },
+      aliveThem: { gte: situation.aliveThem - 1, lte: situation.aliveThem + 1 },
+      // Never compare a pro demo with itself.
+      matchId: { not: finding.matchId },
+    },
+    take: MAX_CANDIDATES,
+  });
+  const candidates: Candidate[] = rows.map((r) => ({
+    id: r.id,
+    side: r.side === "T" ? "T" : "CT",
+    aliveUs: r.aliveUs,
+    aliveThem: r.aliveThem,
+    planted: r.planted,
+    timeLeft: r.timeLeft,
+    x: r.x,
+    y: r.y,
+    z: r.z,
+    hp: r.hp,
+    action: r.action as ProAction,
+    kill: r.kill,
+    died: r.died,
+    wpBefore: r.wpBefore,
+    wpAfter: r.wpAfter,
+  }));
+  const { nearest, ...result } = similarSituations(situation, candidates);
+
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const near = nearest.map((n) => byId.get(n.id)!).filter(Boolean);
+  const matchIds = [...new Set(near.map((r) => r.matchId))];
+  const [uploads, players, proMatches] = await Promise.all([
+    prisma.demoUpload.findMany({ where: { matchId: { in: matchIds } }, select: { matchId: true, proLabel: true, fileName: true } }),
+    prisma.matchPlayer.findMany({
+      where: { matchId: { in: matchIds }, steamId: { in: near.map((r) => r.steamId) } },
+      select: { matchId: true, steamId: true, name: true },
+    }),
+    prisma.winProbData.count({ where: { map: match.map, pro: true } }),
+  ]);
+  const labelOf = new Map(uploads.map((u) => [u.matchId, u.proLabel || u.fileName.replace(/\.dem(\.bz2)?$/i, "")]));
+  const nameOf = new Map(players.map((p) => [`${p.matchId}:${p.steamId}`, p.name]));
+  const examples: ProExample[] = near.map((r) => ({
+    matchId: r.matchId,
+    label: labelOf.get(r.matchId) ?? "",
+    roundNumber: r.roundNumber,
+    tick: r.tick,
+    steamId: r.steamId,
+    name: nameOf.get(`${r.matchId}:${r.steamId}`) ?? "",
+    action: r.action as ProAction,
+    deltaPp: Math.round((r.wpAfter - r.wpBefore) * 1000) / 10,
+    died: r.died,
+    kill: r.kill,
+  }));
+  return { situation, decisionTick, you, youDeltaPp, result, examples, proMatches };
 }

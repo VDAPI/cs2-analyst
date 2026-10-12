@@ -16,6 +16,7 @@ import { TACTICS_VERSION, type TacticsMoment } from "@/lib/analysis/tactics";
 import { detectFindings, FINDINGS_VERSION } from "./detect";
 import { findingImpacts, getActiveModel } from "@/lib/winprob/persist";
 import { WP_FEATURES_VERSION } from "@/lib/winprob/features";
+import { IMPACT_VERSION } from "@/lib/winprob/impact";
 
 /**
  * Stored findings are valid while detectors and the analyses they read are
@@ -24,7 +25,7 @@ import { WP_FEATURES_VERSION } from "@/lib/winprob/features";
 export const FINDINGS_STAMP = `f${FINDINGS_VERSION}.m${MECHANICS_VERSION}.a${AIM_VERSION}.t${TACTICS_VERSION}.u${UTILITY_VERSION}`;
 
 /** The stamp also names the win-probability model the impacts were scored with (S14). */
-export const findingsStamp = (modelId: string) => `${FINDINGS_STAMP}.w${WP_FEATURES_VERSION}:${modelId}`;
+export const findingsStamp = (modelId: string) => `${FINDINGS_STAMP}.w${WP_FEATURES_VERSION}.i${IMPACT_VERSION}:${modelId}`;
 
 /** Rebuild the match's findings. Returns how many were stored. */
 export async function computeAndPersistFindings(prisma: PrismaClient, matchId: string): Promise<number> {

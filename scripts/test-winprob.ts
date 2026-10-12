@@ -214,6 +214,13 @@ check("gbdt: missing features score like NaN", Number.isFinite(rawScore(fixture.
 check("impact rules only for known types", Object.keys(IMPACT_RULE).every((t) => t in FINDING_TYPES));
 const death = findingImpact({ type: "untraded_death", steamId: T2, roundNumber: 1, tick: S(20), targetSteamId: C1 }, ctx, PRIOR_MODEL);
 check("death: costs T's chances", death != null && death.kind === "death" && death.after < death.before && impactPp(death) < -1);
+const tradedCtx = buildRoundContext(
+  { ...round1, kills: [...round1.kills, { tick: S(20), attackerSteamId: T2, victimSteamId: C1 }] },
+  TR,
+  SITES
+);
+const tradedDeath = findingImpact({ type: "untraded_death", steamId: T2, roundNumber: 1, tick: S(20), targetSteamId: C1 }, tradedCtx, PRIOR_MODEL);
+check("death on the same tick as a kill: only the death counts", tradedDeath != null && tradedDeath.after < tradedDeath.before);
 const lateMech = findingImpact({ type: "moving_shot", steamId: T2, roundNumber: 1, tick: S(19), targetSteamId: C1 }, ctx, PRIOR_MODEL);
 check("mechanics: the death right after the shot", lateMech != null && lateMech.tick === S(20));
 check(

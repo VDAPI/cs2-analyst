@@ -9,6 +9,7 @@ const TABS = [
   { href: "/admin/analyses", label: "Analizy" },
   { href: "/admin/users", label: "Użytkownicy" },
   { href: "/admin/pro", label: "Dane pro" },
+  { href: "/admin/ml", label: "Model ML" },
 ];
 
 /** Sub-navigation of the admin panel; scrolls sideways on its own at 360 px. */

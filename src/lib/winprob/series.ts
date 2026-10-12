@@ -5,6 +5,8 @@
  * WPA follows Xenopoulos et al. ("Valuing Player Actions in Counter-
  * Strike"): every kill moves the round's win probability; the killer is
  * credited with that change for their side and the victim debited with it.
+ * The change of one kill is measured against the same tick with the victim
+ * alive, so two kills on one tick (a trade) are valued separately.
  * Summed over a match and divided by rounds it says how much a player moved
  * their team's chances per round, independent of how many kills they got.
  *
@@ -119,10 +121,12 @@ export function matchWpa(match: WpMatch, model: WinProbModelSpec): PlayerWpa[] {
       if (k.tick <= ctx.freezeEnd || k.tick > ctx.decided) continue;
       const victimSide = ctx.sideOf.get(k.victimSteamId);
       if (!victimSide) continue;
-      const pT = (tick: number) => predictT(model, stateAt(ctx, tick));
-      const deltaT = pT(k.tick) - pT(k.tick - 1);
+      // This kill alone: the same tick with the victim alive, so a second kill on that tick is not counted twice.
+      const deltaT =
+        predictT(model, stateAt(ctx, k.tick)) - predictT(model, stateAt(ctx, k.tick, { revive: [k.victimSteamId] }));
       // The victim's side lost this much; the killer's side (the other one) gained it.
-      const victimLoss = victimSide === "T" ? deltaT : -deltaT;
+      // A death never helps the victim's side; a model artifact saying so counts as 0.
+      const victimLoss = Math.min(0, victimSide === "T" ? deltaT : -deltaT);
       get(k.victimSteamId).fromDeaths += victimLoss;
       get(k.victimSteamId).total += victimLoss;
       if (k.attackerSteamId && ctx.sideOf.get(k.attackerSteamId) && ctx.sideOf.get(k.attackerSteamId) !== victimSide) {

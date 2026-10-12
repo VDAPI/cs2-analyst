@@ -4,13 +4,16 @@
  *
  * The cost is measured on what actually followed the mistake, never guessed:
  * - "death": the player died in the moments after it (the duel the mistake
- *   lost) → WP just before the death vs. right after it.
+ *   lost) → WP right after the death vs. the same moment with the player
+ *   still alive (so a kill on the same tick is not counted in).
  * - "mate_death": a teammate died right after it (a team flash) → same, on
  *   that teammate's death.
  * - "trade": a missed trade → WP when the trade window closed vs. the same
  *   moment had the killer been traded (and not got the kills he got after).
  * - "drop": no drop → WP at freeze end vs. the same with the broke teammate
  *   holding a rifle.
+ * Losing a player, a trade or a rifle never helps a team; where a trained
+ * model says otherwise (it only knows the states it saw) the cost is 0.
  * Types without a rule (timing of a smoke, a predictable spot, a force buy
  * whose cost is in the next round) get no number rather than a made-up one.
  *
@@ -19,6 +22,9 @@
 import { FINDING_TYPES, type FindingType } from "@/lib/findings/catalog";
 import { otherSide, stateAt, type Counterfactual, type RoundContext, type Side } from "./features";
 import { predictSide, type WinProbModelSpec } from "./model";
+
+/** Bump when how a cost is measured changes: stored findings are rebuilt. */
+export const IMPACT_VERSION = 1;
 
 export type ImpactKind = "death" | "mate_death" | "trade" | "drop";
 
@@ -97,10 +103,15 @@ export function findingImpact(
   const wp = (tick: number, cf?: Counterfactual) => predictSide(model, stateAt(ctx, tick, cf), side);
   const clip = FINDING_TYPES[f.type as FindingType]?.clip ?? { before: 3, after: 1.5 };
 
-  /** WP across a death: just before it vs. right after it. */
-  const acrossDeath = (k: ImpactKind, deathTick: number): Impact | null => {
+  /**
+   * What one death cost: WP right after it vs. the same moment with that
+   * player still alive, so a kill on the same tick (a trade, a double) is not
+   * mixed into it.
+   */
+  const acrossDeath = (k: ImpactKind, victim: string, deathTick: number): Impact | null => {
     if (deathTick <= ctx.freezeEnd || deathTick > ctx.decided) return null;
-    return { kind: k, before: wp(deathTick - 1), after: wp(deathTick), tick: deathTick };
+    const alive = wp(deathTick, { revive: [victim] });
+    return { kind: k, before: alive, after: Math.min(alive, wp(deathTick)), tick: deathTick };
   };
 
   switch (kind) {
@@ -108,13 +119,13 @@ export function findingImpact(
       const d = ctx.deathTick.get(f.steamId);
       if (d == null) return null;
       if (d < f.tick - BEFORE_SLACK_S * tr || d > f.tick + (clip.after + AFTER_SLACK_S) * tr) return null;
-      return acrossDeath("death", d);
+      return acrossDeath("death", f.steamId, d);
     }
     case "mate_death": {
       const deaths = [...ctx.deathTick.entries()]
         .filter(([id, t]) => id !== f.steamId && ctx.sideOf.get(id) === side && t >= f.tick && t <= f.tick + MATE_WINDOW_S * tr)
         .sort((a, b) => a[1] - b[1]);
-      return deaths.length > 0 ? acrossDeath("mate_death", deaths[0][1]) : null;
+      return deaths.length > 0 ? acrossDeath("mate_death", deaths[0][0], deaths[0][1]) : null;
     }
     case "trade": {
       const killer = f.targetSteamId;
@@ -127,7 +138,7 @@ export function findingImpact(
         .map((k) => k.victimSteamId);
       const actual = wp(at);
       const traded = wp(at, { kill: [killer], revive: laterVictims });
-      return { kind, before: traded, after: actual, tick: at };
+      return { kind, before: traded, after: Math.min(traded, actual), tick: at };
     }
     case "drop": {
       const mates = [...ctx.sideOf.entries()]
@@ -139,7 +150,7 @@ export function findingImpact(
       const at = ctx.freezeEnd;
       const actual = wp(at);
       const dropped = wp(at, { addEquip: { [mate.id]: DROP_VALUE[side] }, addRifle: [mate.id] });
-      return { kind, before: dropped, after: actual, tick: at };
+      return { kind, before: dropped, after: Math.min(dropped, actual), tick: at };
     }
   }
 }

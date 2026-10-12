@@ -16,6 +16,8 @@ import path from "path";
 import { clearModelCache } from "./persist";
 
 const TRAIN_EVERY_MS = 30 * 60_000;
+/** Matches the trainer needs before it fits anything (ML_MIN_MATCHES in ml/cs2ml/train.py). */
+export const ML_MIN_MATCHES = 20;
 let lastLocalRun = 0;
 let running = false;
 let warned = false;

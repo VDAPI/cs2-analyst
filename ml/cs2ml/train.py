@@ -50,6 +50,12 @@ MONOTONE = {
     "t_equip": 1, "ct_equip": -1, "equip_avg_diff": 1, "t_rifles": 1, "ct_rifles": -1,
     "planted": 1, "defusing": -1, "defuse_margin": -1, "defuse_short": 1, "time_pressure": -1,
 }
+# Always constrained, also in the plain "lgbm" candidate: the finding costs and WPA
+# revive or remove players, so a kill must never lower the killer's side's chance.
+ALWAYS_MONOTONE = (
+    "t_alive", "ct_alive", "alive_diff", "alive_log_ratio", "t_hp", "ct_hp",
+    "t_armor", "ct_armor", "t_equip", "ct_equip", "equip_avg_diff", "t_rifles", "ct_rifles",
+)
 
 LGBM_PARAMS = {
     "objective": "binary",
@@ -154,9 +160,10 @@ def fit_lgbm(monotone: bool) -> Callable[[Dataset, np.ndarray], dict]:
 
     def fit(ds: Dataset, idx: np.ndarray) -> dict:
         params = dict(LGBM_PARAMS)
-        if monotone:
-            params["monotone_constraints"] = [MONOTONE.get(f, 0) for f in ds.features]
-            params["monotone_constraints_method"] = "advanced"
+        params["monotone_constraints"] = [
+            MONOTONE.get(f, 0) if monotone or f in ALWAYS_MONOTONE else 0 for f in ds.features
+        ]
+        params["monotone_constraints_method"] = "advanced"
         # Early stopping on an inner split by match, then refit on everything with that many trees.
         groups = np.unique(ds.groups[idx])
         rounds = MAX_ROUNDS

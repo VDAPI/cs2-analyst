@@ -7,6 +7,7 @@ import { formatMetric, type PlayerReport, type ReportIssue, type ReportMetric } 
 import { fmtRoundTime, replayHref, type FindingView } from "@/lib/findings/view";
 import type { ReportNorms } from "@/lib/norms/report-norms";
 import { formatNormValue, proText } from "@/lib/norms/view";
+import { fmtPp, totalCostPp, type ReportWinProb } from "@/lib/winprob/report";
 import { FindingCard, type ClipContext } from "./finding-card";
 
 const STATUS_TONE: Record<string, string> = {
@@ -27,6 +28,7 @@ export function ReportBody({
   nameOf,
   norms = null,
   normsHref = null,
+  winprob = null,
 }: {
   report: PlayerReport<FindingView>;
   ctx: ClipContext;
@@ -35,15 +37,35 @@ export function ReportBody({
   norms?: ReportNorms | null;
   /** Link to the full norms screen (logged-in report only). */
   normsHref?: string | null;
+  /** Round win probability (S14): WPA and the model behind the "pp" numbers. */
+  winprob?: ReportWinProb | null;
 }) {
+  const totalCost = winprob ? totalCostPp(report.issues.flatMap((i) => i.findings)) : null;
+  const wpTiles = winprob ? (totalCost != null ? 1 : 0) + (winprob.wpaPerRoundPp != null ? 1 : 0) : 0;
   return (
     <>
       {/* Summary */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className={cn("grid grid-cols-2 gap-3", wpTiles > 0 ? "sm:grid-cols-3 lg:grid-cols-6" : "lg:grid-cols-4")}>
         <SummaryTile label="Wykryte błędy" value={report.totals.findings} />
         <SummaryTile label="Poważne" value={report.totals.high} tone="text-[var(--mistake)]" />
         <SummaryTile label="Kosztowały walkę" value={report.totals.costly} tone="text-[var(--warning)]" />
         <SummaryTile label="Rundy z błędem" value={report.totals.rounds} />
+        {winprob && totalCost != null && (
+          <SummaryTile
+            label={winprob.t("winprob.summaryCost")}
+            title={winprob.t("winprob.summaryCostHint")}
+            value={`${fmtPp(totalCost)} pp`}
+            tone="text-[var(--mistake)]"
+          />
+        )}
+        {winprob && winprob.wpaPerRoundPp != null && (
+          <SummaryTile
+            label={winprob.t("winprob.wpa")}
+            title={winprob.t("winprob.wpaHint")}
+            value={winprob.t("winprob.wpaValue", { pp: fmtPp(winprob.wpaPerRoundPp) })}
+            tone={winprob.wpaPerRoundPp >= 0 ? "text-[var(--good)]" : "text-[var(--mistake)]"}
+          />
+        )}
       </div>
 
       {/* Top 3 */}
@@ -58,7 +80,7 @@ export function ReportBody({
           </Card>
         ) : (
           report.top.map((issue, i) => (
-            <TopIssue key={issue.type} rank={i + 1} issue={issue} ctx={ctx} nameOf={nameOf} norms={norms} />
+            <TopIssue key={issue.type} rank={i + 1} issue={issue} ctx={ctx} nameOf={nameOf} norms={norms} winprob={winprob} />
           ))
         )}
       </section>
@@ -132,7 +154,7 @@ export function ReportBody({
               </p>
             ) : (
               issues.map((issue) => (
-                <IssueDetails key={issue.type} issue={issue} ctx={ctx} nameOf={nameOf} norms={norms} />
+                <IssueDetails key={issue.type} issue={issue} ctx={ctx} nameOf={nameOf} norms={norms} winprob={winprob} />
               ))
             )}
           </div>
@@ -145,14 +167,34 @@ export function ReportBody({
         {(!norms || norms.anyReference) && "Wartości „pro” oznaczone ≈ są orientacyjne, z publicznych źródeł, do czasu zebrania dem pro."}{" "}
         Kolejność top 3 bierze pod uwagę liczbę i wagę błędów,
         to, czy kosztowały walkę, oraz wynik metryki w całym meczu.
+        {winprob && (
+          <>
+            {" "}
+            {winprob.t("winprob.foot", {
+              model: winprob.trained
+                ? winprob.t("winprob.footTrained", { n: winprob.nMatches })
+                : winprob.t("winprob.footPrior"),
+            })}
+          </>
+        )}
       </p>
     </>
   );
 }
 
-function SummaryTile({ label, value, tone }: { label: string; value: number; tone?: string }) {
+function SummaryTile({
+  label,
+  value,
+  tone,
+  title,
+}: {
+  label: string;
+  value: number | string;
+  tone?: string;
+  title?: string;
+}) {
   return (
-    <Card className="p-4 md:p-4">
+    <Card className="p-4 md:p-4" title={title}>
       <p className="label-overline truncate text-[var(--text-tertiary)]">{label}</p>
       <p className={cn("mt-1 font-mono text-2xl font-semibold tabular-nums", tone ?? "text-[var(--text-primary)]")}>
         {value}
@@ -280,14 +322,17 @@ function TopIssue({
   ctx,
   nameOf,
   norms,
+  winprob,
 }: {
   rank: number;
   issue: ReportIssue<FindingView>;
   ctx: ClipContext;
   nameOf: Map<string, string>;
   norms: ReportNorms | null;
+  winprob: ReportWinProb | null;
 }) {
   const worst = issue.findings[0];
+  const cost = winprob ? totalCostPp(issue.findings) : null;
   return (
     <Card className="grid gap-4 border-l-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)]" style={{ borderLeftColor: rank === 1 ? "var(--accent-2)" : "var(--accent)" }}>
       <div className="min-w-0 space-y-3">
@@ -305,6 +350,14 @@ function TopIssue({
         </div>
         <p className="text-sm text-[var(--text-tertiary)]">
           {issue.def.label} · {issueCountLabel(issue)}
+          {winprob && cost != null && (
+            <>
+              {" · "}
+              <span className="font-mono font-semibold text-[var(--mistake)]" title={winprob.t("winprob.summaryCostHint")}>
+                {winprob.t("winprob.issueCost", { pp: fmtPp(cost) })}
+              </span>
+            </>
+          )}
         </p>
         {issue.metric && <MetricLine metric={issue.metric} norms={norms} />}
         <p className="flex items-start gap-2 text-sm text-[var(--text-secondary)]">
@@ -382,12 +435,15 @@ function IssueDetails({
   ctx,
   nameOf,
   norms,
+  winprob,
 }: {
   issue: ReportIssue<FindingView>;
   ctx: ClipContext;
   nameOf: Map<string, string>;
   norms: ReportNorms | null;
+  winprob: ReportWinProb | null;
 }) {
+  const cost = winprob ? totalCostPp(issue.findings) : null;
   return (
     <details
       id={`issue-${issue.type}`}
@@ -398,6 +454,11 @@ function IssueDetails({
         {issue.metric && issue.metric.value != null && (
           <span className={cn("font-mono text-sm font-semibold", STATUS_TONE[issue.metric.status])}>
             {formatMetric(issue.metric)}
+          </span>
+        )}
+        {cost != null && (
+          <span className="font-mono text-xs font-semibold text-[var(--mistake)]" title={winprob?.t("winprob.summaryCostHint")}>
+            {fmtPp(cost)} pp
           </span>
         )}
         <span className="font-mono text-xs text-[var(--text-tertiary)]">{issue.findings.length}×</span>
