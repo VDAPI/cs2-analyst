@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, ExternalLink, Loader2, Play } from "lucide-react";
 import type { DemoFetchStatus } from "@prisma/client";
-import { Button, Card } from "@/components/ui";
+import { Badge, Button, Card, Checkbox, SectionTitle } from "@/components/ui";
+import { MapThumb, ResultBadge } from "@/components/match";
+import { formatDate } from "@/lib/utils/formatters";
 import { FaceitDownloadButton } from "@/components/faceit-download-button";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import {
@@ -38,7 +40,10 @@ interface Props {
 }
 
 const selectClass =
-  "h-9 min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-active)] focus:outline-none sm:flex-none";
+  "h-10 min-w-0 flex-1 basis-28 rounded-lg border border-[var(--border)] bg-[var(--surface-4)] px-3 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-glow)] focus:outline-none max-md:min-h-11 sm:flex-none sm:basis-auto";
+
+const matchWord = (n: number) =>
+  n === 1 ? "mecz" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "mecze" : "meczów";
 
 /**
  * FACEIT match history with checkboxes and filters. "Analyze selected" queues
@@ -92,7 +97,7 @@ export function FaceitHistoryPicker({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error ?? "Could not start the analysis");
+        setError(data.error ?? "Nie udało się rozpocząć analizy");
         return;
       }
       if (data.mode === "upload") {
@@ -101,33 +106,33 @@ export function FaceitHistoryPicker({
         router.push("/queue");
       }
     } catch {
-      setError("Could not start the analysis — check your connection");
+      setError("Nie udało się rozpocząć analizy — sprawdź połączenie");
     } finally {
       setBusy(false);
     }
   };
 
   const limitText = Number.isFinite(monthlyLimit)
-    ? `${remaining} of ${monthlyLimit} analyses left this month · up to ${batchSize} at once`
-    : `Up to ${batchSize} matches at once`;
+    ? `Zostało ${remaining} z ${monthlyLimit} analiz w tym miesiącu · do ${batchSize} naraz`
+    : `Do ${batchSize} meczów naraz`;
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold text-[var(--text-primary)]">FACEIT history</h2>
+          <SectionTitle className="mb-1">Historia FACEIT</SectionTitle>
           <p className="text-xs text-[var(--text-tertiary)]">
-            Pick the matches to analyze. {limitText}.
+            Wybierz mecze do analizy. <span className="font-mono tabular-nums">{limitText}</span>.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <select
-            aria-label="Map"
+            aria-label="Mapa"
             className={selectClass}
             value={filters.map}
             onChange={(e) => setFilters({ ...filters, map: e.target.value })}
           >
-            <option value="all">All maps</option>
+            <option value="all">Wszystkie mapy</option>
             {maps.map((m) => (
               <option key={m} value={m}>
                 {mapDisplayName(m)}
@@ -135,64 +140,68 @@ export function FaceitHistoryPicker({
             ))}
           </select>
           <select
-            aria-label="Result"
+            aria-label="Wynik"
             className={selectClass}
             value={filters.result}
             onChange={(e) => setFilters({ ...filters, result: e.target.value as ResultFilter })}
           >
-            <option value="all">Any result</option>
-            <option value="WIN">Wins</option>
-            <option value="LOSS">Losses</option>
+            <option value="all">Każdy wynik</option>
+            <option value="WIN">Wygrane</option>
+            <option value="LOSS">Przegrane</option>
           </select>
           <select
-            aria-label="Period"
+            aria-label="Okres"
             className={selectClass}
             value={filters.period}
             onChange={(e) => setFilters({ ...filters, period: e.target.value as PeriodFilter })}
           >
-            <option value="all">Any time</option>
-            <option value="7">Last 7 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
+            <option value="all">Cały okres</option>
+            <option value="7">Ostatnie 7 dni</option>
+            <option value="30">Ostatnie 30 dni</option>
+            <option value="90">Ostatnie 90 dni</option>
           </select>
         </div>
       </div>
 
       {!downloadsEnabled && (
         <p className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text-secondary)]">
-          Automatic FACEIT downloads aren&apos;t available yet. After you pick matches we&apos;ll
-          show each match room so you can download its demo and drop it in.
+          Automatyczne pobieranie dem z FACEIT nie jest jeszcze dostępne. Po wybraniu meczów
+          pokażemy pokój każdego meczu, żebyś mógł pobrać demo i je wrzucić.
         </p>
       )}
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--text-tertiary)]">
-        <span className="font-mono">
-          {visible.length} match{visible.length === 1 ? "" : "es"}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--text-tertiary)]">
+        <span>
+          <span className="font-mono tabular-nums text-[var(--text-secondary)]">{visible.length}</span>{" "}
+          {matchWord(visible.length)}
         </span>
         <button
           type="button"
           onClick={selectVisible}
           disabled={pickable.length === 0 || cap === 0}
-          className="text-[var(--accent-hover)] hover:underline disabled:opacity-40 disabled:no-underline"
+          className="font-semibold text-[var(--accent-hover)] hover:underline disabled:opacity-40 disabled:no-underline max-md:min-h-11"
         >
-          Select {Math.min(pickable.length, cap) || ""} shown
+          Zaznacz widoczne
+          {Math.min(pickable.length, cap) ? (
+            <span className="font-mono tabular-nums"> ({Math.min(pickable.length, cap)})</span>
+          ) : null}
         </button>
         {selected.size > 0 && (
           <button
             type="button"
             onClick={() => setSelected(new Set())}
-            className="hover:text-[var(--text-secondary)]"
+            className="hover:text-[var(--text-secondary)] max-md:min-h-11"
           >
-            Clear
+            Wyczyść
           </button>
         )}
-        {cap === 0 && <span className="text-[var(--warning)]">Monthly limit reached</span>}
+        {cap === 0 && <Badge variant="warning">Osiągnięto miesięczny limit</Badge>}
       </div>
 
       {visible.length === 0 ? (
         <Card>
           <p className="py-6 text-center text-sm text-[var(--text-tertiary)]">
-            No FACEIT matches match these filters.
+            Żaden mecz FACEIT nie pasuje do tych filtrów.
           </p>
         </Card>
       ) : (
@@ -204,68 +213,54 @@ export function FaceitHistoryPicker({
             return (
               <Card
                 key={fm.id}
-                className={`flex flex-col gap-3 border-l-[3px] p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4 ${checked ? "border-[var(--border-active)]" : ""}`}
+                className={`flex flex-col gap-2 border-l-[3px] p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-4 ${checked ? "border-[var(--border-active)] bg-[var(--surface-2)]" : ""}`}
                 style={{
                   borderLeftColor:
-                    fm.result === "WIN" ? "#22c55e" : fm.result === "LOSS" ? "#ef4444" : "#ff5500",
+                    fm.result === "WIN"
+                      ? "var(--good)"
+                      : fm.result === "LOSS"
+                        ? "var(--mistake)"
+                        : "var(--faceit)",
                 }}
               >
-                <label
-                  className={`flex min-w-0 flex-1 items-center gap-3 ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
-                >
-                  <input
-                    type="checkbox"
-                    className="h-5 w-5 flex-shrink-0 accent-[var(--accent)]"
-                    checked={checked}
-                    disabled={disabled}
-                    onChange={() => toggle(fm.id)}
-                    aria-label={`Select ${mapDisplayName(fm.map)} ${fm.date.slice(0, 10)}`}
-                  />
-                  <div
-                    className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)] bg-cover bg-center"
-                    style={{
-                      backgroundImage: `url(/maps/${fm.map}_radar.png)`,
-                      filter: "grayscale(40%) brightness(0.7)",
-                    }}
-                  />
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <p className="font-medium text-[var(--text-primary)]">{mapDisplayName(fm.map)}</p>
-                      {fm.result && (
-                        <span
-                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                            fm.result === "WIN"
-                              ? "bg-[rgba(34,197,94,0.15)] text-[#22c55e]"
-                              : "bg-[rgba(239,68,68,0.15)] text-[#ef4444]"
-                          }`}
-                        >
-                          {fm.result === "WIN" ? "W" : "L"}
+                <Checkbox
+                  checked={checked}
+                  disabled={disabled}
+                  onChange={() => toggle(fm.id)}
+                  aria-label={`Zaznacz ${mapDisplayName(fm.map)} ${formatDate(fm.date)}`}
+                  className={`flex min-w-0 flex-1 gap-3 ${fm.uploadId ? "opacity-70" : ""}`}
+                  label={
+                    <span className="flex min-w-0 flex-1 items-center gap-3">
+                      <MapThumb map={fm.map} size="sm" />
+                      <span className="min-w-0">
+                        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <span className="font-display font-semibold text-[var(--text-primary)]">
+                            {mapDisplayName(fm.map)}
+                          </span>
+                          {fm.result && <ResultBadge result={fm.result === "WIN" ? "W" : "L"} />}
+                          <span className="font-mono text-sm tabular-nums text-[var(--text-secondary)]">
+                            {s1}:{s2}
+                          </span>
+                          {fm.uploadId && <Badge variant="default">W kolejce</Badge>}
                         </span>
-                      )}
-                      <span className="font-mono text-sm text-[var(--text-secondary)]">
-                        {s1}:{s2}
+                        <span className="block truncate text-xs text-[var(--text-tertiary)]">
+                          {formatDate(fm.date)}
+                          {fm.competition ? ` — ${fm.competition}` : ""}
+                        </span>
                       </span>
-                      {fm.uploadId && (
-                        <span className="rounded-full bg-[var(--accent-muted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--accent-hover)]">
-                          In queue
-                        </span>
-                      )}
-                    </div>
-                    <p className="truncate text-xs text-[var(--text-tertiary)]">
-                      {new Date(fm.date).toLocaleDateString()}
-                      {fm.competition ? ` — ${fm.competition}` : ""}
-                    </p>
-                  </div>
-                </label>
+                    </span>
+                  }
+                />
 
-                <div className="flex flex-wrap items-center gap-2 pl-8 sm:pl-0">
+                <div className="flex flex-wrap items-center gap-2 pl-[30px] sm:pl-0">
                   <a
                     href={fm.faceitUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--surface-3)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                    className="inline-flex h-8 items-center gap-1 rounded-lg bg-[var(--faceit-muted)] px-3 text-xs font-semibold text-[var(--faceit)] transition-colors hover:bg-[rgba(255,85,0,0.25)] max-md:min-h-11"
                   >
-                    FACEIT <ExternalLink className="h-3 w-3" />
+                    FACEIT <ExternalLink className="h-3 w-3" aria-hidden />
+                    <span className="sr-only">(otwiera się w nowej karcie)</span>
                   </a>
                   <FaceitDownloadButton
                     faceitMatchId={fm.id}
@@ -279,27 +274,28 @@ export function FaceitHistoryPicker({
         </div>
       )}
 
-      {/* Sticky action bar */}
+      {/* Sticky action bar (sits above the mobile bottom nav) */}
       {selected.size > 0 && (
-        <div className="sticky bottom-0 z-10 -mx-1 rounded-xl border border-[var(--border-active)] bg-[var(--glass-bg)] p-3 backdrop-blur">
+        <div className="sticky bottom-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+8px)] z-10 rounded-xl border border-[var(--border-active)] bg-[var(--glass-bg)] p-3 shadow-[var(--shadow-lg)] backdrop-blur-md md:bottom-0">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-              <input
-                type="checkbox"
-                className="h-4 w-4 accent-[var(--accent)]"
-                checked={keepDemo}
-                onChange={(e) => setKeepDemo(e.target.checked)}
-              />
-              Keep the demo files (otherwise deleted after analysis)
-            </label>
+            <Checkbox
+              checked={keepDemo}
+              onChange={(e) => setKeepDemo(e.target.checked)}
+              className="text-xs"
+              label="Zachowaj pliki demo (domyślnie usuwane po analizie)"
+            />
             <Button onClick={analyze} disabled={busy} className="w-full sm:w-auto">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              Analyze selected ({selected.size})
+              {busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <Play className="h-4 w-4" aria-hidden />
+              )}
+              Analizuj zaznaczone (<span className="font-mono tabular-nums">{selected.size}</span>)
             </Button>
           </div>
           {error && (
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-[var(--error)]">
-              <AlertCircle className="h-3.5 w-3.5" /> {error}
+            <p role="alert" className="mt-2 flex items-center gap-1.5 text-xs text-[var(--mistake)]">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden /> {error}
             </p>
           )}
         </div>

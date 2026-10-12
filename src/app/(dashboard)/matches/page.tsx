@@ -1,7 +1,10 @@
 import { prisma } from "@/lib/db/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { Card, StatCard } from "@/components/ui";
+import { Badge, Card, EmptyState, PageHeader, SectionTitle, StatCard, buttonVariants } from "@/components/ui";
+import { MapThumb, ResultBadge, SourceBadge, resultColor, resultFor, type MatchResult } from "@/components/match";
+import { formatDate } from "@/lib/utils/formatters";
+import { Flame, Upload } from "lucide-react";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { FaceitSyncTrigger } from "@/components/faceit-sync-trigger";
 import { FaceitHistoryPicker } from "@/components/faceit-history-picker";
@@ -9,9 +12,19 @@ import { activeUploadId, faceitDownloadsEnabled, FACEIT_UPLOAD_INCLUDE } from "@
 import { getPlanUsage } from "@/lib/limits";
 import Link from "next/link";
 
+/** "1 gracz", "4 graczy" — Polish plural for the player count. */
+function playersLabel(n: number): string {
+  if (n === 1) return "1 gracz";
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} gracze`;
+  return `${n} graczy`;
+}
+
 export default async function MatchesPage() {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
+  const userSteamId = session?.user?.steamId;
 
   // Fetch parsed matches (from uploaded demos)
   const parsedMatches = userId
@@ -59,7 +72,6 @@ export default async function MatchesPage() {
   let playerMatches = 0;
 
   for (const match of parsedMatches) {
-    const userSteamId = session?.user?.steamId;
     const userPlayer = userSteamId
       ? match.players.find((p) => p.steamId === userSteamId)
       : null;
@@ -94,71 +106,63 @@ export default async function MatchesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-            Matches
-          </h1>
-          <p className="mt-1 text-sm text-[var(--text-secondary)]">
-            Your recent CS2 match history and stats overview.
-          </p>
-        </div>
-        <FaceitSyncTrigger hasFaceit={!!dbUser?.faceitId} />
-      </div>
+      <PageHeader
+        eyebrow="Analiza"
+        title="Mecze"
+        description="Twoja historia meczów CS2 i podsumowanie statystyk."
+        actions={
+          <>
+            <FaceitSyncTrigger hasFaceit={!!dbUser?.faceitId} />
+            <Link href="/upload" className={buttonVariants({ variant: "cta" })}>
+              <Upload className="h-4 w-4" aria-hidden />
+              Wgraj demo
+            </Link>
+          </>
+        }
+      />
 
       {/* Stat overview row */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Matches Played" value={matchCount || "--"} />
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <StatCard label="Rozegrane mecze" value={matchCount || "--"} />
         <StatCard
-          label="Win Rate"
+          label="Win rate"
           value={playerMatches > 0 ? `${winRate}%` : "--%"}
-          accentColor="var(--success)"
+          accentColor="var(--good)"
         />
-        <StatCard label="Avg HLTV" value={avgHltv} accentColor="var(--t-gold)" />
-        <StatCard label="Avg ADR" value={avgAdr} accentColor="var(--ct-blue)" />
+        <StatCard label="Śr. rating HLTV" value={avgHltv} />
+        <StatCard label="Śr. ADR" value={avgAdr} />
       </div>
 
       {/* Parsed match list */}
       {parsedMatches.length === 0 && unlinkedFaceitMatches.length === 0 ? (
-        <Card>
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-lg font-medium text-[var(--text-secondary)]">
-              No matches yet
-            </p>
-            <p className="mt-2 text-sm text-[var(--text-tertiary)]">
-              Upload your first demo to see match analytics here.
-            </p>
-            <Link
-              href="/upload"
-              className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--accent)] px-5 text-sm font-medium text-[var(--on-accent)] transition-all hover:bg-[var(--accent-hover)]"
-            >
-              Upload Demo
+        <EmptyState
+          icon={Upload}
+          title="Brak meczów"
+          description="Wgraj swoje pierwsze demo, a analiza meczu pojawi się tutaj."
+          action={
+            <Link href="/upload" className={buttonVariants({ variant: "primary" })}>
+              Wgraj demo
             </Link>
-          </div>
-        </Card>
+          }
+        />
       ) : (
         <div className="space-y-3">
+          {parsedMatches.length > 0 && (
+            <SectionTitle className="mb-0">Przeanalizowane mecze</SectionTitle>
+          )}
+
           {/* Parsed matches — full analytics available */}
           {parsedMatches.map((match) => {
             const topPlayer = match.players.reduce((a, b) =>
               a.hltvRating > b.hltvRating ? a : b
             );
 
-            const userSteamId = session?.user?.steamId;
             const userPlayer = userSteamId
               ? match.players.find((p) => p.steamId === userSteamId)
               : null;
-            let result: "win" | "loss" | "draw" | null = null;
-            if (userPlayer) {
-              const userTeamScore = userPlayer.team === "CT" ? match.scoreCT : match.scoreT;
-              const enemyScore = userPlayer.team === "CT" ? match.scoreT : match.scoreCT;
-              result = userTeamScore > enemyScore ? "win" : userTeamScore < enemyScore ? "loss" : "draw";
-            }
-
-            const borderColor =
-              result === "win" ? "#3DF5A0" :
-              result === "loss" ? "#FF4D6A" :
-              "#8A83A8";
+            const result: MatchResult | null = userPlayer
+              ? resultFor(userPlayer.team, match.scoreCT, match.scoreT)
+              : null;
 
             // Detect aces in this match
             let aceInfo: { playerName: string; roundNumber: number } | null = null;
@@ -178,76 +182,85 @@ export default async function MatchesPage() {
               if (aceInfo) break;
             }
 
-            return (
-              <Link key={match.id} href={`/matches/${match.id}`}>
-                <Card
-                  className="flex items-center justify-between border-l-[3px] p-4 transition-all duration-150 hover:border-[var(--border-hover)]"
-                  style={{ borderLeftColor: borderColor }}
-                >
-                  <div className="flex items-center gap-4">
-                    <div
-                      className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)] bg-cover bg-center"
-                      style={{
-                        backgroundImage: `url(/maps/${match.map}_radar.png)`,
-                        filter: "grayscale(40%) brightness(0.7)",
-                      }}
-                    />
+            // Score digits: colored by the user's result when they played,
+            // otherwise the winning side's number is highlighted.
+            const scoreColor = (own: number, other: number) =>
+              result
+                ? resultColor(result)
+                : own > other
+                  ? "var(--text-primary)"
+                  : "var(--text-tertiary)";
 
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-[var(--text-primary)]">
+            const score = (
+              <span
+                className="stat-small whitespace-nowrap"
+                title="Wynik CT : T"
+              >
+                <span style={{ color: scoreColor(match.scoreCT, match.scoreT) }}>
+                  {match.scoreCT}
+                </span>
+                <span className="mx-1 text-[var(--text-disabled)]">:</span>
+                <span style={{ color: scoreColor(match.scoreT, match.scoreCT) }}>
+                  {match.scoreT}
+                </span>
+              </span>
+            );
+
+            const mvp = (
+              <>
+                <span className="label-overline mr-1.5 text-[var(--text-tertiary)]">MVP</span>
+                <span className="text-[var(--text-secondary)]">{topPlayer.name}</span>{" "}
+                <span className="stat-inline text-[var(--text-primary)]">
+                  {topPlayer.hltvRating.toFixed(2)}
+                </span>
+              </>
+            );
+
+            return (
+              <Link
+                key={match.id}
+                href={`/matches/${match.id}`}
+                className="block rounded-xl focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--accent-glow)]"
+              >
+                <Card
+                  className="flex items-center gap-3 border-l-[3px] p-3 sm:gap-4 md:p-4"
+                  style={{ borderLeftColor: resultColor(result) }}
+                >
+                  <MapThumb map={match.map} />
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start gap-2">
+                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                        <p className="truncate font-display font-semibold text-[var(--text-primary)]">
                           {mapDisplayName(match.map)}
                         </p>
-                        {result && (
-                          <span
-                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                              result === "win"
-                                ? "bg-[rgba(61,245,160,0.15)] text-[#3DF5A0]"
-                                : result === "loss"
-                                  ? "bg-[rgba(255,77,106,0.15)] text-[#FF4D6A]"
-                                  : "bg-[rgba(113,113,122,0.15)] text-[#8A83A8]"
-                            }`}
-                          >
-                            {result === "win" ? "W" : result === "loss" ? "L" : "D"}
-                          </span>
-                        )}
-                        {match.upload?.source === "FACEIT" && (
-                          <span className="rounded-full bg-[rgba(255,85,0,0.15)] px-1.5 py-0.5 text-[10px] font-bold text-[#ff5500]">
-                            FACEIT
-                          </span>
-                        )}
+                        {result && <ResultBadge result={result} />}
+                        <SourceBadge source={match.upload?.source} />
                         {aceInfo && (
-                          <span className="rounded-full bg-[rgba(255,194,61,0.15)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--t-gold)]">
-                            ACE by {aceInfo.playerName} (R{aceInfo.roundNumber})
-                          </span>
+                          <Badge
+                            variant="default"
+                            className="min-w-0 max-w-full text-[11px]"
+                            title={`ACE: ${aceInfo.playerName} (runda ${aceInfo.roundNumber})`}
+                          >
+                            <Flame className="h-3 w-3 shrink-0" aria-hidden />
+                            <span className="min-w-0 truncate">
+                              ACE {aceInfo.playerName}{" "}
+                              <span className="font-mono tabular-nums">(R{aceInfo.roundNumber})</span>
+                            </span>
+                          </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-[var(--text-tertiary)]">
-                        {match.date.toLocaleDateString()} — {match.players.length} players
-                      </p>
+                      <div className="shrink-0 sm:hidden">{score}</div>
                     </div>
+                    <p className="mt-0.5 text-xs text-[var(--text-tertiary)]">
+                      {formatDate(match.date)} · {playersLabel(match.players.length)}
+                    </p>
+                    <p className="mt-1 truncate text-xs sm:hidden">{mvp}</p>
                   </div>
 
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <p className="text-xs text-[var(--text-tertiary)]">MVP</p>
-                      <p className="text-sm text-[var(--text-secondary)]">
-                        {topPlayer.name}{" "}
-                        <span className="stat-inline text-[var(--t-gold)]">
-                          {topPlayer.hltvRating.toFixed(2)}
-                        </span>
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className={`stat-small ${match.scoreCT > match.scoreT ? "text-[var(--success)]" : match.scoreCT < match.scoreT ? "text-[var(--error)]" : "text-[var(--text-tertiary)]"}`}>
-                        {match.scoreCT}
-                      </span>
-                      <span className="text-[var(--text-disabled)]">:</span>
-                      <span className={`stat-small ${match.scoreT > match.scoreCT ? "text-[var(--success)]" : match.scoreT < match.scoreCT ? "text-[var(--error)]" : "text-[var(--text-tertiary)]"}`}>
-                        {match.scoreT}
-                      </span>
-                    </div>
+                  <div className="hidden shrink-0 items-center gap-6 sm:flex">
+                    <p className="max-w-[220px] truncate text-right text-sm">{mvp}</p>
+                    {score}
                   </div>
                 </Card>
               </Link>

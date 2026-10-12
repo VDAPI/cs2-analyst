@@ -45,19 +45,38 @@ export function FaceitSyncTrigger({ hasFaceit }: FaceitSyncTriggerProps) {
 
   if (!hasFaceit) return null;
 
+  const matchWord = (n: number) =>
+    n === 1 ? "nowy mecz" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? "nowe mecze" : "nowych meczów";
+
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-2">
       {syncing ? (
-        <div className="flex items-center gap-2 rounded-lg bg-[rgba(255,85,0,0.08)] px-3 py-2 text-xs text-[#ff5500]">
-          <RefreshCw className="h-3 w-3 animate-spin" />
-          Syncing FACEIT matches…
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-lg bg-[var(--faceit-muted)] px-3 py-2 text-xs text-[var(--faceit)]"
+        >
+          <RefreshCw className="h-3 w-3 animate-spin" aria-hidden />
+          Synchronizacja meczów FACEIT…
         </div>
       ) : result ? (
-        <div className="flex items-center gap-2 rounded-lg bg-[rgba(61,245,160,0.08)] px-3 py-2 text-xs text-[var(--success)]">
-          {result.synced > 0
-            ? `Synced ${result.synced} new match${result.synced !== 1 ? "es" : ""}`
-            : "No new matches found"}
-          {result.errors.length > 0 && ` (${result.errors.length} error${result.errors.length !== 1 ? "s" : ""})`}
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-lg bg-[var(--good-muted)] px-3 py-2 text-xs text-[var(--good)]"
+        >
+          {result.synced > 0 ? (
+            <span>
+              Zsynchronizowano{" "}
+              <span className="font-mono tabular-nums">{result.synced}</span>{" "}
+              {matchWord(result.synced)}
+            </span>
+          ) : (
+            "Brak nowych meczów"
+          )}
+          {result.errors.length > 0 && (
+            <span className="text-[var(--warning)]">
+              (błędy: <span className="font-mono tabular-nums">{result.errors.length}</span>)
+            </span>
+          )}
         </div>
       ) : null}
 
@@ -66,10 +85,10 @@ export function FaceitSyncTrigger({ hasFaceit }: FaceitSyncTriggerProps) {
         size="sm"
         onClick={runSync}
         disabled={syncing}
-        className="!border-[#ff5500] !text-[#ff5500] hover:!bg-[rgba(255,85,0,0.1)]"
+        className="border-[var(--faceit)] text-[var(--faceit)] hover:border-[var(--faceit)] hover:bg-[var(--faceit-muted)] hover:text-[var(--faceit)]"
       >
-        <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
-        Sync FACEIT
+        <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} aria-hidden />
+        Synchronizuj FACEIT
       </Button>
     </div>
   );

@@ -1,4 +1,5 @@
-import { Card } from "@/components/ui";
+import { Card, SectionTitle } from "@/components/ui";
+import { PLAYER_COLORS } from "../../../compare-ui";
 import type { StatRow } from "../../../types";
 
 interface StatComparisonProps {
@@ -14,26 +15,24 @@ export function StatComparison({
 }: StatComparisonProps) {
   return (
     <Card>
-      <h2 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">
-        Stats Breakdown
-      </h2>
+      <SectionTitle>Statystyki</SectionTitle>
 
       {/* Column headers */}
-      <div className="mb-3 flex items-center px-2 text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
-        <span className="flex-1 text-right" style={{ color: "var(--ct-blue)" }}>
+      <div className="mb-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 text-xs font-semibold">
+        <span className="truncate" style={{ color: PLAYER_COLORS.p1 }}>
           {player1Name}
         </span>
-        <span className="w-32 shrink-0 text-center">Stat</span>
-        <span className="flex-1" style={{ color: "var(--t-gold)" }}>
+        <span className="label-overline text-center text-[var(--text-tertiary)]">Statystyka</span>
+        <span className="truncate text-right" style={{ color: PLAYER_COLORS.p2 }}>
           {player2Name}
         </span>
       </div>
 
-      <div className="space-y-1">
+      <ul className="divide-y divide-[var(--divider)]">
         {stats.map((stat) => {
-          const total = stat.p1Value + stat.p2Value;
-          const p1Pct = total > 0 ? (stat.p1Value / total) * 100 : 50;
-          const p2Pct = total > 0 ? (stat.p2Value / total) * 100 : 50;
+          const max = Math.max(Math.abs(stat.p1Value), Math.abs(stat.p2Value));
+          const p1Pct = max > 0 ? (Math.abs(stat.p1Value) / max) * 100 : 0;
+          const p2Pct = max > 0 ? (Math.abs(stat.p2Value) / max) * 100 : 0;
 
           const p1Better = stat.higherIsBetter
             ? stat.p1Value > stat.p2Value
@@ -44,63 +43,66 @@ export function StatComparison({
           const equal = stat.p1Value === stat.p2Value;
 
           return (
-            <div key={stat.label} className="group">
-              <div className="flex items-center rounded-lg px-2 py-2 transition-colors hover:bg-[rgba(190,160,255,0.02)]">
+            <li key={stat.label} className="py-2.5">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
                 {/* P1 value */}
                 <span
-                  className={`stat-inline flex-1 text-right text-sm font-semibold ${
-                    equal
-                      ? "text-[var(--text-primary)]"
-                      : p1Better
-                        ? "text-[var(--success)]"
-                        : "text-[var(--text-secondary)]"
+                  className={`stat-inline text-sm ${
+                    p1Better ? "font-bold" : equal ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-tertiary)]"
                   }`}
+                  style={p1Better ? { color: PLAYER_COLORS.p1 } : undefined}
                 >
                   {stat.format(stat.p1Value)}
+                  {p1Better && <span className="sr-only">(lepszy)</span>}
                 </span>
 
                 {/* Label */}
-                <span className="w-32 shrink-0 text-center text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
+                <span className="max-w-[9.5rem] text-center text-xs font-medium leading-tight text-[var(--text-secondary)] sm:max-w-none">
                   {stat.label}
+                  {!stat.higherIsBetter && (
+                    <span className="block text-[11px] text-[var(--text-tertiary)]">mniej = lepiej</span>
+                  )}
                 </span>
 
                 {/* P2 value */}
                 <span
-                  className={`stat-inline flex-1 text-sm font-semibold ${
-                    equal
-                      ? "text-[var(--text-primary)]"
-                      : p2Better
-                        ? "text-[var(--success)]"
-                        : "text-[var(--text-secondary)]"
+                  className={`stat-inline text-right text-sm ${
+                    p2Better ? "font-bold" : equal ? "font-semibold text-[var(--text-primary)]" : "text-[var(--text-tertiary)]"
                   }`}
+                  style={p2Better ? { color: PLAYER_COLORS.p2 } : undefined}
                 >
                   {stat.format(stat.p2Value)}
+                  {p2Better && <span className="sr-only">(lepszy)</span>}
                 </span>
               </div>
 
-              {/* Proportional bar */}
-              <div className="mx-2 flex h-1 overflow-hidden rounded-full bg-[var(--surface-3)]">
-                <div
-                  className="rounded-l-full transition-all duration-300"
-                  style={{
-                    width: `${p1Pct}%`,
-                    backgroundColor: "var(--ct-blue)",
-                    opacity: p1Better ? 0.7 : 0.3,
-                  }}
-                />
-                <div
-                  className="rounded-r-full transition-all duration-300"
-                  style={{
-                    width: `${p2Pct}%`,
-                    backgroundColor: "var(--t-gold)",
-                    opacity: p2Better ? 0.7 : 0.3,
-                  }}
-                />
+              {/* Mirrored bars growing out from the middle */}
+              <div className="mt-1.5 grid grid-cols-2 gap-1" aria-hidden>
+                <div className="flex h-1.5 justify-end overflow-hidden rounded-l-full bg-[var(--surface-3)]">
+                  <div
+                    className="h-full rounded-l-full transition-all duration-300"
+                    style={{
+                      width: `${p1Pct}%`,
+                      backgroundColor: PLAYER_COLORS.p1,
+                      opacity: p1Better || equal ? 0.9 : 0.35,
+                    }}
+                  />
+                </div>
+                <div className="flex h-1.5 overflow-hidden rounded-r-full bg-[var(--surface-3)]">
+                  <div
+                    className="h-full rounded-r-full transition-all duration-300"
+                    style={{
+                      width: `${p2Pct}%`,
+                      backgroundColor: PLAYER_COLORS.p2,
+                      opacity: p2Better || equal ? 0.9 : 0.35,
+                    }}
+                  />
+                </div>
               </div>
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </Card>
   );
 }

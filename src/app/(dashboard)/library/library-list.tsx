@@ -3,8 +3,10 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Archive, FileX, Play, Trash2 } from "lucide-react";
-import { Button, Card } from "@/components/ui";
+import { AlertCircle, Archive, FileText, FileX, Library, Play, Trash2, Upload } from "lucide-react";
+import { Badge, Button, Card, EmptyState, buttonVariants, type BadgeProps } from "@/components/ui";
+import { MapThumb, ResultBadge, SourceBadge } from "@/components/match";
+import { formatDate } from "@/lib/utils/formatters";
 import type { DemoState } from "@/lib/library";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 
@@ -26,20 +28,27 @@ export interface LibraryEntry {
 }
 
 const DEMO_LABEL: Record<DemoState, string> = {
-  deleted: "Demo deleted",
-  kept: "Demo kept",
-  stored: "Demo on file",
-  pending_delete: "Demo pending deletion",
+  deleted: "Demo usunięte",
+  kept: "Demo zachowane",
+  stored: "Demo na dysku",
+  pending_delete: "Demo czeka na usunięcie",
 };
 
-const RESULT_STYLE = {
-  W: "bg-[rgba(34,197,94,0.15)] text-[#22c55e]",
-  L: "bg-[rgba(239,68,68,0.15)] text-[#ef4444]",
-  D: "bg-[rgba(113,113,122,0.15)] text-[#71717a]",
-} as const;
+const DEMO_BADGE: Record<DemoState, NonNullable<BadgeProps["variant"]>> = {
+  deleted: "neutral",
+  kept: "default",
+  stored: "neutral",
+  pending_delete: "warning",
+};
 
 const formatSize = (bytes: number) =>
   bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(0)} MB` : `${(bytes / 1024).toFixed(0)} KB`;
+
+const plural = (n: number, one: string, few: string, many: string) =>
+  n === 1 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? few : many;
+
+const selectClass =
+  "h-10 min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface-4)] px-3 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-glow)] focus:outline-none max-md:min-h-11";
 
 export function LibraryList({ entries }: { entries: LibraryEntry[] }) {
   const router = useRouter();
@@ -57,11 +66,11 @@ export function LibraryList({ entries }: { entries: LibraryEntry[] }) {
       const res = await fetch(`/api/uploads/${uploadId}`, init);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error ?? "Something went wrong");
+        setError(data.error ?? "Coś poszło nie tak");
       }
       router.refresh();
     } catch {
-      setError("Something went wrong — check your connection");
+      setError("Coś poszło nie tak — sprawdź połączenie");
     } finally {
       setBusy(null);
     }
@@ -76,24 +85,31 @@ export function LibraryList({ entries }: { entries: LibraryEntry[] }) {
 
   const remove = (e: LibraryEntry) => {
     const ok = window.confirm(
-      `Delete the ${mapDisplayName(e.map)} analysis? The report, the 2D replay and the demo file are removed for good.`
+      `Usunąć analizę ${mapDisplayName(e.map)}? Raport, powtórka 2D i plik demo zostaną usunięte na zawsze.`
     );
     if (ok) void call(e.uploadId, { method: "DELETE" });
   };
 
+  const removeDemo = (e: LibraryEntry) => {
+    const ok = window.confirm(
+      `Usunąć plik demo meczu ${mapDisplayName(e.map)}? Analiza i powtórka 2D zostaną.`
+    );
+    if (ok) void patch(e.uploadId, { deleteDemo: true });
+  };
+
   if (entries.length === 0) {
     return (
-      <Card>
-        <div className="flex flex-col items-center py-12 text-center">
-          <p className="text-lg font-medium text-[var(--text-secondary)]">No saved analyses yet</p>
-          <p className="mt-2 text-sm text-[var(--text-tertiary)]">
-            Finished analyses land here, with their report and 2D replay.
-          </p>
-          <Link href="/upload" className="mt-4">
-            <Button>Upload demos</Button>
+      <EmptyState
+        icon={Library}
+        title="Brak zapisanych analiz"
+        description="Gotowe analizy trafiają tutaj, razem z raportem i powtórką 2D."
+        action={
+          <Link href="/upload" className={buttonVariants({ variant: "cta" })}>
+            <Upload className="h-4 w-4" aria-hidden />
+            Wgraj demo
           </Link>
-        </div>
-      </Card>
+        }
+      />
     );
   }
 
@@ -101,109 +117,123 @@ export function LibraryList({ entries }: { entries: LibraryEntry[] }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <select
-          aria-label="Map"
+          aria-label="Mapa"
           value={map}
           onChange={(e) => setMap(e.target.value)}
-          className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 text-sm text-[var(--text-primary)] focus:border-[var(--border-active)] focus:outline-none"
+          className={selectClass}
         >
-          <option value="all">All maps</option>
+          <option value="all">Wszystkie mapy</option>
           {maps.map((m) => (
             <option key={m} value={m}>
               {mapDisplayName(m)}
             </option>
           ))}
         </select>
-        <span className="font-mono text-xs text-[var(--text-tertiary)]">{shown.length} analyses</span>
+        <span className="text-xs text-[var(--text-tertiary)]">
+          <span className="font-mono tabular-nums text-[var(--text-secondary)]">{shown.length}</span>{" "}
+          {plural(shown.length, "analiza", "analizy", "analiz")}
+        </span>
       </div>
 
       {error && (
-        <p className="flex items-center gap-1.5 text-xs text-[var(--error)]">
-          <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" /> {error}
+        <p role="alert" className="flex items-center gap-1.5 text-sm text-[var(--mistake)]">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden /> {error}
         </p>
       )}
 
       {shown.map((e) => {
         const hasFile = e.demo === "kept" || e.demo === "stored" || e.demo === "pending_delete";
+        const isBusy = busy === e.uploadId;
         return (
           <Card key={e.uploadId} className="p-3 sm:p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <Link href={`/matches/${e.matchId}`} className="flex min-w-0 items-center gap-3">
-                <div
-                  className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)] bg-cover bg-center"
-                  style={{
-                    backgroundImage: `url(/maps/${e.map}_radar.png)`,
-                    filter: "grayscale(40%) brightness(0.7)",
-                  }}
-                />
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <Link
+                href={`/matches/${e.matchId}`}
+                className="group flex min-w-0 items-center gap-3"
+              >
+                <MapThumb map={e.map} />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <p className="font-medium text-[var(--text-primary)]">{mapDisplayName(e.map)}</p>
-                    {e.result && (
-                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${RESULT_STYLE[e.result]}`}>
-                        {e.result}
-                      </span>
-                    )}
-                    <span className="font-mono text-sm text-[var(--text-secondary)]">
+                    <p className="font-display font-semibold text-[var(--text-primary)] group-hover:text-[var(--accent-hover)]">
+                      {mapDisplayName(e.map)}
+                    </p>
+                    {e.result && <ResultBadge result={e.result} />}
+                    <span className="font-mono text-sm tabular-nums text-[var(--text-secondary)]">
                       {e.scoreCT}:{e.scoreT}
                     </span>
                     {e.rating !== null && (
-                      <span className="font-mono text-xs text-[var(--t-gold)]">{e.rating.toFixed(2)}</span>
-                    )}
-                    {e.source === "FACEIT" && (
-                      <span className="rounded-full bg-[rgba(255,85,0,0.15)] px-1.5 py-0.5 text-[10px] font-bold text-[#ff5500]">
-                        FACEIT
+                      <span
+                        className="font-mono text-xs tabular-nums text-[var(--text-secondary)]"
+                        title="Rating"
+                      >
+                        <span className="text-[var(--text-tertiary)]">Rating </span>
+                        {e.rating.toFixed(2)}
                       </span>
                     )}
+                    <SourceBadge source={e.source} />
                   </div>
-                  <p className="truncate text-xs text-[var(--text-tertiary)]">
-                    {new Date(e.date).toLocaleDateString()} · {DEMO_LABEL[e.demo]}
-                    {hasFile && e.fileSize > 0 ? ` (${formatSize(e.fileSize)})` : ""}
-                    {!e.replayStored ? " · no stored replay data" : ""}
-                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--text-tertiary)]">
+                    <span>{formatDate(e.date)}</span>
+                    <Badge variant={DEMO_BADGE[e.demo]}>
+                      {DEMO_LABEL[e.demo]}
+                      {hasFile && e.fileSize > 0 && (
+                        <span className="font-mono tabular-nums">({formatSize(e.fileSize)})</span>
+                      )}
+                    </Badge>
+                    {!e.replayStored && <Badge variant="warning">Brak zapisanej powtórki</Badge>}
+                  </div>
                 </div>
               </Link>
 
               <div className="flex flex-wrap items-center gap-2">
-                <Link href={`/replay/${e.matchId}`}>
-                  <Button size="sm" variant="secondary">
-                    <Play className="h-3.5 w-3.5" /> Replay
-                  </Button>
+                <Link
+                  href={`/matches/${e.matchId}`}
+                  className={buttonVariants({ variant: "secondary", size: "sm" })}
+                >
+                  <FileText className="h-3.5 w-3.5" aria-hidden /> Raport
+                </Link>
+                <Link
+                  href={`/replay/${e.matchId}`}
+                  className={buttonVariants({ variant: "secondary", size: "sm" })}
+                >
+                  <Play className="h-3.5 w-3.5" aria-hidden /> Replay 2D
                 </Link>
                 {e.demo !== "deleted" && (
                   <label
-                    className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 text-xs text-[var(--text-secondary)]"
-                    title="Keep the .dem file instead of deleting it"
+                    className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--border)] px-2.5 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--border-hover)] max-md:min-h-11"
+                    title="Zachowaj plik .dem zamiast go usuwać"
                   >
                     <input
                       type="checkbox"
                       className="h-4 w-4 accent-[var(--accent)]"
                       checked={e.demo === "kept"}
-                      disabled={busy === e.uploadId}
+                      disabled={isBusy}
                       onChange={(ev) => patch(e.uploadId, { keepDemo: ev.target.checked })}
                     />
-                    <Archive className="h-3.5 w-3.5" /> Keep demo
+                    <Archive className="h-3.5 w-3.5" aria-hidden /> Zachowaj demo
                   </label>
                 )}
                 {hasFile && e.replayStored && (
                   <Button
                     size="sm"
                     variant="ghost"
-                    disabled={busy === e.uploadId}
-                    onClick={() => patch(e.uploadId, { deleteDemo: true })}
-                    title="Delete the .dem file, keep the analysis"
+                    disabled={isBusy}
+                    onClick={() => removeDemo(e)}
+                    title="Usuń plik .dem, zostaw analizę"
                   >
-                    <FileX className="h-3.5 w-3.5" /> Delete demo
+                    <FileX className="h-3.5 w-3.5" aria-hidden /> Usuń demo
                   </Button>
                 )}
                 <Button
                   size="sm"
                   variant="danger"
-                  disabled={busy === e.uploadId}
+                  disabled={isBusy}
                   onClick={() => remove(e)}
-                  aria-label="Delete analysis"
+                  aria-label="Usuń analizę"
+                  title="Usuń analizę"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Delete analysis</span>
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                  <span className="hidden sm:inline">Usuń analizę</span>
                 </Button>
               </div>
             </div>

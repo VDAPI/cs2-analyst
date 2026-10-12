@@ -5,7 +5,16 @@ import { notFound } from "next/navigation";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { normalizeStat } from "@/lib/utils/normalize-stat";
 import Link from "next/link";
-import { ArrowLeft, ArrowRightLeft } from "lucide-react";
+import { ArrowRightLeft } from "lucide-react";
+import {
+  Card,
+  PageHeader,
+  SectionTitle,
+  InitialsAvatar,
+  buttonVariants,
+} from "@/components/ui";
+import { formatDate } from "@/lib/utils/formatters";
+import { PLAYER_COLORS, matchesLabel } from "../../../compare-ui";
 import { RadarComparisonChart } from "./radar-chart";
 import { StatComparison } from "./stat-comparison";
 import { HeadToHead } from "./head-to-head";
@@ -279,7 +288,7 @@ export default async function ComparisonPage({ params }: Props) {
       raw2: `${s2.clutchPct.toFixed(0)}%`,
     },
     {
-      stat: "FK/Match",
+      stat: "Entry/mecz",
       player1: normalizeStat("firstKillsPerMatch", s1.fkPerMatch),
       player2: normalizeStat("firstKillsPerMatch", s2.fkPerMatch),
       raw1: s1.fkPerMatch.toFixed(1),
@@ -318,42 +327,42 @@ export default async function ComparisonPage({ params }: Props) {
       higherIsBetter: true,
     },
     {
-      label: "Total Kills",
+      label: "Zabójstwa (suma)",
       p1Value: s1.totalKills,
       p2Value: s2.totalKills,
       format: (v: number) => v.toString(),
       higherIsBetter: true,
     },
     {
-      label: "Total Deaths",
+      label: "Zgony (suma)",
       p1Value: s1.totalDeaths,
       p2Value: s2.totalDeaths,
       format: (v: number) => v.toString(),
       higherIsBetter: false,
     },
     {
-      label: "Flash Assists",
+      label: "Asysty flashem",
       p1Value: s1.totalFlashAssists,
       p2Value: s2.totalFlashAssists,
       format: (v: number) => v.toString(),
       higherIsBetter: true,
     },
     {
-      label: "Utility Dmg",
+      label: "Obrażenia z granatów",
       p1Value: s1.totalUtilDmg,
       p2Value: s2.totalUtilDmg,
       format: (v: number) => v.toString(),
       higherIsBetter: true,
     },
     {
-      label: "First Kills",
+      label: "Otwierające zabójstwa",
       p1Value: s1.totalFk,
       p2Value: s2.totalFk,
       format: (v: number) => v.toString(),
       higherIsBetter: true,
     },
     {
-      label: "First Deaths",
+      label: "Otwierające zgony",
       p1Value: s1.totalFd,
       p2Value: s2.totalFd,
       format: (v: number) => v.toString(),
@@ -371,70 +380,72 @@ export default async function ComparisonPage({ params }: Props) {
 
   // Recent form (last 5)
   const p1Form = entries1.slice(0, 5).map((e) => ({
-    date: e.match.date.toLocaleDateString(),
+    date: formatDate(e.match.date),
     hltv: e.hltvRating,
     map: mapDisplayName(e.match.map),
   }));
   const p2Form = entries2.slice(0, 5).map((e) => ({
-    date: e.match.date.toLocaleDateString(),
+    date: formatDate(e.match.date),
     hltv: e.hltvRating,
     map: mapDisplayName(e.match.map),
   }));
 
   return (
     <div className="space-y-6">
-      {/* Navigation */}
-      <Link
-        href="/compare"
-        className="inline-flex items-center gap-1.5 text-sm text-[var(--text-tertiary)] transition-colors hover:text-[var(--text-secondary)]"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to player select
-      </Link>
+      <PageHeader
+        back={{ href: "/compare", label: "Wróć do wyboru graczy" }}
+        eyebrow="Porównanie"
+        title="Gracz kontra gracz"
+      />
 
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <div className="flex-1 text-right">
-          <h1 className="text-2xl font-bold" style={{ color: "var(--ct-blue)" }}>
-            {player1Name}
-          </h1>
-          <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
-            {entries1.length} match{entries1.length !== 1 ? "es" : ""}
-          </p>
+      {/* Players facing each other */}
+      <Card className="grid grid-cols-1 items-center gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-4">
+        <PlayerHeader
+          name={player1Name}
+          steamId={steamId1}
+          matchCount={entries1.length}
+          slot="p1"
+        />
+        <div className="flex items-center justify-center gap-3 sm:flex-col sm:gap-2">
+          <span className="font-display text-sm font-bold uppercase tracking-wider text-[var(--text-tertiary)]">
+            vs
+          </span>
+          <Link
+            href={`/compare/${steamId2}/vs/${steamId1}`}
+            className={buttonVariants({ variant: "secondary", size: "icon" })}
+            title="Zamień graczy"
+            aria-label="Zamień graczy"
+          >
+            <ArrowRightLeft className="h-4 w-4" aria-hidden />
+          </Link>
         </div>
-        <Link
-          href={`/compare/${steamId2}/vs/${steamId1}`}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--surface-2)] text-[var(--text-tertiary)] transition-colors hover:bg-[var(--surface-3)] hover:text-[var(--text-secondary)]"
-          title="Swap players"
-        >
-          <ArrowRightLeft className="h-4 w-4" />
-        </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold" style={{ color: "var(--t-gold)" }}>
-            {player2Name}
-          </h1>
-          <p className="mt-0.5 text-sm text-[var(--text-secondary)]">
-            {entries2.length} match{entries2.length !== 1 ? "es" : ""}
-          </p>
-        </div>
+        <PlayerHeader
+          name={player2Name}
+          steamId={steamId2}
+          matchCount={entries2.length}
+          slot="p2"
+          align="end"
+        />
+      </Card>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        {/* Radar Chart */}
+        <RadarComparisonChart
+          player1Name={player1Name}
+          player2Name={player2Name}
+          data={radarData}
+        />
+
+        {/* Stat Comparison */}
+        <StatComparison
+          player1Name={player1Name}
+          player2Name={player2Name}
+          stats={statRows}
+        />
       </div>
 
-      {/* Radar Chart */}
-      <RadarComparisonChart
-        player1Name={player1Name}
-        player2Name={player2Name}
-        data={radarData}
-      />
-
-      {/* Stat Comparison */}
-      <StatComparison
-        player1Name={player1Name}
-        player2Name={player2Name}
-        stats={statRows}
-      />
-
       {/* Head-to-Head */}
-      {sharedMatchCount > 0 && (
+      {sharedMatchCount > 0 ? (
         <HeadToHead
           player1Name={player1Name}
           player2Name={player2Name}
@@ -442,6 +453,14 @@ export default async function ComparisonPage({ params }: Props) {
           p2KillsOnP1={p2KillsOnP1}
           sharedMatchCount={sharedMatchCount}
         />
+      ) : (
+        <Card>
+          <SectionTitle>Bezpośrednie starcia</SectionTitle>
+          <p className="text-sm text-[var(--text-tertiary)]">
+            Ci gracze nie grali jeszcze w tym samym meczu — bilans zabójstw pojawi się po
+            wspólnym meczu.
+          </p>
+        </Card>
       )}
 
       {/* Map Breakdown */}
@@ -459,6 +478,45 @@ export default async function ComparisonPage({ params }: Props) {
         player1Form={p1Form}
         player2Form={p2Form}
       />
+    </div>
+  );
+}
+
+function PlayerHeader({
+  name,
+  steamId,
+  matchCount,
+  slot,
+  align = "start",
+}: {
+  name: string;
+  steamId: string;
+  matchCount: number;
+  slot: "p1" | "p2";
+  align?: "start" | "end";
+}) {
+  const color = PLAYER_COLORS[slot];
+  return (
+    <div
+      className={`flex min-w-0 items-center gap-3 rounded-lg border-l-2 py-1 pl-3 sm:border-l-0 sm:pl-0 ${
+        align === "end" ? "sm:flex-row-reverse sm:text-right" : ""
+      }`}
+      style={{ borderColor: color }}
+    >
+      <InitialsAvatar name={name} size="lg" />
+      <div className="min-w-0">
+        <p className="label-overline" style={{ color }}>
+          {slot === "p1" ? "Gracz 1" : "Gracz 2"}
+        </p>
+        <Link
+          href={`/players/${steamId}`}
+          className="block truncate font-display text-xl font-bold transition-opacity hover:opacity-80 md:text-2xl"
+          style={{ color }}
+        >
+          {name}
+        </Link>
+        <p className="stat-inline text-sm text-[var(--text-secondary)]">{matchesLabel(matchCount)}</p>
+      </div>
     </div>
   );
 }

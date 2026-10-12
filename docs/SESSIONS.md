@@ -99,6 +99,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S2.
 - **Zakres:** nowy wygląd i układ mobilny dla `/matches`, `/matches/[id]`, `/players`, `/players/[steamId]`, `/compare/*`, `/settings`. Bez usuwania żadnej funkcji.
 - **Gotowe, gdy:** wszystkie te ekrany działają na 360 px i w nowym stylu.
+- **Status:** ✅ zrobione. Nowy wygląd i układ mobilny (sprawdzone zrzutami na 360 px) dla meczów, meczu, graczy, profilu, porównania i ustawień, a przy okazji biblioteki, kolejki, historii FACEIT i uploadu. Interfejs tych ekranów po polsku. Wspólne klocki: `PageHeader`, `EmptyState`, `SectionTitle`, `src/components/match/*` (wynik W/P/R, miniatura mapy, plakietka źródła), klasy `.table-scroll` + `.data-table` (przyklejona kolumna nazwy), daty `formatDate` (pl-PL).
 
 ### S5. Przebudowa narzędzi: replay, heatmapy, granaty, ekonomia
 - **Wymaga:** S2.

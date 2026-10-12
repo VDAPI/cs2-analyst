@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Download, AlertCircle } from "lucide-react";
 import type { DemoFetchStatus } from "@prisma/client";
+import { Button } from "@/components/ui";
 
 type State = "idle" | "starting" | "downloading" | "parsing" | "done" | "error";
 
@@ -57,7 +58,7 @@ export function FaceitDownloadButton({
           } else if (data.status === "FAILED") {
             stopPolling();
             setState("error");
-            setError(data.error ?? "Download failed");
+            setError(data.error ?? "Pobieranie nie powiodło się");
           }
         } catch {
           // retry on next tick
@@ -91,7 +92,7 @@ export function FaceitDownloadButton({
           router.push(data.uploadUrl);
           return;
         }
-        setError(data.error ?? "Failed to start download");
+        setError(data.error ?? "Nie udało się rozpocząć pobierania");
         setState("error");
         return;
       }
@@ -99,7 +100,7 @@ export function FaceitDownloadButton({
       setState("downloading");
       startPolling(uploadId);
     } catch {
-      setError("Failed to start download — check your connection");
+      setError("Nie udało się rozpocząć pobierania — sprawdź połączenie");
       setState("error");
     }
   };
@@ -109,42 +110,53 @@ export function FaceitDownloadButton({
 
   const label =
     state === "starting"
-      ? "Starting…"
+      ? "Uruchamianie…"
       : state === "downloading"
-        ? "Downloading…"
+        ? "Pobieranie…"
         : state === "parsing"
-          ? "Parsing…"
+          ? "Analizowanie…"
           : state === "done"
-            ? "Done"
+            ? "Gotowe"
             : state === "error"
-              ? "Retry"
-              : "Download & Analyze";
+              ? "Ponów"
+              : "Pobierz i analizuj";
 
   if (state === "error") {
     return (
-      <button
-        onClick={handleClick}
-        title={error}
-        className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--error-muted)] px-3 text-xs font-medium text-[var(--error)] transition-colors hover:bg-[rgba(255,77,106,0.25)]"
-      >
-        <AlertCircle className="h-3.5 w-3.5" />
-        {label}
-      </button>
+      <span className="inline-flex min-w-0 flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          variant="danger"
+          onClick={handleClick}
+          title={error}
+          aria-label={`${label}: ${error}`}
+        >
+          <AlertCircle className="h-3.5 w-3.5" aria-hidden />
+          {label}
+        </Button>
+        {error && (
+          <span role="alert" className="min-w-0 break-words text-xs text-[var(--mistake)]">
+            {error}
+          </span>
+        )}
+      </span>
     );
   }
 
   return (
-    <button
+    <Button
+      size="sm"
+      variant="secondary"
       onClick={handleClick}
       disabled={busy || state === "done"}
-      className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 text-xs font-medium text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-70"
+      className="disabled:cursor-not-allowed disabled:opacity-70"
     >
       {busy ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
       ) : (
-        <Download className="h-3.5 w-3.5" />
+        <Download className="h-3.5 w-3.5" aria-hidden />
       )}
       {label}
-    </button>
+    </Button>
   );
 }
