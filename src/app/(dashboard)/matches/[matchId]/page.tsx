@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { ownMatchWhere } from "@/lib/sharing/access";
 import { notFound } from "next/navigation";
 import { Card, PageHeader, buttonVariants } from "@/components/ui";
 import { MapThumb } from "@/components/match";
@@ -25,8 +26,12 @@ function formatDuration(seconds: number): string {
 export default async function MatchDetailPage({ params }: Props) {
   const { matchId } = await params;
 
-  const match = await prisma.match.findUnique({
-    where: { id: matchId },
+  // The uploader's own match (admins may open any; share links use /s/[token]).
+  const where = await ownMatchWhere(matchId, { allowAdmin: true });
+  if (!where) notFound();
+
+  const match = await prisma.match.findFirst({
+    where,
     include: {
       players: { orderBy: { hltvRating: "desc" } },
       rounds: {

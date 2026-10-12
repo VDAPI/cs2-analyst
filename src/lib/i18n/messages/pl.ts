@@ -165,6 +165,7 @@ export const pl = {
     accountsDescription: "Steam rozpoznaje Cię w demach, FACEIT pobiera historię meczów.",
     steamLinked: "Konto Steam zostało połączone.",
     steamTaken: "To konto Steam jest już połączone z innym użytkownikiem.",
+    steamLinkFailed: "Nie udało się połączyć Steam. Zaloguj się i spróbuj ponownie.",
     faceitLinked: "Konto FACEIT zostało połączone.",
     faceitTaken: "To konto FACEIT jest już połączone z innym użytkownikiem.",
     faceitFailed: "Nie udało się połączyć FACEIT. Spróbuj ponownie.",

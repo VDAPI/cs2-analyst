@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { ownMatchWhere } from "@/lib/sharing/access";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { notFound } from "next/navigation";
@@ -19,8 +20,13 @@ export default async function ReplayPage({ params, searchParams }: Props) {
   const initialRound = Number(query.round) || 1;
   const initialTick = Number(query.tick) || null;
 
-  const match = await prisma.match.findUnique({
-    where: { id: matchId },
+  // The uploader's own match only: the replay APIs (ticks, kills, bombs)
+  // answer the owner or a share token, and shares open /s/[token] instead.
+  const where = await ownMatchWhere(matchId);
+  if (!where) notFound();
+
+  const match = await prisma.match.findFirst({
+    where,
     include: {
       rounds: {
         orderBy: { number: "asc" },

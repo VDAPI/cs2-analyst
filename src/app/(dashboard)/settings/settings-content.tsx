@@ -368,6 +368,9 @@ export function SettingsContent({ user, premierHistory, publicProfile, shares, u
           {error === "steam-already-linked" && (
             <Notice tone="mistake">{t("settings.steamTaken")}</Notice>
           )}
+          {error === "steam-link-failed" && (
+            <Notice tone="mistake">{t("settings.steamLinkFailed")}</Notice>
+          )}
           {linked === "faceit" && <Notice tone="good">{t("settings.faceitLinked")}</Notice>}
           {error === "faceit-already-linked" && (
             <Notice tone="mistake">{t("settings.faceitTaken")}</Notice>

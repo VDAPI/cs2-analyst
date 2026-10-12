@@ -3,15 +3,17 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db/prisma";
 import { isReservedEmail } from "@/lib/norms/pro-pool";
+import { isSteamPseudoEmail, normalizeEmail } from "@/lib/email";
 
 const registerSchema = z.object({
   name: z.string().min(1).max(50).optional(),
-  email: z.string().email(),
+  // Stored trimmed + lowercase, so "Admin@Site.com" can't sit next to "admin@site.com".
+  email: z.string().trim().email().transform(normalizeEmail),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
 export async function POST(req: Request) {
-  const body = await req.json();
+  const body: unknown = await req.json().catch(() => null);
   const result = registerSchema.safeParse(body);
 
   if (!result.success) {
@@ -22,12 +24,18 @@ export async function POST(req: Request) {
   }
 
   const { name, email, password } = result.data;
-  // System addresses (dev login, the pro-pool owner) can never be registered.
-  if (isReservedEmail(email)) {
+  // System addresses (dev login, the pro-pool owner) can never be registered,
+  // nor Steam's pseudo addresses (<steamid>@steamcommunity.com): a password
+  // account on one would block that player's "Sign in with Steam".
+  if (isReservedEmail(email) || isSteamPseudoEmail(email)) {
     return NextResponse.json({ error: "This email address cannot be used" }, { status: 400 });
   }
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  // Case-insensitive, so accounts stored before emails were normalized count too.
+  const existing = await prisma.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
+    select: { id: true },
+  });
   if (existing) {
     return NextResponse.json(
       { error: "An account with this email already exists" },

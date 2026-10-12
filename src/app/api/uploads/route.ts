@@ -8,10 +8,16 @@ import { LOCAL_DEMO_DIR, storeDemoFile } from "@/lib/storage/demo-store";
 import { activeUploadId, FACEIT_UPLOAD_INCLUDE, releaseFaceitMatch } from "@/lib/faceit/analyze";
 import { getQueueItems } from "@/lib/library";
 import { activeSteamUploadId, releaseSteamMatch, STEAM_UPLOAD_INCLUDE } from "@/lib/steam/premier";
-import { writeFile, mkdir, unlink } from "fs/promises";
+import { mkdir, unlink } from "fs/promises";
+import { createWriteStream } from "fs";
+import { Readable } from "stream";
+import { pipeline } from "stream/promises";
+import type { ReadableStream as NodeReadableStream } from "stream/web";
 import { join } from "path";
 
 const MAX_FILE_SIZE = 700 * 1024 * 1024; // 700MB
+/** The file plus multipart headers and the small form fields. */
+const MAX_BODY_SIZE = MAX_FILE_SIZE + 1024 * 1024;
 
 function sanitizeFileName(name: string): string {
   // Keep alphanumerics, dots, hyphens, underscores. Replace everything else with _.
@@ -32,6 +38,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const userId = session.user.id;
+
+  // req.formData() buffers the whole body in memory, so refuse oversize (or
+  // unsized, chunked) bodies before reading a byte. Node enforces the
+  // declared Content-Length, so this bounds what formData() can buffer.
+  const contentLength = Number(req.headers.get("content-length"));
+  if (!Number.isFinite(contentLength) || contentLength <= 0) {
+    return NextResponse.json({ error: "Missing Content-Length" }, { status: 411 });
+  }
+  if (contentLength > MAX_BODY_SIZE) {
+    return NextResponse.json({ error: "File too large (max 700MB)" }, { status: 413 });
+  }
+  // Cheap check first: a player over the monthly limit never uploads the body.
+  const earlyLimit = await checkMonthlyDemoLimit(userId);
+  if (!earlyLimit.allowed) {
+    return NextResponse.json({ error: limitReachedMessage(earlyLimit) }, { status: 403 });
+  }
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
@@ -133,8 +155,11 @@ export async function POST(req: Request) {
   let fileUrl: string;
   try {
     await mkdir(LOCAL_DEMO_DIR, { recursive: true });
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    await writeFile(filePath, bytes);
+    // Stream to disk instead of arrayBuffer(), which made a second full copy.
+    await pipeline(
+      Readable.fromWeb(file.stream() as unknown as NodeReadableStream<Uint8Array>),
+      createWriteStream(filePath)
+    );
     fileUrl = await storeDemoFile(upload.id, filePath);
   } catch (err) {
     console.error(`[upload] storing demo failed: filePath="${filePath}"`, err);

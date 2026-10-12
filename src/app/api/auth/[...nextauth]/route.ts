@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import NextAuth, { getServerSession } from "next-auth";
 import Steam from "next-auth-steam";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
@@ -35,15 +35,41 @@ async function handler(
           const linkIntent = cookieStore.get("steam-link-intent");
 
           if (linkIntent) {
-            const existingUserId = linkIntent.value;
+            cookieStore.delete("steam-link-intent");
+            // The cookie only says "a link was started"; its value is not
+            // trusted (anyone can set it to another user's id in their own
+            // browser). Link to the signed-in user, and only when they are
+            // the one who started it.
+            const session = await getServerSession(authOptions);
+            const sessionUserId = session?.user?.id;
+            if (!sessionUserId) {
+              // Stale intent (an abandoned link, then a fresh login): plain sign-in.
+              return true;
+            }
+            if (sessionUserId !== linkIntent.value) {
+              return "/settings?error=steam-link-failed";
+            }
+            const existingUserId = sessionUserId;
             const steamId = (profile as { steamid?: string })?.steamid ?? null;
 
             if (steamId) {
               const existing = await prisma.user.findUnique({ where: { steamId } });
               if (existing && existing.id !== existingUserId) {
-                cookieStore.delete("steam-link-intent");
                 return "/settings?error=steam-already-linked";
               }
+            }
+            // The Steam account may already belong to another user (Steam login).
+            const linkedAccount = await prisma.account.findUnique({
+              where: {
+                provider_providerAccountId: {
+                  provider: account.provider,
+                  providerAccountId: account.providerAccountId,
+                },
+              },
+              select: { userId: true },
+            });
+            if (linkedAccount && linkedAccount.userId !== existingUserId) {
+              return "/settings?error=steam-already-linked";
             }
 
             await prisma.account.upsert({
@@ -75,7 +101,6 @@ async function handler(
               });
             }
 
-            cookieStore.delete("steam-link-intent");
             return "/settings?linked=steam";
           }
 

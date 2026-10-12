@@ -7,6 +7,8 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { getAdminUser } from "@/lib/admin/session";
+import type { Prisma } from "@prisma/client";
 import { isShareToken } from "./share";
 
 export interface MatchAccess {
@@ -42,6 +44,24 @@ export async function getMatchAccess(req: Request, matchId: string): Promise<Mat
     shareId: share.id,
     uploaderId: upload.userId,
   };
+}
+
+/**
+ * Filter for a dashboard page of one match (/matches, /replay, /heatmaps):
+ * only the signed-in uploader's live analysis; null when nobody is signed
+ * in. Share links never open these pages: they have their own public view
+ * (/s/[token]) and read replay data through `getMatchAccess`. With
+ * `allowAdmin`, an admin may open any match (the admin analyses list links
+ * to the match page).
+ */
+export async function ownMatchWhere(
+  matchId: string,
+  opts: { allowAdmin?: boolean } = {}
+): Promise<Prisma.MatchWhereInput | null> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return null;
+  if (opts.allowAdmin && (await getAdminUser())) return { id: matchId };
+  return { id: matchId, upload: { userId: session.user.id, deletedAt: null } };
 }
 
 /** A round the access may read. */

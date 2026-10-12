@@ -162,6 +162,7 @@ export const en: Messages = {
     accountsDescription: "Steam recognizes you in demos, FACEIT brings your match history.",
     steamLinked: "Your Steam account is linked.",
     steamTaken: "This Steam account is already linked to another user.",
+    steamLinkFailed: "Couldn't link Steam. Sign in and try again.",
     faceitLinked: "Your FACEIT account is linked.",
     faceitTaken: "This FACEIT account is already linked to another user.",
     faceitFailed: "Couldn't link FACEIT. Please try again.",
