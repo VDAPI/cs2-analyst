@@ -12,6 +12,7 @@ import {
   Shield,
   ListOrdered,
   Library,
+  Binoculars,
   type LucideIcon,
 } from "lucide-react";
 
@@ -47,6 +48,7 @@ export const navGroups: NavGroup[] = [
       { href: "/heatmaps", label: "Heatmapy", icon: Flame },
       { href: "/grenades", label: "Granaty", icon: Crosshair },
       { href: "/economy", label: "Ekonomia", icon: DollarSign },
+      { href: "/scouting", label: "Scouting rywali", icon: Binoculars },
     ],
   },
   {

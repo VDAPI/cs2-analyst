@@ -1,7 +1,11 @@
 import type {
   FaceitMatchHistoryResponse,
   FaceitMatchDetail,
+  FaceitMatchRoom,
   FaceitMatchSummary,
+  FaceitPlayer,
+  FaceitPlayerGames,
+  FaceitPlayerStats,
 } from "./types";
 
 const FACEIT_DATA_API = "https://open.faceit.com/data/v4";
@@ -72,4 +76,43 @@ export async function getMatchDetails(
   const data = await res.json();
   console.log("[FACEIT API] Match details demo_url:", JSON.stringify(data.demo_url));
   return data;
+}
+
+/** A Data API call that failed; `status` lets callers tell 404 from an outage. */
+export class FaceitApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = "FaceitApiError";
+  }
+}
+
+async function dataGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${FACEIT_DATA_API}${path}`, {
+    headers: headers(),
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) {
+    throw new FaceitApiError(res.status, `FACEIT API error: ${res.status} ${res.statusText} (${path})`);
+  }
+  return (await res.json()) as T;
+}
+
+/** The match room (rosters, map veto) — works before, during and after the match. */
+export function getMatchRoom(matchId: string): Promise<FaceitMatchRoom> {
+  return dataGet(`/matches/${encodeURIComponent(matchId)}`);
+}
+
+/** Player profile with CS2 level and ELO. */
+export function getPlayer(playerId: string): Promise<FaceitPlayer> {
+  return dataGet(`/players/${encodeURIComponent(playerId)}`);
+}
+
+/** Lifetime CS2 stats with one segment per map. */
+export function getPlayerStats(playerId: string): Promise<FaceitPlayerStats> {
+  return dataGet(`/players/${encodeURIComponent(playerId)}/stats/cs2`);
+}
+
+/** Per-match stats of the player's most recent CS2 matches, newest first. */
+export function getPlayerRecentGames(playerId: string, limit = 20): Promise<FaceitPlayerGames> {
+  return dataGet(`/players/${encodeURIComponent(playerId)}/games/cs2/stats?offset=0&limit=${limit}`);
 }
