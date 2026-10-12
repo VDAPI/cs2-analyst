@@ -65,6 +65,10 @@ model User {
   steamAuthCode      String?
   steamLastShareCode String?
   lastSteamSync      DateTime?
+  // Public profile (S16): off until the player switches it on in Settings;
+  // the slug is the /u/<slug> address.
+  publicProfile      Boolean   @default(false)
+  publicSlug         String?   @unique
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -77,6 +81,9 @@ model User {
   steamMatches      SteamMatch[]
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
+  goals             Goal[]
+  shares            Share[]
+  mapNotes          MapNote[]
 }
 
 enum UserRole {
@@ -93,31 +100,31 @@ enum Plan {
 // ─── Demo & Match ────────────────────────────────────────
 
 model DemoUpload {
-  id            String       @id @default(cuid())
-  userId        String
-  fileName      String
-  fileUrl       String
-  fileSize      Int
-  status        ParseStatus  @default(QUEUED)
-  progress      Int          @default(0) // 0-100, shown in the analysis queue
-  source        UploadSource @default(MANUAL)
-  faceitMatchId String?      @unique
-  error         String?
-  matchId       String?      @unique
+  id             String       @id @default(cuid())
+  userId         String
+  fileName       String
+  fileUrl        String
+  fileSize       Int
+  status         ParseStatus  @default(QUEUED)
+  progress       Int          @default(0) // 0-100, shown in the analysis queue
+  source         UploadSource @default(MANUAL)
+  faceitMatchId  String?      @unique
+  error          String?
+  matchId        String?      @unique
   // fileUrl is a local path, or "r2://<key>" when the demo lives in R2
   // (src/lib/storage/demo-store.ts). Empty while a FACEIT download is pending.
-  keepDemo      Boolean      @default(false) // "keep demo": skip deleting the .dem after analysis
-  demoDeletedAt DateTime? // set once the .dem is gone from disk/R2
-  deletedAt     DateTime? // analysis deleted by the user; row kept so the monthly limit still counts it
+  keepDemo       Boolean      @default(false) // "keep demo": skip deleting the .dem after analysis
+  demoDeletedAt  DateTime? // set once the .dem is gone from disk/R2
+  deletedAt      DateTime? // analysis deleted by the user; row kept so the monthly limit still counts it
   parseStartedAt DateTime? // last time the parser picked it up (admin metrics)
-  parseMs       Int? // wall time of the last successful parse + persist, in ms
-  retries       Int          @default(0) // times a failed/stuck analysis was queued again
+  parseMs        Int? // wall time of the last successful parse + persist, in ms
+  retries        Int          @default(0) // times a failed/stuck analysis was queued again
   // Pro demo (S13): part of the pro pool the norms are measured on. Owned by
   // the pro-pool system user (src/lib/norms/pro-pool.ts), never a player.
-  pro           Boolean      @default(false)
-  proLabel      String? // e.g. "Vitality vs MOUZ, IEM Cologne 2026" (admin-entered)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  pro            Boolean      @default(false)
+  proLabel       String? // e.g. "Vitality vs MOUZ, IEM Cologne 2026" (admin-entered)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   user        User         @relation(fields: [userId], references: [id])
   match       Match?       @relation(fields: [matchId], references: [id])
@@ -156,15 +163,17 @@ model Match {
   totalTicks Int
   createdAt  DateTime @default(now())
 
-  upload    DemoUpload?
-  rounds    Round[]
-  players   MatchPlayer[]
-  mechanics MechanicsStats[]
-  aim       AimStats[]
-  utility   UtilityStats[]
-  tactics   TacticsStats[]
-  findings  Finding[]
+  upload      DemoUpload?
+  rounds      Round[]
+  players     MatchPlayer[]
+  mechanics   MechanicsStats[]
+  aim         AimStats[]
+  utility     UtilityStats[]
+  tactics     TacticsStats[]
+  findings    Finding[]
   normSamples NormSample[]
+  shares      Share[]
+  mapNotes    MapNote[]
 
   // FINDINGS_STAMP the stored findings were built with (null = never); a
   // different stamp makes the report rebuild them (src/lib/findings/persist.ts).
@@ -853,4 +862,63 @@ model MetricNorm {
 
   @@unique([pool, map, side, situation, metric])
   @@index([pool])
+}
+
+// ─── Progress and sharing (S16) ───
+
+// A target for one progress metric (src/lib/progress/metrics.ts); whether
+// lower or higher is better comes from the metric, not the row.
+model Goal {
+  id         String    @id @default(cuid())
+  userId     String
+  metric     String // ProgressMetricKey
+  target     Float
+  achievedAt DateTime? // first time the last-5-match average met the target
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, metric])
+}
+
+// A public link (/s/<token>) to one player's report of a match, or to one
+// moment of its replay. Revoking keeps the row so the link stays dead.
+model Share {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  userId      String
+  matchId     String
+  kind        String // "report" | "moment"
+  steamId     String? // player the report / moment is about
+  roundNumber Int? // moment only
+  tick        Int? // moment only
+  views       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([matchId])
+}
+
+// A note pinned to a spot on the map at a moment of a round (2D replay).
+// x/y are game-world coordinates.
+model MapNote {
+  id          String   @id @default(cuid())
+  userId      String
+  matchId     String
+  roundNumber Int
+  tick        Int
+  x           Float
+  y           Float
+  text        String
+  createdAt   DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, roundNumber])
+  @@index([userId])
 }

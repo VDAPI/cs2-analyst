@@ -93,3 +93,7 @@ jobs:
       - name: Pro / rank norms regression tests
         if: ${{ !cancelled() }}
         run: npm run test:norms
+
+      - name: Progress and sharing regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:progress

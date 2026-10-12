@@ -1,0 +1,179 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { MapPin } from "lucide-react";
+import { prisma } from "@/lib/db/prisma";
+import { getT } from "@/lib/i18n/server";
+import { EmptyState, PageHeader } from "@/components/ui";
+import { PublicShell } from "@/components/share/public-shell";
+import { FindingClip } from "@/components/replay/finding-clip";
+import { getFindings } from "@/lib/findings/persist";
+import { loadPlayerReport, reportClipContext } from "@/lib/findings/player-report";
+import { fmtRoundTime, toFindingView } from "@/lib/findings/view";
+import { MOMENT_CLIP, isShareToken } from "@/lib/sharing/share";
+import { mapDisplayName } from "@/lib/utils/mapNames";
+import { formatDate } from "@/lib/utils/formatters";
+import { loadReportNorms } from "@/lib/norms/report-norms";
+import { ReportBody } from "@/app/(dashboard)/report/[matchId]/report-body";
+
+interface Props {
+  params: Promise<{ token: string }>;
+}
+
+const TICK_RATE = 64;
+
+async function loadShare(token: string) {
+  if (!isShareToken(token)) return null;
+  const share = await prisma.share.findUnique({
+    where: { token },
+    include: {
+      user: { select: { name: true, publicProfile: true, publicSlug: true } },
+      match: {
+        select: {
+          id: true,
+          map: true,
+          date: true,
+          scoreCT: true,
+          scoreT: true,
+          players: { select: { steamId: true, name: true, team: true } },
+          rounds: { select: { number: true, startTick: true } },
+          upload: { select: { deletedAt: true } },
+        },
+      },
+    },
+  });
+  if (!share || share.revokedAt || !share.match.upload || share.match.upload.deletedAt) return null;
+  return share;
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { token } = await params;
+  const share = await loadShare(token);
+  if (!share) return { title: "CS2 Analyst", robots: { index: false } };
+  const { t } = await getT();
+  const map = mapDisplayName(share.match.map);
+  const title =
+    share.kind === "moment"
+      ? `${t("shared.momentTitle", { map, round: share.roundNumber ?? 1 })} — CS2 Analyst`
+      : `${t("shared.reportEyebrow")}: ${map} ${share.match.scoreCT}:${share.match.scoreT} — CS2 Analyst`;
+  return { title, robots: { index: false, follow: false } };
+}
+
+/** A public link (S16): one player's report of a match, or one replay moment. Read-only, no login. */
+export default async function SharedPage({ params }: Props) {
+  const { token } = await params;
+  const share = await loadShare(token);
+  if (!share) notFound();
+  const { t } = await getT();
+  await prisma.share.update({ where: { id: share.id }, data: { views: { increment: 1 } } });
+
+  const match = share.match;
+  const nameOf = new Map(match.players.map((p) => [p.steamId, p.name]));
+  const player = share.steamId ? nameOf.get(share.steamId) ?? null : null;
+  const sharedBy = share.user.name ? t("shared.sharedBy", { name: share.user.name }) : t("shared.sharedByAnon");
+  const ctx = reportClipContext(match.id, match.map, share.token);
+  const scoreline = (
+    <span className="font-mono tabular-nums">
+      {match.scoreCT}:{match.scoreT}
+    </span>
+  );
+
+  if (share.kind === "moment" && share.roundNumber != null && share.tick != null) {
+    const round = share.roundNumber;
+    const notes = await prisma.mapNote.findMany({
+      where: { matchId: match.id, userId: share.userId, roundNumber: round },
+      orderBy: { tick: "asc" },
+      select: { id: true, tick: true, x: true, y: true, text: true },
+    });
+    const startTick = match.rounds.find((r) => r.number === round)?.startTick ?? 0;
+    const at = Math.max(0, (share.tick - startTick) / TICK_RATE);
+    return (
+      <PublicShell>
+        <PageHeader
+          eyebrow={t("shared.momentEyebrow")}
+          title={t("shared.momentTitle", { map: ctx.mapName, round })}
+          description={
+            <>
+              {scoreline} · <span className="font-mono">{formatDate(match.date)}</span>
+              {player && <> · {t("shared.player", { name: player })}</>} · {sharedBy}
+            </>
+          }
+        />
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,640px)_minmax(240px,1fr)] lg:items-start">
+          <FindingClip
+            matchId={match.id}
+            mapName={ctx.mapName}
+            mapConfig={ctx.mapConfig}
+            roundNumber={round}
+            tick={share.tick}
+            steamId={share.steamId ?? ""}
+            targetSteamId={null}
+            severity="low"
+            clip={MOMENT_CLIP}
+            share={share.token}
+            marker={false}
+            notes={notes.map((n, i) => ({ x: n.x, y: n.y, tick: n.tick, label: String(i + 1) }))}
+            autoLoad
+            label={`${t("shared.momentTitle", { map: ctx.mapName, round })}, ${fmtRoundTime(at)}`}
+          />
+          <section aria-labelledby="notatki" className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3">
+            <h2 id="notatki" className="label-overline mb-2 text-[var(--text-tertiary)]">
+              {t("shared.notes")}
+            </h2>
+            {notes.length === 0 ? (
+              <p className="text-sm text-[var(--text-tertiary)]">{t("shared.noNotes")}</p>
+            ) : (
+              <ol className="space-y-2">
+                {notes.map((n, i) => (
+                  <li key={n.id} className="flex items-start gap-2 text-sm">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent-2)] font-mono text-xs font-bold text-[var(--on-accent)]">
+                      {i + 1}
+                    </span>
+                    <span className="min-w-0 flex-1 break-words text-[var(--text-secondary)]">{n.text}</span>
+                    <span className="shrink-0 font-mono text-xs text-[var(--text-tertiary)]">
+                      {fmtRoundTime(Math.max(0, (n.tick - startTick) / TICK_RATE))}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+            <p className="mt-3 flex items-center gap-1.5 text-xs text-[var(--text-tertiary)]">
+              <MapPin className="h-3.5 w-3.5" aria-hidden />
+              <span className="font-mono">R{round} · {fmtRoundTime(at)}</span>
+            </p>
+          </section>
+        </div>
+      </PublicShell>
+    );
+  }
+
+  // Report link.
+  const steamId = share.steamId;
+  const all = (await getFindings(prisma, match.id)).map(toFindingView);
+  const loaded = steamId ? await loadPlayerReport(prisma, match.id, steamId, all) : null;
+  const norms =
+    steamId && loaded?.hasData
+      ? await loadReportNorms(prisma, { matchId: match.id, steamId, map: match.map, metrics: loaded.metrics, rounds: loaded.rounds, t })
+      : null;
+
+  return (
+    <PublicShell>
+      <PageHeader
+        eyebrow={t("shared.reportEyebrow")}
+        title={`${ctx.mapName}`}
+        description={
+          <>
+            {scoreline} · <span className="font-mono">{formatDate(match.date)}</span>
+            {player && <> · {t("shared.player", { name: player })}</>} · {sharedBy}
+          </>
+        }
+      />
+      {loaded?.hasData ? (
+        <div className="min-w-0 space-y-8">
+          <ReportBody report={loaded.report} ctx={ctx} nameOf={nameOf} norms={norms} />
+        </div>
+      ) : (
+        <EmptyState title={t("shared.noData")} />
+      )}
+    </PublicShell>
+  );
+}

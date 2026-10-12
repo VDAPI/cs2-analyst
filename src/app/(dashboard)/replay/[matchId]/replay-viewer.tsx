@@ -9,7 +9,7 @@ import { PlaybackControls } from "./playback-controls";
 import { MapViewport } from "@/components/maps/map-viewport";
 import { useCanvasUiScale, useRadarImage } from "@/components/maps/use-canvas";
 import { ToolHeader } from "@/components/tools/tool-header";
-import { drawRadarBackground, makeWorldToCanvas, TOOL_CANVAS_SIZE, type RadarConfig } from "@/lib/canvas/radar";
+import { drawRadarBackground, makeCanvasToWorld, makeWorldToCanvas, TOOL_CANVAS_SIZE, type RadarConfig } from "@/lib/canvas/radar";
 import {
   PLAYER_RADIUS,
   VIEW_CONE_UNITS,
@@ -21,6 +21,7 @@ import {
   drawGrenadeTrajectories,
   drawHEExplosions,
   drawKillMarker,
+  drawNotePin,
   drawPlayer,
   drawFindingMarker,
   drawPlayerLoadout,
@@ -31,6 +32,7 @@ import {
 import { FindingTag } from "@/components/ui";
 import { fmtRoundTime, type FindingView } from "@/lib/findings/view";
 import { cn } from "@/lib/utils/cn";
+import { MomentTools, useMapNotes, type MapNoteView, type NoteMode } from "./moment-tools";
 
 interface RoundInfo {
   number: number;
@@ -70,6 +72,8 @@ const DEEP_LINK_LEAD_S = 2;
 const FRESH_KILL_TICKS = 2 * TICK_RATE;
 /** Tap tolerance around a player dot, in canvas pixels. */
 const TAP_RADIUS = PLAYER_RADIUS * 3;
+/** A map note's pin glows this close to its moment. */
+const NOTE_ACTIVE_TICKS = 3 * TICK_RATE;
 /** A mistake marker shows at full strength this close to its tick, fading out by FINDING_FADE_S. */
 const FINDING_FULL_S = 0.75;
 const FINDING_FADE_S = 2;
@@ -120,6 +124,10 @@ export function ReplayViewer({
   const lastTickTimeRef = useRef<number>(0);
   const radar = useRadarImage(mapConfig?.radarImage);
   const worldToCanvas = useMemo(() => makeWorldToCanvas(mapConfig), [mapConfig]);
+  const canvasToWorld = useMemo(() => makeCanvasToWorld(mapConfig), [mapConfig]);
+  const { notes, add: addNote, remove: removeNote } = useMapNotes(matchId);
+  const [noteMode, setNoteMode] = useState<NoteMode>("off");
+  const [pendingNote, setPendingNote] = useState<{ x: number; y: number } | null>(null);
   const reducedMotion = usePrefersReducedMotion();
   const [zoom, setZoom] = useState(1);
   const ui = useCanvasUiScale(canvasRef, zoom);
@@ -181,6 +189,12 @@ export function ReplayViewer({
       ),
     [findings, currentRound, selectedSteamId]
   );
+  // A note in progress belongs to the round it was started in.
+  useEffect(() => {
+    setNoteMode("off");
+    setPendingNote(null);
+  }, [currentRound]);
+  const roundNotes = useMemo(() => notes.filter((n) => n.roundNumber === currentRound), [notes, currentRound]);
   const conePx = useMemo(() => {
     const a = worldToCanvas(0, 0);
     const b = worldToCanvas(VIEW_CONE_UNITS, 0);
@@ -252,10 +266,19 @@ export function ReplayViewer({
       drawFindingMarker(ctx, pos.x, pos.y, f.severity, currentTick, strength, ui);
     }
 
+    roundNotes.forEach((n, i) => {
+      const pos = worldToCanvas(n.x, n.y);
+      drawNotePin(ctx, pos.x, pos.y, String(i + 1), Math.abs(currentTick - n.tick) <= NOTE_ACTIVE_TICKS, ui);
+    });
+    if (pendingNote) {
+      const pos = worldToCanvas(pendingNote.x, pendingNote.y);
+      drawNotePin(ctx, pos.x, pos.y, "+", true, ui);
+    }
+
     if (showGrenades) {
       drawFlashOverlay(ctx, grenadeEvents, currentTick, width, height, worldToCanvas, !reducedMotion);
     }
-  }, [frame, currentTick, kills, grenadeEvents, bombEvents, showGrenades, showPlayerNames, showFov, selectedSteamId, roundFindings, activeFindingId, conePx, worldToCanvas, radar, mapName, reducedMotion, ui]);
+  }, [frame, currentTick, kills, grenadeEvents, bombEvents, showGrenades, showPlayerNames, showFov, selectedSteamId, roundFindings, activeFindingId, conePx, worldToCanvas, radar, mapName, reducedMotion, ui, roundNotes, pendingNote]);
 
   // Playback loop; pauses while the tab is hidden
   useEffect(() => {
@@ -327,7 +350,34 @@ export function ReplayViewer({
     }
   };
 
+  /** Jump to a note: a moment before it, paused there. */
+  const goToNote = (n: MapNoteView) => {
+    const { frames: loaded, setFrameIndex, isPlaying: playing } = useReplayStore.getState();
+    const idx = loaded.findIndex((fr) => fr.tick >= n.tick - TICK_RATE);
+    setFrameIndex(Math.max(0, idx));
+    if (playing) togglePlay();
+  };
+
+  const changeNoteMode = (mode: NoteMode) => {
+    setNoteMode(mode);
+    if (mode !== "typing") setPendingNote(null);
+    // Pause while placing so the note gets the moment the player picked.
+    if (mode === "placing" && useReplayStore.getState().isPlaying) togglePlay();
+  };
+
+  const saveNote = async (text: string) => {
+    if (!pendingNote) return;
+    await addNote({ round: currentRound, tick: Math.round(currentTick), x: pendingNote.x, y: pendingNote.y, text });
+    setPendingNote(null);
+    setNoteMode("off");
+  };
+
   const onTap = ({ x, y }: { x: number; y: number }) => {
+    if (noteMode !== "off") {
+      setPendingNote(canvasToWorld(x, y));
+      setNoteMode("typing");
+      return;
+    }
     if (!frame) return;
     let best: PlayerSnapshot | null = null;
     let bestDist = TAP_RADIUS * ui;
@@ -463,6 +513,21 @@ export function ReplayViewer({
             selectedSteamId={selectedSteamId}
             nameOf={nameOf}
             onPick={goToFinding}
+          />
+
+          <MomentTools
+            matchId={matchId}
+            round={currentRound}
+            tick={currentTick}
+            roundStartTick={firstTick}
+            selectedSteamId={selectedSteamId}
+            notes={roundNotes}
+            mode={noteMode}
+            pending={pendingNote}
+            onModeChange={changeNoteMode}
+            onSave={saveNote}
+            onRemove={removeNote}
+            onJump={goToNote}
           />
 
           <SidePanel

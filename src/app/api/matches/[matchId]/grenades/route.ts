@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { getMatchAccess } from "@/lib/sharing/access";
 import { prisma } from "@/lib/db/prisma";
 
 interface Props {
@@ -11,19 +10,24 @@ interface Props {
  * GET /api/matches/[matchId]/grenades?round=N&type=SMOKE&player=steamId
  */
 export async function GET(req: Request, { params }: Props) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { matchId } = await params;
+  // The uploader, or a share link of this match (S16).
+  const access = await getMatchAccess(req, matchId);
+  if (!access) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const url = new URL(req.url);
   const roundFilter = url.searchParams.get("round");
   const typeFilter = url.searchParams.get("type");
   const playerFilter = url.searchParams.get("player");
 
+  // A moment link reads only its own round.
+  if (access.round != null && Number(roundFilter) !== access.round) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   const match = await prisma.match.findFirst({
-    where: { id: matchId, upload: { userId: session.user.id } },
+    where: { id: matchId },
     select: { id: true, map: true },
   });
 
