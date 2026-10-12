@@ -3,9 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { cookies } from "next/headers";
 import crypto from "crypto";
+import { faceitOAuthBaseUrl, faceitRedirectUri } from "@/lib/faceit/oauth";
 
 const FACEIT_AUTH_URL = "https://accounts.faceit.com";
-const REDIRECT_URI = `${process.env.NEXTAUTH_URL}/api/faceit/link/callback`;
 
 export async function GET() {
   console.log("=== FACEIT LINK START ===");
@@ -13,7 +13,7 @@ export async function GET() {
 
   if (!session?.user?.id) {
     console.log("[FACEIT Link] No session, redirecting to login");
-    return NextResponse.redirect(new URL("/login", process.env.NEXTAUTH_URL));
+    return NextResponse.redirect(new URL("/login", faceitOAuthBaseUrl()));
   }
 
   console.log("[FACEIT Link] Starting OAuth flow for user:", session.user.id);
@@ -47,14 +47,14 @@ export async function GET() {
   const authUrl = new URL(FACEIT_AUTH_URL);
   authUrl.searchParams.set("response_type", "code");
   authUrl.searchParams.set("client_id", process.env.FACEIT_CLIENT_ID!);
-  authUrl.searchParams.set("redirect_uri", REDIRECT_URI);
+  authUrl.searchParams.set("redirect_uri", faceitRedirectUri());
   authUrl.searchParams.set("scope", "openid email profile membership");
   authUrl.searchParams.set("state", state);
   authUrl.searchParams.set("code_challenge", codeChallenge);
   authUrl.searchParams.set("code_challenge_method", "S256");
 
   console.log("[FACEIT Link] Redirecting to FACEIT");
-  console.log("[FACEIT Link] redirect_uri:", REDIRECT_URI);
+  console.log("[FACEIT Link] redirect_uri:", faceitRedirectUri());
 
   return NextResponse.redirect(authUrl.toString());
 }

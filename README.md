@@ -4,6 +4,12 @@
 
 ## Quick Start
 
+**Just want to run and test it?** One command with Docker, no Node needed:
+`docker compose up -d --build`, then open http://localhost:3000 (also from a
+phone on the same Wi-Fi). Step-by-step guide in Polish: [`docs/TESTOWANIE.md`](docs/TESTOWANIE.md).
+
+The steps below are for working on the code.
+
 ### Prerequisites
 - Node.js 20+ (CI runs Node 24)
 - npm 10 — `npm install -g npm@10` (npm 11 is blocked on purpose, see "npm 10 is pinned" in `CLAUDE.md`)
@@ -15,8 +21,8 @@
 # 1. Install dependencies
 npm install
 
-# 2. Start database & Redis
-docker compose up -d
+# 2. Start database & Redis (plain `docker compose up` starts the whole app instead)
+docker compose up -d postgres redis
 
 # 3. Copy environment variables
 cp .env.example .env

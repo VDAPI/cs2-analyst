@@ -1,3 +1,47 @@
+# Local test environment (S20): `docker compose up -d --build` starts the
+# whole app: Postgres, Redis, MinIO (S3 storage for demos, stands in for R2),
+# a one-off setup (schema, test account with sample analyses, sample demo),
+# the app on http://localhost:3000 (and http://<computer's IP>:3000 from a
+# phone on the same Wi-Fi), https://localhost:3443 (for FACEIT linking) and
+# both workers. Guide: docs/TESTOWANIE.md.
+#
+# Working on the code with `npm run dev` instead? Start only the databases:
+#   docker compose up -d postgres redis
+#
+# API keys (ANTHROPIC_API_KEY, FACEIT_*, STEAM_API_KEY …) come from .env
+# (optional). Addresses of the services below always win over .env, so a
+# .env written for `npm run dev` works here unchanged.
+
+x-app: &app
+  build: .
+  image: cs2-analyst-local
+  env_file:
+    - path: .env
+      required: false
+  environment: &app-env
+    DATABASE_URL: postgresql://cs2analyst:cs2analyst@postgres:5432/cs2analyst
+    REDIS_URL: redis://redis:6379
+    # Links in e-mails/metadata. Sign-in itself follows the address in the
+    # browser (AUTH_TRUST_HOST), so localhost and the computer's Wi-Fi IP both work.
+    NEXTAUTH_URL: ${LOCAL_APP_URL:-http://localhost:3000}
+    AUTH_TRUST_HOST: "true"
+    NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-cs2-analyst-local-only-secret}
+    # FACEIT only redirects to registered https addresses: the link flow goes
+    # through the https entry below (register this callback in FACEIT Developers).
+    FACEIT_OAUTH_BASE_URL: https://localhost:3443
+    # Demos go to MinIO through the R2 client (src/lib/storage/r2.ts).
+    R2_ENDPOINT: http://minio:9000
+    R2_REGION: us-east-1
+    R2_ACCOUNT_ID: ""
+    R2_ACCESS_KEY_ID: cs2analyst
+    R2_SECRET_ACCESS_KEY: cs2analyst-minio
+    R2_BUCKET: demos
+    # The local stack is never the E2E suite.
+    E2E_FIXTURE_DEMOS: ""
+  volumes:
+    - demos:/app/data/demos
+  restart: unless-stopped
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -9,6 +53,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cs2analyst"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
 
   redis:
     image: redis:7-alpine
@@ -17,7 +66,93 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # S3-compatible storage. The official minio/minio image is no longer
+  # published on Docker Hub; pgsty/minio is the community build of the same
+  # server. Console: http://localhost:9001 (cs2analyst / cs2analyst-minio).
+  minio:
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: cs2analyst
+      MINIO_ROOT_PASSWORD: cs2analyst-minio
+      MINIO_REGION: us-east-1
+    ports:
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Runs once per `up`, then exits: schema, bucket, test account + sample
+  # analyses (skipped when they already exist), sample demo to ./data/przyklad.
+  setup:
+    <<: *app
+    command: ["npm", "run", "setup:local"]
+    restart: "no"
+    volumes:
+      - demos:/app/data/demos
+      - ./data/przyklad:/app/data/przyklad
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  app:
+    <<: *app
+    ports:
+      - "3000:3000"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/login').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  # https://localhost:3443: the same app over HTTPS (self-signed certificate,
+  # the browser warns once). Only needed to link a FACEIT account.
+  https:
+    image: caddy:2-alpine
+    command: ["caddy", "reverse-proxy", "--from", "https://localhost:3443", "--to", "app:3000"]
+    ports:
+      - "3443:3443"
+    volumes:
+      - caddy_data:/data
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  worker:
+    <<: *app
+    command: ["npx", "tsx", "--tsconfig", "tsconfig.json", "workers/demo-parser.worker.ts"]
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+
+  worker-faceit:
+    <<: *app
+    command: ["npx", "tsx", "--tsconfig", "tsconfig.json", "workers/faceit-demo-download.worker.ts"]
+    depends_on:
+      setup:
+        condition: service_completed_successfully
 
 volumes:
   postgres_data:
   redis_data:
+  minio_data:
+  demos:
+  caddy_data:

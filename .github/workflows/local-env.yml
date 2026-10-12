@@ -1,0 +1,63 @@
+name: Local environment
+
+# S20: proves `docker compose up` builds and runs the whole app on a clean
+# machine (app, workers, Postgres, Redis, MinIO, seed) and that a real demo
+# goes through it. Only when the Docker setup or what it depends on changes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - docker-compose.yml
+      - package.json
+      - package-lock.json
+      - prisma/**
+      - scripts/local-seed.ts
+      - scripts/local-smoke.sh
+      - src/lib/storage/**
+      - src/lib/parsers/**
+      - workers/**
+      - .github/workflows/local-env.yml
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - docker-compose.yml
+      - package.json
+      - package-lock.json
+      - prisma/**
+      - scripts/local-seed.ts
+      - scripts/local-smoke.sh
+      - src/lib/storage/**
+      - src/lib/parsers/**
+      - workers/**
+      - .github/workflows/local-env.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-env-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and start (docker compose up -d --build)
+        run: docker compose up -d --build
+
+      - name: Smoke test (sign-in over the network address, sample analyses, real demo upload)
+        run: bash scripts/local-smoke.sh
+
+      - name: Logs
+        if: ${{ always() }}
+        run: docker compose logs --no-color --tail 200
+
+      - name: Stop
+        if: ${{ always() }}
+        run: docker compose down -v
