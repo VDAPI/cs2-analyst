@@ -14,11 +14,12 @@ import type { MovementMoment } from "@/lib/analysis/movement";
 import type { AimMoment } from "@/lib/analysis/aim";
 import { fmtClock, type GrenadeKind, type Point3, type UtilityMoment, type UtilityThrow } from "@/lib/analysis/utility";
 import { lineupName, setposCommand, suggestLineup, type Lineup } from "@/lib/analysis/lineups";
+import type { TacticsMoment } from "@/lib/analysis/tactics";
 import { weaponLabel } from "@/lib/utils/weapons";
 import { FINDING_TYPES, type FindingCategory, type FindingSeverity, type FindingType } from "./catalog";
 
 /** Bump when detectors or severities change, so stored findings are rebuilt. */
-export const FINDINGS_VERSION = 2;
+export const FINDINGS_VERSION = 3;
 
 /** One number on a finding card ("Prędkość 180 u/s, próg 73"). */
 export interface FindingValue {
@@ -57,6 +58,11 @@ export interface MechanicsInput {
 export interface AimInput {
   steamId: string;
   moments: AimMoment[];
+}
+
+export interface TacticsInput {
+  steamId: string;
+  moments: TacticsMoment[];
 }
 
 function draft(
@@ -455,16 +461,71 @@ export function fromUtility(rows: UtilityInput[], ctx: UtilityContext = {}): Fin
   return out;
 }
 
-/** Every detector, in one place. S12 adds theirs here. */
+// ─── Tactics: teamplay, economy, positions (S12) ────────
+
+/** Advice for sub-cases of a type; the catalog advice covers the rest. */
+const TACTICS_ADVICE: Record<string, string> = {
+  "clutch_decision:save":
+    "Bez szans na rozbrojenie schowaj się i uratuj broń; dwie kolejne rundy z karabinem są warte więcej niż ta jedna.",
+  "clutch_decision:no_plant":
+    "Sam z bombą przy końcu czasu: idź na plant najkrótszą drogą albo zrezygnuj wcześnie i ratuj broń, nie czekaj do zera.",
+  "clutch_decision:time":
+    "Po plancie w clutchu czas gra dla ciebie: schowaj się w pozycji na bombę i strzelaj dopiero, gdy CT zaczyna rozbrajać.",
+  "death_with_money:last_round":
+    "W ostatniej rundzie połowy kasa przepada: wydaj wszystko na utility, pancerz i najlepszą broń, albo kup koledze.",
+};
+
+const TACTICS_SEVERITY: Record<TacticsMoment["type"], (m: TacticsMoment) => FindingSeverity> = {
+  untraded_death: (m) => (m.lost ? "high" : "medium"),
+  missed_trade: (m) => (m.costly || m.lost ? "high" : "medium"),
+  entry_death: (m) => (m.lost ? "high" : "medium"),
+  lurk_death: (m) => (m.lost ? "high" : "medium"),
+  early_rotation: (m) => (m.lost ? "high" : "medium"),
+  postplant_death: (m) => (m.lost ? "high" : "low"),
+  retake_solo: (m) => (m.lost ? "high" : "medium"),
+  clutch_decision: (m) => (m.variant === "time" ? "high" : "medium"),
+  bad_force: () => "medium",
+  no_drop: (m) => (m.lost ? "medium" : "low"),
+  death_with_money: (m) => (m.variant === "last_round" && m.lost ? "medium" : "low"),
+  predictable_position: (m) => (m.costly ? "medium" : "low"),
+};
+
+export function fromTactics(rows: TacticsInput[]): FindingDraft[] {
+  const out: FindingDraft[] = [];
+  for (const row of rows) {
+    for (const m of row.moments) {
+      if (!(m.type in FINDING_TYPES)) continue;
+      out.push(
+        draft(m.type, {
+          steamId: row.steamId,
+          severity: TACTICS_SEVERITY[m.type](m),
+          roundNumber: m.roundNumber,
+          tick: m.tick,
+          roundTime: m.roundTime,
+          costly: m.costly,
+          targetSteamId: m.enemy ?? null,
+          values: m.values,
+          detail: m.detail,
+          advice: m.variant ? TACTICS_ADVICE[`${m.type}:${m.variant}`] : undefined,
+        })
+      );
+    }
+  }
+  return out;
+}
+
+/** Every detector, in one place. */
 export function detectFindings(input: {
   mechanics: MechanicsInput[];
   aim: AimInput[];
+  tactics?: TacticsInput[];
   utility?: UtilityInput[];
   utilityContext?: UtilityContext;
 }): FindingDraft[] {
   return [
     ...fromMechanics(input.mechanics),
     ...fromAim(input.aim),
+    ...fromTactics(input.tactics ?? []),
     ...fromUtility(input.utility ?? [], input.utilityContext),
   ].sort(
     (a, b) => a.roundNumber - b.roundNumber || a.tick - b.tick || a.steamId.localeCompare(b.steamId)

@@ -43,8 +43,8 @@ check(
     );
   })
 );
-check("S12 categories are announced", ["teamplay", "economy", "positioning"].every(
-  (k) => CATEGORIES.find((c) => c.key === k)?.plannedIn
+check("S12 categories have types and are no longer 'planned'", ["teamplay", "economy", "positioning"].every(
+  (k) => !CATEGORIES.find((c) => c.key === k)?.plannedIn && FINDING_TYPE_KEYS.some((t) => FINDING_TYPES[t].category === k)
 ));
 check("utility (S11) is live", !CATEGORIES.find((c) => c.key === "utility")?.plannedIn);
 check("unknown type gets a fallback definition", findingDef("smoke_too_early").label === "smoke_too_early");

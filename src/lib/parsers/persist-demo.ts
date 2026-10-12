@@ -15,6 +15,7 @@ import { computeAndPersistFindings } from "../findings/persist";
 import { computeAndPersistUtility, persistPlaceCells } from "../analysis/persist-utility";
 import { aggregatePlaces } from "../analysis/places";
 import { parsePlaceSamples } from "./replay-data";
+import { computeAndPersistTactics } from "../analysis/persist-tactics";
 
 interface PersistArgs {
   uploadId: string;
@@ -239,6 +240,12 @@ export async function parseAndPersistDemo(
         console.log(`[persist-demo] utility match=${match.id}: ${players} players`);
       } catch (error) {
         console.error(`[persist-demo] utility FAILED match=${match.id}:`, error);
+      }
+      try {
+        const players = await computeAndPersistTactics(prisma, match.id);
+        console.log(`[persist-demo] tactics match=${match.id}: ${players} players`);
+      } catch (error) {
+        console.error(`[persist-demo] tactics FAILED match=${match.id}:`, error);
       }
       try {
         const findings = await computeAndPersistFindings(prisma, match.id);

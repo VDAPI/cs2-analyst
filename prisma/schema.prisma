@@ -158,6 +158,7 @@ model Match {
   mechanics MechanicsStats[]
   aim       AimStats[]
   utility   UtilityStats[]
+  tactics   TacticsStats[]
   findings  Finding[]
 
   // FINDINGS_STAMP the stored findings were built with (null = never); a
@@ -563,6 +564,38 @@ model UtilityStats {
 
   throws  Json // UtilityThrow[] — throw origin + angles + landing, feeds the lineup base
   moments Json // UtilityMoment[]
+
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, steamId])
+  @@index([steamId])
+}
+
+// Teamplay, economy and positions for one player in one match (S12),
+// computed from kills, damage, bombs, RoundPlayer economy and RoundTicks by
+// src/lib/analysis/tactics.ts — no .dem needed.
+model TacticsStats {
+  id      String @id @default(cuid())
+  matchId String
+  steamId String
+  version Int // TACTICS_VERSION; older rows are recomputed
+
+  rounds         Int
+  deaths         Int
+  tradedDeaths   Int
+  isolatedDeaths Int // untraded deaths with no teammate in trade range
+  tradeChances   Int // nearest teammate to a death, killer within reach
+  tradesMade     Int
+  openingDuels   Int
+  openingWins    Int
+  anchorRounds   Int // CT rounds with a setup spot (halves with 5+)
+  sameSpotRounds Int // of which at the most used spot
+  forceRounds    Int
+  badForces      Int
+
+  moments Json // TacticsMoment[]
 
   createdAt DateTime @default(now())
 

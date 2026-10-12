@@ -82,6 +82,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: npm run test:utility
 
+      - name: Tactics (trades, economy, positions) regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:tactics
+
       - name: Admin panel metrics regression tests
         if: ${{ !cancelled() }}
         run: npm run test:admin

@@ -11,6 +11,7 @@
 import { aimMetrics, type MetricStatus, type PlayerAim } from "@/lib/analysis/aim";
 import { pct } from "@/lib/analysis/movement";
 import type { UtilitySummary } from "@/lib/analysis/utility";
+import { TRADE_WINDOW_S, type TacticsSummary } from "@/lib/analysis/tactics";
 import {
   CATEGORIES,
   FINDING_TYPES,
@@ -50,6 +51,9 @@ export interface MechanicsSummary {
 
 export type AimSummary = Omit<PlayerAim, "steamId" | "moments" | "peekTypes" | "visibility">;
 export type { UtilitySummary };
+
+/** Columns of TacticsStats the report needs. */
+export type { TacticsSummary };
 
 const lower = (v: number | null, good: number, warn: number): MetricStatus =>
   v == null ? "none" : v <= good ? "good" : v <= warn ? "warn" : "bad";
@@ -132,6 +136,7 @@ export function utilityMetrics(u: UtilitySummary): ReportMetric[] {
 export function playerMetrics(
   mech: MechanicsSummary | null,
   aim: AimSummary | null,
+  tactics: TacticsSummary | null = null,
   utility: UtilitySummary | null = null
 ): ReportMetric[] {
   const out: ReportMetric[] = [];
@@ -171,6 +176,40 @@ export function playerMetrics(
         threshold: m.threshold, status: m.status, samples: m.samples, hint: m.hint,
       });
     }
+  }
+  if (tactics) {
+    const traded = rounded(pct(tactics.tradedDeaths, tactics.deaths));
+    const trades = rounded(pct(tactics.tradesMade, tactics.tradeChances));
+    const opening = rounded(pct(tactics.openingWins, tactics.openingDuels));
+    const sameSpot = rounded(pct(tactics.sameSpotRounds, tactics.anchorRounds));
+    out.push(
+      {
+        key: "traded_deaths", type: "untraded_death", label: "Śmierci odegrane przez team", value: traded, unit: "%",
+        threshold: "≥ 30% dobrze, < 15% źle", status: higher(traded, 30, 15), samples: tactics.deaths,
+        hint: `${tactics.tradedDeaths} z ${tactics.deaths} śmierci odegrane w ${TRADE_WINDOW_S} s; ${tactics.isolatedDeaths} bez kolegi w zasięgu.`,
+      },
+      {
+        key: "trades", type: "missed_trade", label: "Wykorzystane trade'y", value: trades, unit: "%",
+        threshold: "≥ 50% dobrze, < 25% źle", status: higher(trades, 50, 25), samples: tactics.tradeChances,
+        hint: `${tactics.tradesMade} z ${tactics.tradeChances} sytuacji, w których byłeś najbliżej ginącego kolegi.`,
+      },
+      {
+        key: "opening", type: "entry_death", label: "Wygrane otwarcia rundy", value: opening, unit: "%",
+        threshold: "≥ 50% dobrze, < 35% źle", status: higher(opening, 50, 35), samples: tactics.openingDuels,
+        hint: `${tactics.openingWins} z ${tactics.openingDuels} pierwszych pojedynków rundy.`,
+      },
+      {
+        key: "same_spot", type: "predictable_position", label: "Ta sama pozycja CT", value: sameSpot, unit: "%",
+        threshold: "≤ 50% dobrze, > 70% źle", status: lower(sameSpot, 50, 70), samples: tactics.anchorRounds,
+        hint: `${tactics.sameSpotRounds} z ${tactics.anchorRounds} rund CT na najczęstszej pozycji (20 s po starcie).`,
+      },
+      {
+        key: "bad_force", type: "bad_force", label: "Przegrane force'y bez zakupu", value: tactics.badForces, unit: "",
+        threshold: "0 dobrze", status: tactics.forceRounds === 0 ? "none" : tactics.badForces === 0 ? "good" : tactics.badForces >= 2 ? "bad" : "warn",
+        samples: tactics.forceRounds,
+        hint: `${tactics.badForces} z ${tactics.forceRounds} force'ów przegranych tak, że w następnej rundzie nie było pełnego zakupu.`,
+      }
+    );
   }
   if (utility) out.push(...utilityMetrics(utility));
   // Rates and medians over a handful of samples say nothing yet.

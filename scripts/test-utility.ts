@@ -231,7 +231,7 @@ check(
 
 // ─── 10. Report metrics ──────────────────────────────────
 
-const metrics = playerMetrics(null, null, { ...me, smokes: 10, smokesVoid: 5, flashes: 6, flashEnemySec: 3, flashTeamSec: 6 });
+const metrics = playerMetrics(null, null, null, { ...me, smokes: 10, smokesVoid: 5, flashes: 6, flashEnemySec: 3, flashTeamSec: 6 });
 const m = (k: string) => metrics.find((x) => x.key === k);
 check("smoke metric: 50% wasted → bad", m("smoke_wasted")?.value === 50 && m("smoke_wasted")?.status === "bad");
 check("flash blind metric: 0.5 s per flash → bad", m("flash_blind")?.value === 0.5 && m("flash_blind")?.status === "bad");
@@ -239,7 +239,7 @@ check("team flash metric: 1 s per flash → bad", m("team_flash")?.status === "b
 check("HE metric with 2 HEs → not judged (too few)", m("he_damage")?.status === "none");
 const report = buildReport(findings, metrics);
 check("report has a utility category with issues", (report.byCategory.find((c) => c.category.key === "utility")?.issues.length ?? 0) > 0);
-check("unused-utility metric only with inventory data", playerMetrics(null, null, { ...me, inventoryData: false }).every((x) => x.key !== "unused_utility"));
+check("unused-utility metric only with inventory data", playerMetrics(null, null, null, { ...me, inventoryData: false }).every((x) => x.key !== "unused_utility"));
 
 // ─────────────────────────────────────────────────────────
 
