@@ -1,0 +1,36 @@
+/* Violet Lime: lime CTA (#C6FF3D) with dark text, like the app's "cta" button. */
+#cs2a-analyze-button {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483000;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 16px;
+  border: 1px solid rgba(190, 160, 255, 0.35);
+  border-radius: 12px;
+  background: #c6ff3d;
+  color: #08070d;
+  font: 600 14px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif;
+  box-shadow: 0 8px 24px rgba(8, 7, 13, 0.45), 0 0 0 3px rgba(155, 107, 255, 0.25);
+  cursor: pointer;
+}
+#cs2a-analyze-button:hover {
+  background: #d4ff66;
+}
+#cs2a-analyze-button:focus-visible {
+  outline: 3px solid #9b6bff;
+  outline-offset: 2px;
+}
+#cs2a-analyze-button img {
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+#cs2a-analyze-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

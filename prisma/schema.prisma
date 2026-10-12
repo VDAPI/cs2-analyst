@@ -79,6 +79,15 @@ model User {
   // first checkout. The plan itself stays in `plan`, set from the
   // subscriptions by src/lib/billing/persist.ts.
   stripeCustomerId   String?   @unique
+  // Discord (S26): the linked Discord account (set by the bot's /polacz with
+  // a one-time code from Settings), a pending code (sha256, short-lived),
+  // and an optional channel webhook for "analysis ready" messages.
+  discordId          String?   @unique
+  discordUsername    String?
+  discordNotify      Boolean   @default(true)
+  discordWebhookUrl  String?
+  discordLinkCode    String?   @unique
+  discordLinkExpires DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 

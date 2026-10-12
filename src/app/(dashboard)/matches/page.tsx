@@ -22,7 +22,14 @@ function playersLabel(n: number): string {
   return `${n} graczy`;
 }
 
-export default async function MatchesPage() {
+export default async function MatchesPage({
+  searchParams,
+}: {
+  /** `?select=<FaceitMatch id>`: pre-select a match in the FACEIT history (browser extension, S26). */
+  searchParams: Promise<{ select?: string | string[] }>;
+}) {
+  const { select } = await searchParams;
+  const preselect = typeof select === "string" ? select : null;
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   const userSteamId = session?.user?.steamId;
@@ -268,8 +275,9 @@ export default async function MatchesPage() {
 
           {/* FACEIT history — pick matches to analyze */}
           {unlinkedFaceitMatches.length > 0 && (
-            <div className={parsedMatches.length > 0 ? "pt-6" : ""}>
+            <div id="faceit-history" className={`scroll-mt-20 ${parsedMatches.length > 0 ? "pt-6" : ""}`}>
               <FaceitHistoryPicker
+                initialSelected={preselect}
                 matches={unlinkedFaceitMatches.map((fm) => ({
                   id: fm.id,
                   map: fm.map,

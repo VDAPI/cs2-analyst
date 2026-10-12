@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, ExternalLink, Loader2, Play } from "lucide-react";
 import type { DemoFetchStatus } from "@prisma/client";
@@ -9,6 +9,7 @@ import { MapThumb, ResultBadge } from "@/components/match";
 import { formatDate } from "@/lib/utils/formatters";
 import { FaceitDownloadButton } from "@/components/faceit-download-button";
 import { mapDisplayName } from "@/lib/utils/mapNames";
+import { useT } from "@/lib/i18n/client";
 import {
   DEFAULT_FILTERS,
   filterHistory,
@@ -37,6 +38,8 @@ interface Props {
   remaining: number; // analyses left this month (Infinity = unlimited)
   monthlyLimit: number;
   batchSize: number;
+  /** Match picked from outside (the browser extension's "Analyze" on FACEIT, S26): pre-selected and scrolled to. */
+  initialSelected?: string | null;
 }
 
 const selectClass =
@@ -56,10 +59,17 @@ export function FaceitHistoryPicker({
   remaining,
   monthlyLimit,
   batchSize,
+  initialSelected = null,
 }: Props) {
   const router = useRouter();
+  const t = useT();
   const [filters, setFilters] = useState<HistoryFilters>(DEFAULT_FILTERS);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const preselect = initialSelected
+    ? (matches.find((m) => m.id === initialSelected && !m.uploadId) ?? null)
+    : null;
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(preselect && Math.min(remaining, batchSize) > 0 ? [preselect.id] : [])
+  );
   const [keepDemo, setKeepDemo] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -112,6 +122,12 @@ export function FaceitHistoryPicker({
     }
   };
 
+  // Bring the picked match into view (it can be far down a long history).
+  useEffect(() => {
+    if (!initialSelected) return;
+    document.getElementById(`faceit-match-${initialSelected}`)?.scrollIntoView({ block: "center" });
+  }, [initialSelected]);
+
   const limitText = Number.isFinite(monthlyLimit)
     ? `Zostało ${remaining} z ${monthlyLimit} analiz w tym miesiącu · do ${batchSize} naraz`
     : `Do ${batchSize} meczów naraz`;
@@ -163,6 +179,15 @@ export function FaceitHistoryPicker({
         </div>
       </div>
 
+      {preselect && selected.has(preselect.id) && (
+        <p
+          role="status"
+          className="rounded-lg border border-[var(--border-active)] bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--text-primary)]"
+        >
+          {t("faceitRoom.selected")}
+        </p>
+      )}
+
       {!downloadsEnabled && (
         <p className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text-secondary)]">
           Automatyczne pobieranie dem z FACEIT nie jest jeszcze dostępne. Po wybraniu meczów
@@ -213,7 +238,8 @@ export function FaceitHistoryPicker({
             return (
               <Card
                 key={fm.id}
-                className={`flex flex-col gap-2 border-l-[3px] p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-4 ${checked ? "border-[var(--border-active)] bg-[var(--surface-2)]" : ""}`}
+                id={`faceit-match-${fm.id}`}
+                className={`scroll-mt-24 flex flex-col gap-2 border-l-[3px] p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:p-4 ${checked ? "border-[var(--border-active)] bg-[var(--surface-2)]" : ""}`}
                 style={{
                   borderLeftColor:
                     fm.result === "WIN"

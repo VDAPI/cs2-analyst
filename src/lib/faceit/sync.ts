@@ -1,7 +1,7 @@
 import type { DemoFetchStatus } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { getMatchHistory, getMatchDetails } from "./api";
-import type { FaceitMatchDetail } from "./types";
+import type { FaceitMatchDetail, FaceitMatchSummary } from "./types";
 
 const SYNC_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
 
@@ -55,6 +55,66 @@ export function userResult(
     }
   }
   return null;
+}
+
+/** The stored fields of one FACEIT match, from its details (and the history entry when there is one). */
+export function faceitMatchRow(
+  details: FaceitMatchDetail,
+  faceitPlayerId: string,
+  summary?: Pick<FaceitMatchSummary, "match_id" | "finished_at" | "faceit_url" | "competition_name">
+) {
+  const matchId = summary?.match_id ?? details.match_id;
+  const map = details.voting?.map?.pick?.[0] ?? "unknown";
+  const s1 = details.results?.score?.faction1 ?? 0;
+  const s2 = details.results?.score?.faction2 ?? 0;
+  const finishedAt = summary?.finished_at ?? details.finished_at;
+
+  // faceit_url from the API looks like https://www.faceit.com/{lang}/cs2/room/MATCH_ID
+  let faceitUrl = summary?.faceit_url || details.faceit_url || "";
+  if (!faceitUrl.startsWith("http")) faceitUrl = `https://www.faceit.com/en/cs2/room/${matchId}`;
+  faceitUrl = faceitUrl.replace("{lang}", "en");
+
+  return {
+    faceitMatchId: matchId,
+    map,
+    score: `${s1}-${s2}`,
+    date: new Date((finishedAt || Date.now() / 1000) * 1000),
+    faceitUrl,
+    competition: summary?.competition_name ?? details.competition_name ?? null,
+    result: userResult(details, faceitPlayerId),
+    ...extractDemoResource(details),
+  };
+}
+
+/**
+ * One match from the browser extension's "Analyze" (S26): stores it in the
+ * player's history when they played in it and it has finished, so it can be
+ * picked like a synced match. Never starts a download. Returns the
+ * FaceitMatch id, or null (not linked, not their match, not finished).
+ */
+export async function importFaceitMatch(userId: string, faceitMatchId: string): Promise<string | null> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { faceitId: true } });
+  if (!user?.faceitId) return null;
+  const existing = await prisma.faceitMatch.findUnique({
+    where: { userId_faceitMatchId: { userId, faceitMatchId } },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+
+  const details = await getMatchDetails(faceitMatchId);
+  if (details.status?.toLowerCase() !== "finished") return null;
+  const played = (["faction1", "faction2"] as const).some((f) =>
+    (details.teams?.[f]?.roster ?? []).some((p) => p.player_id === user.faceitId)
+  );
+  if (!played) return null;
+
+  const row = await prisma.faceitMatch.upsert({
+    where: { userId_faceitMatchId: { userId, faceitMatchId } },
+    create: { userId, ...faceitMatchRow(details, user.faceitId), faceitMatchId },
+    update: {},
+    select: { id: true },
+  });
+  return row.id;
 }
 
 interface SyncResult {
@@ -134,39 +194,9 @@ export async function syncFaceitMatches(userId: string, force = false): Promise<
 
       // Fetch match details for map and score
       const details = await getMatchDetails(match.match_id);
-
-      const map = details.voting?.map?.pick?.[0] ?? "unknown";
-      const s1 = details.results?.score?.faction1 ?? 0;
-      const s2 = details.results?.score?.faction2 ?? 0;
-      const score = `${s1}-${s2}`;
-      const date = new Date(match.finished_at * 1000);
-
-      // FACEIT URL: convert API URL format to web URL
-      let faceitUrl = match.faceit_url || "";
-      // faceit_url from API looks like: https://www.faceit.com/en/cs2/room/MATCH_ID
-      // Ensure it's a proper URL
-      if (!faceitUrl.startsWith("http")) {
-        faceitUrl = `https://www.faceit.com/en/cs2/room/${match.match_id}`;
-      }
-      // Replace {lang} placeholder if present
-      faceitUrl = faceitUrl.replace("{lang}", "en");
-
-      const { demoResourceUrl, demoStatus } = extractDemoResource(details);
-
-      await prisma.faceitMatch.create({
-        data: {
-          userId,
-          faceitMatchId: match.match_id,
-          map,
-          score,
-          date,
-          faceitUrl,
-          competition: match.competition_name ?? null,
-          result: userResult(details, user.faceitId),
-          demoResourceUrl,
-          demoStatus,
-        },
-      });
+      const row = faceitMatchRow(details, user.faceitId, match);
+      await prisma.faceitMatch.create({ data: { userId, ...row } });
+      const { map, score } = row;
 
       console.log("[FACEIT Sync] Stored match:", match.match_id, map, score);
       result.synced++;

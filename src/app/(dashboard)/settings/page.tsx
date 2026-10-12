@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { getPlanUsage } from "@/lib/limits";
 import { suggestSlug } from "@/lib/sharing/share";
 import { slugSuffix } from "@/lib/sharing/token";
+import { maskWebhookUrl } from "@/lib/discord/link";
+import { discordConfig } from "@/lib/discord/rest";
 import { SettingsContent } from "./settings-content";
 
 export default async function SettingsPage() {
@@ -29,6 +31,10 @@ export default async function SettingsPage() {
       publicProfile: true,
       publicSlug: true,
       password: true,
+      discordUsername: true,
+      discordId: true,
+      discordNotify: true,
+      discordWebhookUrl: true,
     },
   });
 
@@ -59,6 +65,12 @@ export default async function SettingsPage() {
           faceitNickname: dbUser.faceitNickname,
         }}
         hasPassword={Boolean(dbUser.password)}
+        discord={{
+          username: dbUser.discordId ? (dbUser.discordUsername ?? dbUser.discordId) : null,
+          notify: dbUser.discordNotify,
+          webhook: dbUser.discordWebhookUrl ? maskWebhookUrl(dbUser.discordWebhookUrl) : null,
+          botConfigured: discordConfig().botToken != null,
+        }}
         premierHistory={Boolean(dbUser.steamAuthCode)}
         publicProfile={{
           enabled: dbUser.publicProfile,

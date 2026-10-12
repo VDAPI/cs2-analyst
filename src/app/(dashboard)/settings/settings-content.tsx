@@ -21,6 +21,7 @@ import type { MessageKey } from "@/lib/i18n/translate";
 import { InstallCard, LanguageCard, PushCard } from "./platform-cards";
 import { PublicProfileCard, SharesCard, type ShareRow } from "./sharing-cards";
 import { PrivacyCard } from "./privacy-card";
+import { DiscordCard, type DiscordSettings } from "./discord-card";
 
 interface SettingsContentProps {
   user: {
@@ -34,6 +35,8 @@ interface SettingsContentProps {
   };
   /** The account has a password (account deletion asks for it). */
   hasPassword: boolean;
+  /** Discord bot link, notifications and channel webhook (S26). */
+  discord: DiscordSettings;
   /** Premier / Steam match history is switched on (opt-in, S18). */
   premierHistory: boolean;
   /** Public profile (S16): on/off and its address (a suggestion until first saved). */
@@ -82,7 +85,7 @@ function Notice({ tone, children }: { tone: "good" | "mistake"; children: React.
   );
 }
 
-export function SettingsContent({ user, hasPassword, premierHistory, publicProfile, shares, usage }: SettingsContentProps) {
+export function SettingsContent({ user, hasPassword, discord, premierHistory, publicProfile, shares, usage }: SettingsContentProps) {
   const t = useT();
   const { update } = useSession();
   const toast = useToast();
@@ -497,6 +500,7 @@ export function SettingsContent({ user, hasPassword, premierHistory, publicProfi
 
       <LanguageCard />
       <PushCard />
+      <DiscordCard settings={discord} />
       <InstallCard />
 
       {/* Plan & limits */}

@@ -7,6 +7,7 @@ import type { PrismaClient } from "@prisma/client";
 import { createT } from "@/lib/i18n/translate";
 import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n/config";
 import { sendPushToUser } from "./push";
+import { notifyDiscord } from "@/lib/discord/notify";
 import { notificationView, type NotificationData } from "./text";
 
 /** Notifies about one upload, based on its current status. No-op while it is still running. */
@@ -51,6 +52,8 @@ export async function notifyUploadFinished(prisma: PrismaClient, uploadId: strin
     const locale = isLocale(upload.user.locale) ? upload.user.locale : DEFAULT_LOCALE;
     const view = notificationView(createT(locale), { type, matchId: upload.matchId, data });
     await sendPushToUser(prisma, upload.userId, { ...view, tag: `upload-${uploadId}` });
+    // Discord (S26): DM from the bot and/or the player's channel webhook.
+    await notifyDiscord(prisma, upload.userId, { type, matchId: upload.matchId, data });
   } catch (err) {
     console.error(`[notify] failed uploadId=${uploadId}`, err);
   }

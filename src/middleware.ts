@@ -73,5 +73,6 @@ export const config = {
     "/team/:path*",
     "/play-like-pro/:path*",
     "/billing/:path*",
+    "/faceit/:path*",
   ],
 };

@@ -33,13 +33,18 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
       publicProfile: true,
       publicSlug: true,
       stripeCustomerId: true,
+      discordId: true,
+      discordUsername: true,
+      discordNotify: true,
+      discordWebhookUrl: true,
       createdAt: true,
       updatedAt: true,
       password: true,
     },
   });
   if (!user) return null;
-  const { password, steamAuthCode, ...profile } = user;
+  // The channel webhook URL carries a token: export only that one is set.
+  const { password, steamAuthCode, discordWebhookUrl, ...profile } = user;
 
   const [
     accounts,
@@ -147,6 +152,7 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
       ...profile,
       hasPassword: Boolean(password),
       steamAuthCodeSet: Boolean(steamAuthCode),
+      discordWebhookSet: Boolean(discordWebhookUrl),
     },
     linkedAccounts: accounts,
     teams: teams.map((t) => ({ team: t.team, role: t.role, steamId: t.steamId, joinedAt: t.joinedAt })),

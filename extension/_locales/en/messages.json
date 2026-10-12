@@ -1,0 +1,15 @@
+{
+  "extName": { "message": "CS2 Analyst — analyse a FACEIT match" },
+  "extDescription": { "message": "Adds an “Analyze in CS2 Analyst” button to FACEIT match pages. Never downloads anything by itself." },
+  "actionTitle": { "message": "CS2 Analyst: settings" },
+  "analyzeButton": { "message": "Analyze in CS2 Analyst" },
+  "analyzeTitle": { "message": "Opens this match in CS2 Analyst (selected for analysis)" },
+  "optionsTitle": { "message": "CS2 Analyst" },
+  "optionsAppUrl": { "message": "App address" },
+  "optionsAppUrlHint": { "message": "Locally: http://localhost:3000. On a server: its https address." },
+  "optionsSave": { "message": "Save" },
+  "optionsSaved": { "message": "Saved" },
+  "optionsInvalid": { "message": "Enter an address starting with http:// or https://" },
+  "optionsOpen": { "message": "Open the app" },
+  "optionsHow": { "message": "Open a match page on faceit.com: an “Analyze in CS2 Analyst” button appears in the bottom-right corner." }
+}

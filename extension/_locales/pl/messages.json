@@ -1,0 +1,15 @@
+{
+  "extName": { "message": "CS2 Analyst — analiza meczu z FACEIT" },
+  "extDescription": { "message": "Dodaje przycisk „Analizuj w CS2 Analyst” na stronie meczu FACEIT. Nic nie pobiera samo." },
+  "actionTitle": { "message": "CS2 Analyst: ustawienia" },
+  "analyzeButton": { "message": "Analizuj w CS2 Analyst" },
+  "analyzeTitle": { "message": "Otwiera ten mecz w CS2 Analyst (zaznaczony do analizy)" },
+  "optionsTitle": { "message": "CS2 Analyst" },
+  "optionsAppUrl": { "message": "Adres aplikacji" },
+  "optionsAppUrlHint": { "message": "Lokalnie: http://localhost:3000. Na serwerze: jego adres https." },
+  "optionsSave": { "message": "Zapisz" },
+  "optionsSaved": { "message": "Zapisano" },
+  "optionsInvalid": { "message": "Podaj adres zaczynający się od http:// albo https://" },
+  "optionsOpen": { "message": "Otwórz aplikację" },
+  "optionsHow": { "message": "Wejdź na stronę meczu na faceit.com: w prawym dolnym rogu pojawi się przycisk „Analizuj w CS2 Analyst”." }
+}

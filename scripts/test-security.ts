@@ -117,6 +117,7 @@ async function main() {
     "api/faceit/webhooks/demo-ready/route.ts": /timingSafeEqual/, // shared secret
     "api/auth/[...nextauth]/route.ts": /NextAuth/,
     "api/billing/webhook/route.ts": /verifyStripeSignature\(/, // Stripe-Signature HMAC
+    "api/discord/interactions/route.ts": /verifyDiscordSignature\(/, // Ed25519 signature
   };
   const AUTH = /getServerSession|getAdminUser|getMatchAccess|ownMatchWhere/;
   const unguarded: string[] = [];
@@ -161,6 +162,9 @@ async function main() {
     "api/billing/checkout/route.ts": "billing",
     "api/billing/portal/route.ts": "billing",
     "api/billing/sync/route.ts": "billing",
+    "api/discord/link/route.ts": "write",
+    "api/discord/settings/route.ts": "write",
+    "api/discord/test/route.ts": "discordTest",
   };
   const missing = Object.entries(LIMITED)
     .filter(([rel, rule]) => !readFileSync(join(root, rel), "utf8").includes(`rateLimit("${rule}"`))
