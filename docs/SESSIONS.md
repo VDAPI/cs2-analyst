@@ -76,6 +76,22 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Inne źródła | Premier/Steam (share code lub upload) dla chętnych | 🆕 | S18 |
 | Platforma | PWA, powiadomienia „analiza gotowa”, PL/EN | 🆕 | S18 |
 | Platforma | Storage R2, limity darmowego planu | 🆕 | S7 |
+| Jakość | Testy E2E (Playwright) głównych ścieżek, desktop i telefon, w CI | 🆕 | S19 |
+| Jakość | Środowisko testowe online (staging) z przykładowymi danymi | 🆕 | S20 |
+| Start | Demo bez logowania: przykładowa analiza meczu pro, przewodnik po aplikacji | 🆕 | S21 |
+| Trening | Generator treningu: mapy Workshop, configi .cfg, rutyna dnia | 🆕 | S22 |
+| Trening | Trener lineupów: komendy setpos/setang do skopiowania, config do ćwiczenia granatów | 🆕 | S22 |
+| Przed meczem | Scouting rywali z linku do pokoju FACEIT, sugestia veto map | 🆕 | S23 |
+| Pro | „Graj jak pro”: porównanie z wybranym zawodowcem per mapa i rola | 🆕 | S24 |
+| ML | Wykrywanie roli (entry, AWP, support, lurk, anchor) i rady pod rolę | 🆕 | S24 |
+| Społeczność | Klipy 2D błędów i highlightów do pobrania (MP4/GIF) i udostępnienia | 🆕 | S25 |
+| Społeczność | Ranking znajomych, wyzwania tygodniowe | 🆕 | S25 |
+| Integracje | Bot Discord: powiadomienia i komenda /stats | 🆕 | S26 |
+| Integracje | Rozszerzenie przeglądarki: przycisk „Analizuj” na stronie meczu FACEIT | 🆕 | S26 |
+| Platforma | Panel admina, monitoring kolejki, błędy (Sentry), statystyki użycia | 🆕 | S27 |
+| Platforma | Wydajność: szybsze parsowanie, cache, Lighthouse mobile ≥ 90 | 🆕 | S28 |
+| Platforma | Bezpieczeństwo i RODO: usunięcie konta i danych, polityka prywatności, rate limiting | 🆕 | S29 |
+| Platforma | Plan Pro i płatności (Stripe) | 🆕 | S30 |
 
 ## Sesje
 
@@ -173,6 +189,68 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Zakres:** Premier/Steam dla chętnych (share code lub upload), PWA (instalacja na telefonie), powiadomienia „analiza gotowa”, tłumaczenie PL/EN.
 - **Gotowe, gdy:** aplikację da się zainstalować na telefonie i dostać powiadomienie.
 
+## Sesje — etap 2 (dopisane 12.10.2026 po S1–S9)
+
+### S19. Testy E2E i jakość
+- **Wymaga:** S10.
+- **Zakres:** Playwright z przykładowym demem (fixture) i seedem bazy: logowanie, upload, kolejka, raport, replay, porównanie, usuwanie dema. Każdy test na 1280 px i 390 px. Zrzuty ekranu do porównań wizualnych. Uruchamianie w CI (Postgres i Redis jako services). Napraw błędy, które testy znajdą.
+- **Gotowe, gdy:** CI uruchamia E2E na każdym PR i są zielone.
+
+### S20. Środowisko testowe online (staging)
+- **Wymaga:** S19. Hosting wybiera właściciel (pytanie w wątku planu).
+- **Zakres:** konfiguracja deployu aplikacji, workera, Postgresa, Redisa i R2 zgodnie z wyborem; zmienne środowiskowe opisane w `.env.example`; seed z kontem testowym i 3 przykładowymi analizami; automatyczny deploy z main; instrukcja w README.
+- **Gotowe, gdy:** właściciel może wejść na adres staging z telefonu i przetestować aplikację.
+
+### S21. Demo bez logowania i onboarding
+- **Wymaga:** S10.
+- **Zakres:** publiczna przykładowa analiza (mecz pro lub własny mecz właściciela za zgodą), przycisk „Zobacz przykład” na stronie głównej, przewodnik po raporcie przy pierwszym logowaniu, puste stany z instrukcją.
+- **Gotowe, gdy:** nowa osoba widzi pełny raport bez zakładania konta.
+
+### S22. Trening: generator rutyny i trener lineupów
+- **Wymaga:** S11, S15.
+- **Zakres:** na podstawie Findingów rutyna dnia (konkretne mapy Workshop, czas, cel liczbowy) i plik `.cfg` do pobrania. Trener lineupów: z bazy lineupów z S11 komendy `setpos`/`setang` do skopiowania jednym kliknięciem i config do ćwiczenia granatów (`sv_cheats`, `sv_infinite_ammo`, `sv_grenade_trajectory_prac_pipreview`). Zaznaczanie lineupów jako „opanowane”.
+- **Gotowe, gdy:** z karty błędu „smoke za wcześnie” da się przejść do ćwiczenia lepszego lineupu.
+
+### S23. Scouting rywali przed meczem
+- **Wymaga:** S7.
+- **Zakres:** gracz wkleja link do pokoju meczu FACEIT; z Data API pobieramy statystyki 10 graczy (mapy, winrate, K/D, ostatnia forma), pokazujemy najsłabsze i najmocniejsze mapy rywali i sugestię veto. Bez pobierania dem. Cache odpowiedzi API.
+- **Gotowe, gdy:** po wklejeniu linku w kilka sekund widać kartę rywali z sugestią veto.
+
+### S24. „Graj jak pro” i wykrywanie roli
+- **Wymaga:** S13.
+- **Zakres:** wykrywanie roli gracza w meczu (entry, AWP, support, lurk, anchor) z pozycji, kolejności kontaktów i broni; normy pro liczone osobno per rola; wybór ulubionego zawodowca i porównanie metryk, pozycji i timingu na mapie; rady dopasowane do roli.
+- **Gotowe, gdy:** raport mówi „grałeś jako entry na Mirage” i porównuje z pro w tej roli.
+
+### S25. Klipy, highlighty i rywalizacja ze znajomymi
+- **Wymaga:** S16.
+- **Zakres:** eksport klipu 2D (błąd albo highlight, np. clutch, ace) do MP4/GIF nagrywany z Canvas po stronie przeglądarki; strona klipu z podglądem do udostępnienia. Znajomi (z FACEIT lub zaproszenia), ranking znajomych po wybranych metrykach, wyzwania tygodniowe (np. „mniej niż 15% strzałów w ruchu w 3 meczach”).
+- **Gotowe, gdy:** gracz pobiera klip clutcha i widzi swoje miejsce w rankingu znajomych.
+
+### S26. Discord i rozszerzenie przeglądarki
+- **Wymaga:** S7, S16.
+- **Zakres:** bot Discord (powiadomienie „analiza gotowa”, `/stats`, `/ostatni-mecz`, link do raportu) z połączeniem konta. Rozszerzenie Chrome/Firefox dodające przycisk „Analizuj w CS2 Analyst” na stronie meczu FACEIT (otwiera nasz wybór meczu z zaznaczonym meczem; bez automatycznego pobierania).
+- **Gotowe, gdy:** po analizie przychodzi wiadomość na Discord, a przycisk na FACEIT otwiera właściwy mecz.
+
+### S27. Panel admina i monitoring
+- **Wymaga:** S7.
+- **Zakres:** panel admina (użytkownicy, limity, kolejka, nieudane analizy z możliwością ponowienia), Sentry dla aplikacji i workera, metryki: czas parsowania, długość kolejki, liczba analiz dziennie.
+- **Gotowe, gdy:** nieudana analiza jest widoczna w panelu i da się ją ponowić.
+
+### S28. Wydajność
+- **Wymaga:** S19.
+- **Zakres:** profil parsowania i zapisu ticków (cel: mecz w mniej niż 60 s), równoległe workery, cache zapytań raportu, lazy loading Canvasów, obrazy map w WebP, Lighthouse mobile ≥ 90 na stronie głównej i raporcie.
+- **Gotowe, gdy:** pomiary przed i po są w opisie PR.
+
+### S29. Bezpieczeństwo i prywatność
+- **Wymaga:** S19.
+- **Zakres:** usunięcie konta i wszystkich danych jednym przyciskiem, eksport danych, polityka prywatności i regulamin (szkic do przeglądu przez właściciela), rate limiting API i uploadu, walidacja plików .dem, przegląd uprawnień endpointów, nagłówki bezpieczeństwa.
+- **Gotowe, gdy:** przegląd bezpieczeństwa nie ma otwartych krytycznych punktów.
+
+### S30. Plan Pro i płatności
+- **Wymaga:** S27. Start tylko po decyzji właściciela o cenach.
+- **Zakres:** Stripe (subskrypcja miesięczna i roczna), strona cennika, limity Free vs Pro w `src/lib/limits.ts`, portal klienta, webhooki, faktury.
+- **Gotowe, gdy:** testowa płatność w trybie test Stripe podnosi limit.
+
 ## Kolejność
 
 ```
@@ -181,4 +259,7 @@ S6 (równolegle z S2–S5) → S7, S8
 S8 → S9 → S13 → S14
 S8 + S5 → S10 → S11, S12, S15, S16
 S12 → S17 · S7 → S18
+S10 → S19 → S20, S28, S29 · S10 → S21
+S11 + S15 → S22 · S7 → S23, S27 · S13 → S24
+S16 → S25 · S7 + S16 → S26 · S27 → S30 (po decyzji o cenach)
 ```
