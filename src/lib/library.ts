@@ -25,6 +25,10 @@ export async function deleteAnalysis(prisma: PrismaClient, uploadId: string): Pr
       where: { uploadId },
       data: { uploadId: null },
     }),
+    prisma.steamMatch.updateMany({
+      where: { uploadId },
+      data: { uploadId: null },
+    }),
     prisma.demoUpload.update({
       where: { id: uploadId },
       data: {
@@ -84,7 +88,7 @@ export interface QueueItem {
   id: string;
   label: string;
   map: string | null;
-  source: "MANUAL" | "FACEIT";
+  source: "MANUAL" | "FACEIT" | "STEAM";
   stage: QueueStage;
   progress: number;
   error: string | null;
@@ -114,13 +118,16 @@ export async function getQueueItems(prisma: PrismaClient, userId: string): Promi
       createdAt: true,
       match: { select: { map: true } },
       faceitMatch: { select: { map: true, date: true } },
+      steamMatch: { select: { createdAt: true } },
     },
   });
   return uploads.map((u) => ({
     id: u.id,
     label: u.faceitMatch
       ? `FACEIT · ${u.faceitMatch.date.toISOString().slice(0, 10)}`
-      : u.fileName,
+      : u.steamMatch
+        ? `Premier · ${u.steamMatch.createdAt.toISOString().slice(0, 10)}`
+        : u.fileName,
     map: u.match?.map ?? u.faceitMatch?.map ?? null,
     source: u.source,
     stage: queueStage(u.status),

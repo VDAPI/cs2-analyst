@@ -20,7 +20,7 @@ export interface LibraryEntry {
   scoreT: number;
   result: "W" | "L" | "D" | null;
   rating: number | null;
-  source: "MANUAL" | "FACEIT";
+  source: "MANUAL" | "FACEIT" | "STEAM";
   fileName: string;
   fileSize: number;
   demo: DemoState;

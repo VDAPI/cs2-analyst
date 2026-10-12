@@ -9,6 +9,7 @@ import {
   faceitDownloadsEnabled,
   FACEIT_UPLOAD_INCLUDE,
 } from "@/lib/faceit/analyze";
+import { enqueueSteamDownload, STEAM_UPLOAD_INCLUDE } from "@/lib/steam/premier";
 
 /**
  * POST /api/uploads/[id]/retry — run a failed analysis again: re-parse the
@@ -53,6 +54,16 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       const uploadId = await enqueueFaceitDownload(userId, fm, upload.keepDemo);
       return NextResponse.json({ uploadId });
     }
+  }
+
+  const sm = await prisma.steamMatch.findUnique({
+    where: { uploadId: id },
+    include: STEAM_UPLOAD_INCLUDE,
+  });
+  if (sm && sm.userId === userId && sm.demoUrl) {
+    const uploadId = await enqueueSteamDownload(userId, sm, upload.keepDemo);
+    await prisma.demoUpload.update({ where: { id }, data: { deletedAt: new Date() } });
+    return NextResponse.json({ uploadId });
   }
 
   return NextResponse.json(

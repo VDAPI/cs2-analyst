@@ -27,5 +27,6 @@ export const config = {
     "/replay/:path*",
     "/compare/:path*",
     "/settings/:path*",
+    "/premier/:path*",
   ],
 };

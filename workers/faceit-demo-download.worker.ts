@@ -29,6 +29,7 @@ import {
 } from "../src/lib/storage/demo-store";
 import { deleteAnalysis } from "../src/lib/library";
 import type { FaceitDemoDownloadJobData } from "../src/lib/queue";
+import { notifyUploadFinished } from "../src/lib/notifications/notify";
 
 const prisma = new PrismaClient();
 
@@ -205,6 +206,7 @@ const worker = new Worker("faceit-demo-download", processDownload, {
 });
 
 worker.on("completed", (job) => {
+  void notifyUploadFinished(prisma, job.data.uploadId);
   console.log(
     `FACEIT demo downloaded: ${job.id} -> match ${job.returnvalue?.matchId}`
   );
@@ -212,6 +214,8 @@ worker.on("completed", (job) => {
 
 worker.on("failed", (job, err) => {
   console.error(`FACEIT demo download failed: ${job?.id}`, err.message);
+  // Only the last attempt leaves the upload FAILED; earlier ones are a no-op.
+  if (job) void notifyUploadFinished(prisma, job.data.uploadId);
 });
 
 worker.on("ready", () => {

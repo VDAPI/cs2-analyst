@@ -24,7 +24,9 @@
     "test:library": "tsx --tsconfig tsconfig.json scripts/test-library.ts",
     "test:mechanics": "tsx --tsconfig tsconfig.json scripts/test-movement.ts",
     "test:aim": "tsx --tsconfig tsconfig.json scripts/test-aim.ts",
-    "test:findings": "tsx --tsconfig tsconfig.json scripts/test-findings.ts"
+    "test:findings": "tsx --tsconfig tsconfig.json scripts/test-findings.ts",
+    "test:platform": "tsx --tsconfig tsconfig.json scripts/test-platform.ts",
+    "test:scouting": "tsx --tsconfig tsconfig.json scripts/test-scouting.ts"
   },
   "dependencies": {
     "@laihoe/demoparser2": "^0.41.3",
@@ -58,6 +60,8 @@
     "react-dom": "^19.0.0",
     "recharts": "^2.15.0",
     "tailwind-merge": "^2.6.0",
+    "unbzip2-stream": "^1.4.3",
+    "web-push": "^3.6.7",
     "zod": "^3.24.0",
     "zustand": "^5.0.0"
   },
@@ -70,6 +74,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/web-push": "^3.6.4",
     "eslint": "^9.0.0",
     "eslint-config-next": "15.1.0",
     "prisma": "^6.4.0",

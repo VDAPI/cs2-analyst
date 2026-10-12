@@ -9,6 +9,13 @@ export function SourceBadge({ source }: { source: string | null | undefined }) {
       </span>
     );
   }
+  if (source === "STEAM") {
+    return (
+      <span className="inline-flex items-center rounded-full bg-[var(--accent-muted)] px-1.5 py-0.5 text-[10px] font-bold leading-none text-[var(--accent-hover)]">
+        PREMIER
+      </span>
+    );
+  }
   return null;
 }
 

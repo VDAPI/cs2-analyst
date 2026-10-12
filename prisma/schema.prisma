@@ -45,26 +45,36 @@ model VerificationToken {
 }
 
 model User {
-  id             String    @id @default(cuid())
-  steamId        String?   @unique
-  faceitId       String?   @unique
-  faceitNickname String?
-  lastFaceitSync DateTime?
-  name           String?
-  email          String?   @unique
-  emailVerified  DateTime?
-  image          String?
-  password       String?
-  plan           Plan      @default(FREE)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  steamId            String?   @unique
+  faceitId           String?   @unique
+  faceitNickname     String?
+  lastFaceitSync     DateTime?
+  name               String?
+  email              String?   @unique
+  emailVerified      DateTime?
+  image              String?
+  password           String?
+  plan               Plan      @default(FREE)
+  locale             String    @default("pl") // UI language ("pl" | "en"), also used for push notifications
+  // Premier / Steam match history (opt-in, S18): the player's own "game
+  // authentication code" plus the newest share code we know. Never set
+  // unless the player asked for it in Settings.
+  steamAuthCode      String?
+  steamLastShareCode String?
+  lastSteamSync      DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  accounts      Account[]
-  sessions      Session[]
-  matchPlayers  MatchPlayer[]
-  teams         TeamMember[]
-  uploads       DemoUpload[]
-  faceitMatches FaceitMatch[]
+  accounts          Account[]
+  sessions          Session[]
+  matchPlayers      MatchPlayer[]
+  teams             TeamMember[]
+  uploads           DemoUpload[]
+  faceitMatches     FaceitMatch[]
+  steamMatches      SteamMatch[]
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
 }
 
 enum Plan {
@@ -98,6 +108,7 @@ model DemoUpload {
   user        User         @relation(fields: [userId], references: [id])
   match       Match?       @relation(fields: [matchId], references: [id])
   faceitMatch FaceitMatch?
+  steamMatch  SteamMatch?
 
   @@index([userId, createdAt])
 }
@@ -105,6 +116,7 @@ model DemoUpload {
 enum UploadSource {
   MANUAL
   FACEIT
+  STEAM // Premier / matchmaking, imported by share code or replay link
 }
 
 enum ParseStatus {
@@ -566,6 +578,80 @@ enum DemoFetchStatus {
   FAILED
 }
 
+// ─── Premier / Steam (opt-in) ──────────────────────────
+
+// One Premier / matchmaking match the player imported by share code, or that
+// the Steam match history sync found. matchId / outcomeId / tvPort are decoded
+// from the share code (src/lib/steam/share-code.ts). demoUrl is a Valve replay
+// link (replayN.valve.net/730/..._....dem.bz2) when the player pasted one; the
+// demo is then downloaded only when the player clicks "Analyze".
+model SteamMatch {
+  id        String   @id @default(cuid())
+  userId    String
+  shareCode String
+  matchId   String // uint64 as decimal string
+  outcomeId String // uint64 as decimal string (reservation id)
+  tvPort    Int
+  demoUrl   String?
+  uploadId  String?  @unique
+  createdAt DateTime @default(now())
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  upload DemoUpload? @relation(fields: [uploadId], references: [id])
+
+  @@unique([userId, shareCode])
+  @@index([userId, createdAt])
+}
+
+// ─── Notifications (S18) ────────────────────────────────
+
+enum NotificationType {
+  ANALYSIS_DONE
+  ANALYSIS_FAILED
+}
+
+// In-app notification (bell in the top bar). Text is rendered at display time
+// in the viewer's language from type + data, so nothing language-specific is
+// stored.
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  uploadId  String?
+  matchId   String?
+  data      Json // { map?, score?, fileName?, error? }
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// Web Push subscription of one browser / installed PWA.
+model PushSubscription {
+  id         String   @id @default(cuid())
+  userId     String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Small key-value store for server-generated settings (VAPID keys when the
+// env vars are not set, so push works without manual setup).
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 // ─── Teams ───────────────────────────────────────────────
 
 model Team {
@@ -594,4 +680,15 @@ enum TeamRole {
   OWNER
   COACH
   PLAYER
+}
+
+/// Cached FACEIT Data API responses (S23 scouting). Keyed by request, e.g.
+/// "player-stats:<id>"; rows past `expiresAt` are refetched and overwritten.
+model FaceitApiCache {
+  key       String   @id
+  body      Json
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
 }

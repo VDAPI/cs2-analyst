@@ -7,6 +7,7 @@ import { checkMonthlyDemoLimit, limitReachedMessage } from "@/lib/limits";
 import { LOCAL_DEMO_DIR, storeDemoFile } from "@/lib/storage/demo-store";
 import { activeUploadId, FACEIT_UPLOAD_INCLUDE, releaseFaceitMatch } from "@/lib/faceit/analyze";
 import { getQueueItems } from "@/lib/library";
+import { activeSteamUploadId, releaseSteamMatch, STEAM_UPLOAD_INCLUDE } from "@/lib/steam/premier";
 import { writeFile, mkdir, unlink } from "fs/promises";
 import { join } from "path";
 
@@ -22,7 +23,8 @@ function sanitizeFileName(name: string): string {
 /**
  * POST /api/uploads — multipart: file (.dem), optional keepDemo ("true"),
  * optional faceitMatch (FaceitMatch.id) to attach the demo to a match from
- * the player's FACEIT history.
+ * the player's FACEIT history, optional steamMatch (SteamMatch.id) to attach
+ * it to a Premier match the player added.
  */
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -35,6 +37,7 @@ export async function POST(req: Request) {
   const file = formData.get("file") as File | null;
   const keepDemo = formData.get("keepDemo") === "true";
   const faceitMatchRef = formData.get("faceitMatch");
+  const steamMatchRef = formData.get("steamMatch");
 
   if (!file) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -69,6 +72,23 @@ export async function POST(req: Request) {
     faceitMatchId = fm.faceitMatchId;
   }
 
+  // Optional link to a Premier match from /premier.
+  let steamMatchId: string | null = null;
+  if (!faceitMatchId && typeof steamMatchRef === "string" && steamMatchRef) {
+    const sm = await prisma.steamMatch.findUnique({
+      where: { id: steamMatchRef },
+      include: STEAM_UPLOAD_INCLUDE,
+    });
+    if (!sm || sm.userId !== userId) {
+      return NextResponse.json({ error: "Premier match not found" }, { status: 404 });
+    }
+    if (activeSteamUploadId(sm)) {
+      return NextResponse.json({ error: "This Premier match already has a demo" }, { status: 409 });
+    }
+    if (sm.upload) await releaseSteamMatch(sm.id);
+    steamMatchId = sm.id;
+  }
+
   // Enforce the monthly demo limit (shared with FACEIT downloads)
   const limit = await checkMonthlyDemoLimit(userId);
   if (!limit.allowed) {
@@ -91,8 +111,15 @@ export async function POST(req: Request) {
       status: "QUEUED",
       keepDemo,
       ...(faceitMatchId ? { source: "FACEIT" as const, faceitMatchId } : {}),
+      ...(steamMatchId ? { source: "STEAM" as const } : {}),
     },
   });
+  if (steamMatchId) {
+    await prisma.steamMatch.update({
+      where: { id: steamMatchId },
+      data: { uploadId: upload.id },
+    });
+  }
   if (faceitMatchId) {
     await prisma.faceitMatch.update({
       where: { faceitMatchId },
