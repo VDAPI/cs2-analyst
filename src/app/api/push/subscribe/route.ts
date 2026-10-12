@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getVapidKeys } from "@/lib/notifications/vapid";
+import { isAllowedPushEndpoint, MAX_PUSH_SUBSCRIPTIONS_PER_USER } from "@/lib/notifications/push-endpoint";
 
 /** GET /api/push/subscribe — the VAPID public key the browser subscribes with. */
 export async function GET() {
@@ -12,7 +13,8 @@ export async function GET() {
 }
 
 const Subscription = z.object({
-  endpoint: z.string().url().max(1000).startsWith("https://"),
+  // Only real push services: the server POSTs to this URL (no SSRF to internal hosts).
+  endpoint: z.string().url().max(1000).refine(isAllowedPushEndpoint),
   keys: z.object({ p256dh: z.string().max(200), auth: z.string().max(100) }),
 });
 
@@ -29,8 +31,18 @@ export async function POST(req: Request) {
   await prisma.pushSubscription.upsert({
     where: { endpoint },
     create: { userId: session.user.id, endpoint, p256dh: keys.p256dh, auth: keys.auth, userAgent },
-    update: { userId: session.user.id, p256dh: keys.p256dh, auth: keys.auth, userAgent },
+    update: { userId: session.user.id, p256dh: keys.p256dh, auth: keys.auth, userAgent, lastUsedAt: new Date() },
   });
+  // Cap fan-out: keep only the newest subscriptions of this account.
+  const stale = await prisma.pushSubscription.findMany({
+    where: { userId: session.user.id },
+    orderBy: [{ lastUsedAt: "desc" }, { createdAt: "desc" }],
+    skip: MAX_PUSH_SUBSCRIPTIONS_PER_USER,
+    select: { id: true },
+  });
+  if (stale.length > 0) {
+    await prisma.pushSubscription.deleteMany({ where: { id: { in: stale.map((s) => s.id) } } });
+  }
   return NextResponse.json({ ok: true }, { status: 201 });
 }
 

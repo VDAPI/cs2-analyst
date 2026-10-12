@@ -6,6 +6,7 @@
 import type { PrismaClient } from "@prisma/client";
 import webpush from "web-push";
 import { getVapidKeys } from "./vapid";
+import { isAllowedPushEndpoint } from "./push-endpoint";
 
 export interface PushPayload {
   title: string;
@@ -30,6 +31,12 @@ export async function sendPushToUser(
 
   await Promise.all(
     subs.map(async (sub) => {
+      // Rows stored before endpoints were checked: never POST to a non-push host.
+      if (!isAllowedPushEndpoint(sub.endpoint)) {
+        removed++;
+        await prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => {});
+        return;
+      }
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },

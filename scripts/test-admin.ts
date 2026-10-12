@@ -1,7 +1,9 @@
 /**
  * Regression test for S27: admin panel. Run: npm run test:admin
  *
- * 1. isAdminUser(): DB role, ADMIN_EMAILS (case/space-insensitive), dev login only in development.
+ * 1. isAdminUser(): DB role and the dev login (development only); ADMIN_EMAILS
+ *    never grants admin at runtime (it only feeds `npm run admin:grant`).
+ *    Email normalization and the Steam pseudo-domain rule used by register/login.
  * 2. dailyCounts(): one row per Warsaw calendar day, DST-safe, statuses bucketed.
  * 3. percentile() / parseTimeSummary() for parse times.
  * 4. isStuck(): only in-flight analyses untouched for STUCK_AFTER_MS.
@@ -11,6 +13,7 @@
  * No database, Redis or network needed.
  */
 import { DEV_ADMIN_EMAIL, isAdminUser, parseAdminEmails } from "@/lib/admin/access";
+import { isSteamPseudoEmail, normalizeEmail } from "@/lib/email";
 import {
   dailyCounts,
   dayKey,
@@ -30,12 +33,19 @@ const check = (label: string, ok: boolean) => checks.push([label, ok]);
 const prod = { NODE_ENV: "production", ADMIN_EMAILS: " Owner@Example.com , ops@example.com,," };
 check("role ADMIN is admin", isAdminUser({ role: "ADMIN", email: null }, {}));
 check("plain user is not admin", !isAdminUser({ role: "USER", email: "a@b.c" }, prod));
-check("ADMIN_EMAILS match ignores case and spaces", isAdminUser({ role: "USER", email: "owner@example.com" }, prod));
-check("second ADMIN_EMAILS entry", isAdminUser({ role: "USER", email: "OPS@example.com" }, prod));
+// Unverified emails: being on ADMIN_EMAILS must not be enough (anyone can register the address).
+check("ADMIN_EMAILS address alone is not admin", !isAdminUser({ role: "USER", email: "owner@example.com" }, prod));
+check("ADMIN_EMAILS case variant is not admin", !isAdminUser({ role: "USER", email: "OPS@example.com" }, prod));
+check("ADMIN_EMAILS parses trimmed + lowercase", parseAdminEmails(prod.ADMIN_EMAILS).join() === "owner@example.com,ops@example.com");
 check("no email, no admin", !isAdminUser({ role: "USER", email: null }, prod));
 check("null user is not admin", !isAdminUser(null, prod));
 check("dev login is admin in development", isAdminUser({ role: "USER", email: DEV_ADMIN_EMAIL }, { NODE_ENV: "development" }));
 check("dev login is NOT admin in production", !isAdminUser({ role: "USER", email: DEV_ADMIN_EMAIL }, { NODE_ENV: "production" }));
+check("dev login case variant is not admin", !isAdminUser({ role: "USER", email: "Dev@cs2analyst.local" }, { NODE_ENV: "development" }));
+check("normalizeEmail trims + lowercases", normalizeEmail("  Admin@Site.COM ") === "admin@site.com");
+check("Steam pseudo email is reserved", isSteamPseudoEmail("76561198000000000@SteamCommunity.com"));
+check("Steam subdomain is reserved", isSteamPseudoEmail("x@foo.steamcommunity.com"));
+check("lookalike domain is not reserved", !isSteamPseudoEmail("x@notsteamcommunity.com"));
 check("empty ADMIN_EMAILS parses to []", parseAdminEmails("") .length === 0 && parseAdminEmails(undefined).length === 0);
 
 // ─── 2. Daily counts ─────────────────────────────────────
