@@ -51,6 +51,7 @@ const SCREENS: Screen[] = [
   { name: "mechanika", path: (s) => `/mechanics/${s.matchIds[0]}` },
   { name: "scouting", path: () => "/scouting" },
   { name: "pro", path: () => "/pro", volatile: lastRefresh },
+  { name: "graj-jak-pro", path: () => "/play-like-pro?map=de_mirage&side=T" },
   { name: "ustawienia", path: () => "/settings" },
   { name: "admin", path: () => "/admin", noScreenshot: true },
   { name: "admin-analizy", path: () => "/admin/analyses" },

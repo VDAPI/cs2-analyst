@@ -112,6 +112,8 @@ export interface TacticsKill {
   victimPosX: number;
   victimPosY: number;
   victimPosZ: number;
+  /** Normalised weapon name (Kill.weapon); role detection counts AWP kills with it. */
+  weapon?: string;
 }
 
 export interface TacticsDamage {
@@ -279,6 +281,31 @@ export function freezeEndTick(round: Pick<TacticsRound, "startTick" | "frames">,
   return round.startTick + 15 * tickRate;
 }
 
+/**
+ * Every player's side in one round: frames first, then the regulation halves
+ * (unknown in overtime matches). `finalSide` = the side each player finished on.
+ */
+export function roundSides(
+  r: Pick<TacticsRound, "number" | "frames">,
+  finalSide: Map<string, Side>,
+  totalRounds: number
+): Map<string, Side> {
+  const sides = new Map<string, Side>();
+  for (const f of r.frames) {
+    for (const p of f.players) if (!sides.has(p.steamId)) sides.set(p.steamId, p.team);
+    if (sides.size >= finalSide.size) break;
+  }
+  if (totalRounds <= 24) {
+    for (const [id, team] of finalSide) {
+      if (!sides.has(id)) sides.set(id, r.number <= 12 && totalRounds > 12 ? other(team) : team);
+    }
+  }
+  return sides;
+}
+
+/** Nearest frame to a tick (binary search over frames sorted by tick). */
+export { frameAt };
+
 // ─── Analysis ────────────────────────────────────────────
 
 interface RoundCtx {
@@ -341,20 +368,7 @@ export function analyzeTactics(input: TacticsInput): PlayerTactics[] {
     econBy.set(e.roundNumber, m);
   }
 
-  /** Side per round: frames first, then regulation halves (unknown in overtime matches). */
-  const sidesFor = (r: TacticsRound): Map<string, Side> => {
-    const sides = new Map<string, Side>();
-    for (const f of r.frames) {
-      for (const p of f.players) if (!sides.has(p.steamId)) sides.set(p.steamId, p.team);
-      if (sides.size >= input.players.length) break;
-    }
-    if (totalRounds <= 24) {
-      for (const [id, team] of finalSide) {
-        if (!sides.has(id)) sides.set(id, r.number <= 12 && totalRounds > 12 ? other(team) : team);
-      }
-    }
-    return sides;
-  };
+  const sidesFor = (r: TacticsRound) => roundSides(r, finalSide, totalRounds);
 
   const ctxs: RoundCtx[] = rounds.map((round) => {
     const sideOf = sidesFor(round);

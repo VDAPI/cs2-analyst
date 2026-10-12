@@ -17,6 +17,8 @@ import { coachAiEnabled } from "@/lib/coach/ai";
 import { matchCoachInput } from "@/lib/coach/match";
 import { loadFeedbackWeights, loadRatings, matchCoachText } from "@/lib/coach/persist";
 import { loadReportNorms } from "@/lib/norms/report-norms";
+import { loadReportRole } from "@/lib/roles/report-role";
+import { RoleCard } from "@/components/roles/role-card";
 import { ReportBody } from "./report-body";
 import { loadReportWinProb } from "@/lib/winprob/report";
 
@@ -72,6 +74,8 @@ export default async function ReportPage({ params, searchParams }: Props) {
           t,
         })
       : null;
+  const role =
+    selected && loaded?.hasData ? await loadReportRole(prisma, { matchId, steamId: selected.steamId, map: match.map }) : null;
   const ctx = reportClipContext(matchId, match.map);
   const winprob = hasData && selected ? await loadReportWinProb(prisma, matchId, selected.steamId, t, locale) : null;
 
@@ -185,6 +189,14 @@ export default async function ReportPage({ params, searchParams }: Props) {
         />
       ) : (
         <>
+          {role && (
+            <RoleCard
+              data={role}
+              mapName={mapDisplayName(match.map)}
+              compareHref={`/play-like-pro?map=${match.map}${role.sides.T ? "&side=T" : ""}`}
+              t={t}
+            />
+          )}
           {coach && selected && (
             <MatchCoach
               key={selected.steamId}
