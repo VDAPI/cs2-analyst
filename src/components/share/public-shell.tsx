@@ -21,7 +21,7 @@ export async function PublicShell({ children }: { children: React.ReactNode }) {
       </header>
       <main className="mx-auto max-w-6xl space-y-8 px-4 py-6 md:py-8">
         {children}
-        <section className="flex flex-col items-start gap-3 rounded-2xl border border-[var(--border-active)] bg-[var(--accent-muted)] p-5 sm:flex-row sm:items-center sm:justify-between">
+        <section data-tour="signup" className="flex flex-col items-start gap-3 rounded-2xl border border-[var(--border-active)] bg-[var(--accent-muted)] p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-display text-lg font-semibold text-[var(--text-primary)]">{t("shared.ctaTitle")}</p>
             <p className="text-sm text-[var(--text-secondary)]">{t("shared.ctaBody")}</p>

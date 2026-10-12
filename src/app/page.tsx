@@ -5,6 +5,7 @@ import {
   Bot,
   Crosshair,
   DollarSign,
+  Eye,
   Flame,
   GitCompare,
   Gauge,
@@ -77,6 +78,10 @@ export default async function HomePage() {
                   <Upload aria-hidden className="h-4 w-4" />
                   Wgraj demo
                 </Link>
+                <Link href="/demo" className={buttonVariants({ variant: "ghost", size: "lg" })}>
+                  <Eye aria-hidden className="h-4 w-4" />
+                  Zobacz przykład
+                </Link>
               </div>
               <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-[var(--text-tertiary)]">
                 <li className="flex items-center gap-1.5">
@@ -127,6 +132,12 @@ export default async function HomePage() {
           lede="Oceniamy decyzje po tym, co mogłeś wiedzieć: dźwięk, widoczność i info od teamu, a nie po widoku z góry, którego w grze nie masz."
         >
           <SampleReport />
+          <div className="mt-6 flex justify-center">
+            <Link href="/demo" className={buttonVariants({ variant: "primary", size: "lg" })}>
+              <Eye aria-hidden className="h-4 w-4" />
+              Otwórz pełny przykładowy raport
+            </Link>
+          </div>
         </Section>
 
         {/* Features */}
@@ -201,7 +212,8 @@ export default async function HomePage() {
 
       <footer className="border-t border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--text-tertiary)] sm:px-6">
         <p>CS2 Analyst &copy; {new Date().getFullYear()} · Projekt niezależny, niezwiązany z Valve Corporation ani FACEIT.</p>
-        <nav aria-label="Dokumenty" className="mt-3 flex justify-center gap-4">
+        <nav aria-label="Dokumenty" className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-2">
+          <Link href="/pricing" className="hover:text-[var(--text-primary)]">Cennik</Link>
           <Link href="/privacy" className="hover:text-[var(--text-primary)]">Polityka prywatności</Link>
           <Link href="/terms" className="hover:text-[var(--text-primary)]">Regulamin</Link>
         </nav>
@@ -225,8 +237,10 @@ function LandingHeader({ signedIn }: { signedIn: boolean }) {
         <nav aria-label="Sekcje strony" className="hidden items-center gap-6 text-sm text-[var(--text-secondary)] md:flex">
           <a href="#jak-to-dziala" className="hover:text-[var(--text-primary)]">Jak to działa</a>
           <a href="#przykladowy-raport" className="hover:text-[var(--text-primary)]">Raport</a>
+          <Link href="/demo" className="hover:text-[var(--text-primary)]">Przykład</Link>
           <a href="#funkcje" className="hover:text-[var(--text-primary)]">Funkcje</a>
           <a href="#faq" className="hover:text-[var(--text-primary)]">FAQ</a>
+          <Link href="/pricing" className="hover:text-[var(--text-primary)]">Cennik</Link>
         </nav>
         <div className="flex shrink-0 items-center gap-2">
           {signedIn ? (
@@ -377,7 +391,7 @@ const faq: { q: string; a: string }[] = [
   },
   {
     q: "Ile to kosztuje?",
-    a: `Na start jest darmowe z limitem ${FREE_DEMOS} analiz miesięcznie. Płatne plany z większym limitem pojawią się później.`,
+    a: `Na start jest darmowe z limitem ${FREE_DEMOS} analiz miesięcznie. Plany Pro i Drużyna dają większy limit, ceny są w cenniku.`,
   },
   {
     q: "Skąd wiecie, co powinienem był zrobić?",

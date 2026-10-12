@@ -58,6 +58,7 @@ const SCREENS: Screen[] = [
   { name: "klipy-bledy", path: () => "/clips?tab=mistakes" },
   { name: "klipy-meczu", path: (s) => `/clips?match=${s.matchIds[0]}` },
   { name: "znajomi", path: () => "/friends", volatile: (page) => [page.locator('section[aria-labelledby="challenges"]')] },
+  { name: "platnosci", path: () => "/billing", volatile: monthlyLimit },
   // Team (S17). /team opens the only team's dashboard.
   { name: "druzyna", path: () => "/team", heading: /Przegląd drużyny/ },
   { name: "druzyny-lista", path: () => "/team?all=1" },

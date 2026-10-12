@@ -19,7 +19,7 @@ const STATUS_TONE: Record<string, string> = {
 
 /**
  * The report itself: summary, top 3, strengths and every issue by category.
- * Rendered by the report page and, read-only (`ctx.share`), by a public
+ * Rendered by the report page and, read-only (`ctx.readOnly`), by a public
  * report link (S16).
  */
 export function ReportBody({
@@ -45,7 +45,7 @@ export function ReportBody({
   return (
     <>
       {/* Summary */}
-      <div className={cn("grid grid-cols-2 gap-3", wpTiles > 0 ? "sm:grid-cols-3 lg:grid-cols-6" : "lg:grid-cols-4")}>
+      <div data-tour="summary" className={cn("grid grid-cols-2 gap-3", wpTiles > 0 ? "sm:grid-cols-3 lg:grid-cols-6" : "lg:grid-cols-4")}>
         <SummaryTile label="Wykryte błędy" value={report.totals.findings} />
         <SummaryTile label="Poważne" value={report.totals.high} tone="text-[var(--mistake)]" />
         <SummaryTile label="Kosztowały walkę" value={report.totals.costly} tone="text-[var(--warning)]" />
@@ -69,7 +69,7 @@ export function ReportBody({
       </div>
 
       {/* Top 3 */}
-      <section aria-labelledby="top3" className="space-y-4">
+      <section aria-labelledby="top3" data-tour="top" className="space-y-4">
         <SectionTitle>
           <span id="top3">Top {Math.max(report.top.length, 1)} do poprawy</span>
         </SectionTitle>
@@ -116,7 +116,7 @@ export function ReportBody({
 
       {/* Every metric against pros and the player's rank (S13) */}
       {norms && norms.metrics.length > 0 && (
-        <section aria-labelledby="vs-pro" className="space-y-3">
+        <section aria-labelledby="vs-pro" data-tour="vs-pro" className="space-y-3">
           <SectionTitle>
             <span id="vs-pro">{norms.t("norms.reportTitle")}</span>
           </SectionTitle>
@@ -136,7 +136,7 @@ export function ReportBody({
       )}
 
       {/* Everything, by category */}
-      <section aria-labelledby="wszystko" className="space-y-6">
+      <section aria-labelledby="wszystko" data-tour="all" className="space-y-6">
         <SectionTitle>
           <span id="wszystko">Wszystko według kategorii</span>
         </SectionTitle>
@@ -367,7 +367,7 @@ function TopIssue({
             <span className="text-[var(--text-tertiary)]"> · {issue.def.why}</span>
           </span>
         </p>
-        <div className="rounded-lg bg-[var(--accent-muted)] p-3">
+        <div data-tour={rank === 1 ? "advice" : undefined} className="rounded-lg bg-[var(--accent-muted)] p-3">
           <p className="flex items-start gap-2 text-sm text-[var(--text-primary)]">
             <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent-hover)]" aria-hidden />
             <span>
@@ -384,7 +384,7 @@ function TopIssue({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {worst && !ctx.share && (
+          {worst && !ctx.readOnly && (
             <Link href={replayHref(ctx.matchId, worst)} className={buttonVariants({ variant: "secondary", size: "sm" })}>
               <Play className="h-3.5 w-3.5" aria-hidden />
               Najgorszy moment w replayu
@@ -398,7 +398,7 @@ function TopIssue({
         </div>
       </div>
       {worst ? (
-        <div className="min-w-0 space-y-1.5">
+        <div data-tour={rank === 1 ? "clip" : undefined} className="min-w-0 space-y-1.5">
           {/* Keyed by the moment: switching player keeps TopIssue (same type) but must reload the clip. */}
           <FindingClip
             key={worst.id}

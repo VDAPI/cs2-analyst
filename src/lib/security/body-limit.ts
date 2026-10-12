@@ -13,6 +13,9 @@ const LIMITS: Record<string, number> = {
   "/api/uploads": 702 * MB,
   "/api/admin/pro": 702 * MB,
   "/api/user/avatar": 5 * MB,
+  // Stripe events are signed JSON, usually a few KB; a subscription with
+  // many items or a long invoice can pass 64 KB.
+  "/api/billing/webhook": MB,
 };
 
 /** Largest body accepted on `pathname`. Pure. */

@@ -10,6 +10,8 @@ import { formatDateTime } from "@/lib/utils/formatters";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { normsRefreshedAt, proPoolSize } from "@/lib/norms/persist";
 import { requireAdminPage } from "@/lib/admin/session";
+import { getDemoMatchId, pickedDemoMatchId } from "@/lib/demo/demo-match";
+import { DemoMatchForm, SetDemoMatchButton } from "@/components/admin/demo-match";
 
 const STATUS_VARIANT: Record<string, "success" | "error" | "warning" | "default"> = {
   COMPLETED: "success",
@@ -23,7 +25,7 @@ const STATUS_VARIANT: Record<string, "success" | "error" | "warning" | "default"
 export default async function AdminProPage() {
   await requireAdminPage();
   const { t } = await getT();
-  const [counts, pool, refreshedAt, ranked, uploads] = await Promise.all([
+  const [counts, pool, refreshedAt, ranked, uploads, demoMatchId, picked] = await Promise.all([
     countAdminUploads(),
     proPoolSize(prisma),
     normsRefreshedAt(prisma),
@@ -42,7 +44,18 @@ export default async function AdminProPage() {
         match: { select: { id: true, map: true, scoreCT: true, scoreT: true } },
       },
     }),
+    getDemoMatchId(prisma),
+    pickedDemoMatchId(prisma),
   ]);
+  const demo = demoMatchId
+    ? await prisma.match.findUnique({
+        where: { id: demoMatchId },
+        select: { map: true, scoreCT: true, scoreT: true, upload: { select: { proLabel: true, fileName: true } } },
+      })
+    : null;
+  const demoName = demo
+    ? `${demo.upload?.proLabel ?? demo.upload?.fileName ?? ""} · ${mapDisplayName(demo.map)} ${demo.scoreCT}:${demo.scoreT}`
+    : null;
 
   return (
     <div className="space-y-6">
@@ -68,6 +81,24 @@ export default async function AdminProPage() {
           <p className="font-mono text-xs text-[var(--text-tertiary)]">{t("norms.admin.cliHint")}</p>
           <RefreshNormsButton />
         </div>
+      </Card>
+
+      <Card className="space-y-3">
+        <CardHeader title={t("onboarding.admin.title")} />
+        <p className="text-sm text-[var(--text-secondary)]">{t("onboarding.admin.body")}</p>
+        <p className="text-sm text-[var(--text-primary)]">
+          {demoName ? t("onboarding.admin.current", { name: demoName }) : t("onboarding.admin.none")}
+          {demoName && !picked && <span className="text-[var(--text-tertiary)]"> · {t("onboarding.admin.auto")}</span>}
+          {demoName && (
+            <>
+              {" · "}
+              <Link href="/demo" className="text-[var(--accent-hover)] underline-offset-2 hover:underline">
+                {t("onboarding.admin.open")}
+              </Link>
+            </>
+          )}
+        </p>
+        <DemoMatchForm picked={picked != null} />
       </Card>
 
       {uploads.length === 0 ? (
@@ -108,7 +139,12 @@ export default async function AdminProPage() {
                     </Badge>
                   </td>
                   <td className="whitespace-nowrap font-mono text-xs">{formatDateTime(u.createdAt)}</td>
-                  <td className="text-right">
+                  <td className="whitespace-nowrap text-right">
+                    {u.match && u.status === "COMPLETED" && u.match.id === demoMatchId ? (
+                      <Badge variant="success">{t("onboarding.admin.isCurrent")}</Badge>
+                    ) : (
+                      u.match && u.status === "COMPLETED" && <SetDemoMatchButton matchId={u.match.id} />
+                    )}
                     <RemoveProDemoButton id={u.id} />
                   </td>
                 </tr>

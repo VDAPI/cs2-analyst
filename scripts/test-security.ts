@@ -116,6 +116,7 @@ async function main() {
     "api/auth/register/route.ts": /rateLimit\("register"/, // per-IP limit
     "api/faceit/webhooks/demo-ready/route.ts": /timingSafeEqual/, // shared secret
     "api/auth/[...nextauth]/route.ts": /NextAuth/,
+    "api/billing/webhook/route.ts": /verifyStripeSignature\(/, // Stripe-Signature HMAC
   };
   const AUTH = /getServerSession|getAdminUser|getMatchAccess|ownMatchWhere/;
   const unguarded: string[] = [];
@@ -161,6 +162,9 @@ async function main() {
     "api/friends/add/route.ts": "friendAdd",
     "api/friends/code/route.ts": "write",
     "api/friends/[id]/route.ts": "write",
+    "api/billing/checkout/route.ts": "billing",
+    "api/billing/portal/route.ts": "billing",
+    "api/billing/sync/route.ts": "billing",
   };
   const missing = Object.entries(LIMITED)
     .filter(([rel, rule]) => !readFileSync(join(root, rel), "utf8").includes(`rateLimit("${rule}"`))

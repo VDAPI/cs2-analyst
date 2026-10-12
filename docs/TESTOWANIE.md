@@ -15,9 +15,10 @@ Ta instrukcja prowadzi krok po kroku od czystego komputera do działającej apli
 7. [Wgrywanie dem](#7-wgrywanie-dem)
 8. [Konto administratora](#8-konto-administratora)
 9. [Połączenie konta FACEIT (HTTPS)](#9-połączenie-konta-faceit-https)
-10. [Lista rzeczy do sprawdzenia](#10-lista-rzeczy-do-sprawdzenia)
-11. [Codzienna obsługa](#11-codzienna-obsługa)
-12. [Gdy coś nie działa](#12-gdy-coś-nie-działa)
+10. [Płatności testowe (Stripe)](#10-płatności-testowe-stripe)
+11. [Lista rzeczy do sprawdzenia](#11-lista-rzeczy-do-sprawdzenia)
+12. [Codzienna obsługa](#12-codzienna-obsługa)
+13. [Gdy coś nie działa](#13-gdy-coś-nie-działa)
 
 ## 1. Czego potrzebujesz
 
@@ -59,6 +60,7 @@ Aplikacja działa bez żadnych kluczy: konto, wgrywanie dem, raport, replay 2D, 
 | `FACEIT_CLIENT_ID`, `FACEIT_CLIENT_SECRET` | Łączenie konta FACEIT w Ustawieniach (patrz [punkt 9](#9-połączenie-konta-faceit-https)) | ta sama aplikacja w FACEIT Developers → Authentication |
 | `FACEIT_DOWNLOADS_API_KEY` | Pobieranie dem z FACEIT po kliknięciu „Analizuj zaznaczone” (bez klucza aplikacja kieruje do ręcznego uploadu) | FACEIT Developers, Downloads API |
 | `STEAM_API_KEY` | Logowanie przez Steam i historia meczów Premier | <https://steamcommunity.com/dev/apikey> |
+| `STRIPE_SECRET_KEY` | Testowe płatności za plan Pro i Drużyna (patrz [punkt 10](#10-płatności-testowe-stripe)). Tylko klucz testowy `sk_test_…`. | <https://dashboard.stripe.com/test/apikeys> |
 
 Jak wpisać klucze:
 
@@ -171,14 +173,32 @@ FACEIT przyjmuje logowanie (OAuth) tylko na zarejestrowane adresy `https://`. Dl
 
 Po połączeniu możesz wrócić na <http://localhost:3000> albo na telefon: konto zostaje połączone, a historia FACEIT, zaznaczanie meczów i scouting działają na każdym adresie.
 
-## 10. Lista rzeczy do sprawdzenia
+## 10. Płatności testowe (Stripe)
+
+Płatności działają w **trybie testowym** Stripe: nikt nie płaci prawdziwych pieniędzy. Aplikacja odrzuca klucz `sk_live_…` (prawdziwe płatności włącza się dopiero osobną zmienną przy starcie publicznym).
+
+1. Załóż darmowe konto na <https://dashboard.stripe.com/register> (nie musisz podawać danych firmy, żeby używać trybu testowego).
+2. Przełącz panel na „Test mode” (przełącznik w prawym górnym rogu), wejdź w „Developers” → „API keys” i skopiuj „Secret key” (`sk_test_…`).
+3. Wpisz go w `.env` jako `STRIPE_SECRET_KEY=sk_test_...` ([punkt 3](#3-klucze-api-opcjonalnie)) i uruchom `docker compose up -d`.
+4. Jednorazowo w panelu Stripe (tryb testowy): „Settings” → „Billing” → „Customer portal” → „Activate test link”. Bez tego przycisk „Zarządzaj subskrypcją” zwróci błąd.
+5. W aplikacji wejdź w „Plan i płatności” (menu „Pro i drużyna” albo Ustawienia → „Plan i płatności”) i wybierz Pro lub Drużyna. Na stronie Stripe wpisz kartę testową `4242 4242 4242 4242`, dowolną przyszłą datę (np. 12/34), dowolny CVC i dowolne dane.
+6. Po powrocie plan i limity zmieniają się od razu (aplikacja sama pyta Stripe o wynik). Faktura pojawi się na liście po kliknięciu „Odśwież status”.
+
+Ceny produktów (Pro 6 USD/mies., Drużyna 15 USD/mies., rocznie 10 miesięcy) aplikacja zakłada w Stripe sama przy pierwszej płatności. Zmienia się je w jednym miejscu: `src/lib/billing/prices.ts`.
+
+Inne karty testowe: `4000 0000 0000 9995` (odmowa, brak środków), `4000 0025 0000 3155` (wymaga potwierdzenia 3D Secure). Anulowanie: „Zarządzaj subskrypcją” → „Anuluj”; plan działa do końca opłaconego okresu.
+
+Webhooki (opcjonalnie, dla programisty): bez nich wszystko działa, bo aplikacja synchronizuje się po powrocie ze Stripe i po „Odśwież status”. Żeby zmiany ze Stripe (np. anulowanie w panelu, odnowienie) przychodziły same, zainstaluj [Stripe CLI](https://docs.stripe.com/stripe-cli) i uruchom `stripe listen --forward-to localhost:3000/api/billing/webhook`, a wypisany sekret `whsec_…` wpisz w `.env` jako `STRIPE_WEBHOOK_SECRET`.
+
+## 11. Lista rzeczy do sprawdzenia
 
 Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zrób zrzut ekranu i opisz, co kliknąłeś.
 
 **Konto i nawigacja**
 
 - [ ] Strona główna: animacja biegnących żołnierzy, sekcje, FAQ, przyciski
-- [ ] Rejestracja nowego konta, wylogowanie, logowanie
+- [ ] „Zobacz przykład” na stronie głównej: pełny raport bez logowania (http://localhost:3000/demo), przewodnik po raporcie przy pierwszej wizycie
+- [ ] Rejestracja nowego konta (ekran Mecze zaczyna od „Zacznij w trzech krokach”), wylogowanie, logowanie
 - [ ] Menu boczne (komputer), szuflada i dolny pasek (telefon), żadna strona nie przewija się w bok
 - [ ] Ustawienia: zmiana nazwy i avatara, język PL/EN
 
@@ -187,7 +207,7 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 - [ ] Lista meczów, biblioteka analiz, kolejka analiz
 - [ ] Wgranie przykładowego dema z `data/przyklad`, postęp w kolejce, gotowa analiza
 - [ ] Mecz: scoreboard, rundy, oś czasu, clutche, trade'y, multi-kille
-- [ ] Raport (`Raport` przy meczu): 3 najważniejsze błędy, karty błędów z klipem 2D, „Ty vs pro”
+- [ ] Raport (`Raport` przy meczu): przewodnik przy pierwszym raporcie (i z przycisku „Jak czytać raport”), 3 najważniejsze błędy, karty błędów z klipem 2D, „Ty vs pro”
 - [ ] Replay 2D: odtwarzanie, przewijanie, zoom i przesuwanie palcami na telefonie, znaczniki błędów, notatki na mapie
 - [ ] Mechanika: strzały w ruchu, counter-strafe, celowanie, reakcja, spray
 - [ ] Granaty, lineupy (kopiowanie `setpos`), heatmapy, ekonomia
@@ -220,7 +240,14 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 - [ ] Usunięcie analizy
 - [ ] Panel admina: przegląd, analizy (ponowienie nieudanej), użytkownicy (plan, rola, limit)
 
-## 11. Codzienna obsługa
+**Płatności (tryb testowy, [punkt 10](#10-płatności-testowe-stripe))**
+
+- [ ] Cennik (http://localhost:3000/pricing): trzy plany, przełącznik miesięcznie / rocznie, telefon
+- [ ] Zakup Pro kartą `4242 4242 4242 4242`: po powrocie plan Pro i wyższe limity w Ustawieniach
+- [ ] „Zarządzaj subskrypcją”: zmiana karty, anulowanie, faktura w PDF
+- [ ] Plan Drużyna u właściciela drużyny: członkowie drużyny widzą limity Pro w „Plan i płatności"
+
+## 12. Codzienna obsługa
 
 | Co chcesz zrobić | Polecenie |
 | --- | --- |
@@ -232,7 +259,7 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 
 Uwaga: `docker compose down -v` kasuje bazę, analizy i konta bez pytania. Zwykłe zatrzymanie to `docker compose stop`.
 
-## 12. Gdy coś nie działa
+## 13. Gdy coś nie działa
 
 - **„port is already allocated” przy starcie:** port 3000, 3443, 5432, 6379 albo 9001 zajmuje inny program (np. drugi Postgres albo `npm run dev`). Zamknij go, albo w `docker-compose.yml` zmień lewą liczbę w `ports`, np. `"3001:3000"`, i otwieraj <http://localhost:3001>.
 - **`setup` ma `Exited (1)`:** zobacz `docker compose logs setup` i wklej końcówkę w wątku projektu.

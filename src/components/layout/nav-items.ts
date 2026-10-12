@@ -23,6 +23,7 @@ import {
   Swords,
   Clapperboard,
   UserRound,
+  CreditCard,
   type LucideIcon,
 } from "lucide-react";
 import type { MessageKey } from "@/lib/i18n/translate";
@@ -81,6 +82,7 @@ export const navGroups: NavGroup[] = [
       { href: "/play-like-pro", labelKey: "nav.playLikePro", icon: Swords },
       { href: "/team", labelKey: "nav.team", icon: Shield },
       { href: "/friends", labelKey: "nav.friends", icon: UserRound },
+      { href: "/billing", labelKey: "nav.billing", icon: CreditCard },
     ],
   },
 ];

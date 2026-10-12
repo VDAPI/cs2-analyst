@@ -74,5 +74,6 @@ export const config = {
     "/play-like-pro/:path*",
     "/clips/:path*",
     "/friends/:path*",
+    "/billing/:path*",
   ],
 };

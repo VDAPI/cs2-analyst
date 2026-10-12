@@ -1,5 +1,5 @@
-/** What a visitor sees without an account: landing page, login, register, the login wall. */
-import { expect, expectNoHorizontalScroll, expectScreen, settle, test } from "../fixtures";
+/** What a visitor sees without an account: landing page, login, register, the login wall, the example analysis. */
+import { expect, expectCanvasPainted, expectNoHorizontalScroll, expectScreen, settle, test } from "../fixtures";
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -44,6 +44,20 @@ for (const doc of [
   });
 }
 
+test("cennik", async ({ page }) => {
+  await page.goto("/pricing");
+  await expectScreen(page, "Cennik");
+  await expect(page.locator("[data-plan]")).toHaveCount(3);
+  // Signed out: buying starts with signing in.
+  await expect(page.getByRole("link", { name: "Zaloguj się, by kupić" }).first()).toBeVisible();
+  await page.getByRole("radio", { name: /Rocznie/ }).click();
+  await expect(page.locator('[data-plan="PRO"]')).toContainText("$60");
+  await page.getByRole("radio", { name: /Miesięcznie/ }).click();
+  await settle(page);
+  await expectNoHorizontalScroll(page);
+  await expect(page).toHaveScreenshot("cennik.png");
+});
+
 test("nagłówki bezpieczeństwa", async ({ page }) => {
   const res = await page.request.get("/");
   const h = res.headers();
@@ -74,4 +88,54 @@ test("złe hasło pokazuje błąd", async ({ page }) => {
   await page.getByRole("button", { name: "Zaloguj się" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Nieprawidłowy email lub hasło" })).toBeVisible();
   await expect(page).toHaveURL(/\/login/);
+});
+
+test("przykładowa analiza bez logowania", async ({ page }) => {
+  // The guide is checked below; here the report itself.
+  await page.addInitScript(() => window.localStorage.setItem("cs2a-report-tour", "done"));
+  await page.goto("/demo");
+  await expectScreen(page, "Raport meczu bez zakładania konta");
+  await expect(page.getByText("Rada:").first()).toBeVisible();
+  await expect(page.getByText("Ćwiczenie:").first()).toBeVisible();
+  // Read-only: no way into the logged-in replay.
+  await expect(page.getByRole("link", { name: "Najgorszy moment w replayu" })).toHaveCount(0);
+  // The 2D clip of the worst moment loads without an account.
+  const clip = page.locator("canvas[aria-label^='Podgląd 2D']").first();
+  await clip.scrollIntoViewIfNeeded();
+  await expectCanvasPainted(page, "canvas[aria-label^='Podgląd 2D']");
+  // Another player's report.
+  const other = page.getByRole("navigation", { name: "Raport gracza" }).getByRole("link").nth(1);
+  await other.click();
+  await expect(page).toHaveURL(/\/demo\?player=\d+/);
+  await expect(other).toHaveAttribute("aria-current", "true");
+  await page.goto("/demo");
+  await settle(page);
+  await expectNoHorizontalScroll(page);
+  await expect(page).toHaveScreenshot("przyklad.png", { mask: [page.locator("canvas")] });
+});
+
+test("przewodnik po przykładowym raporcie", async ({ page }) => {
+  await page.goto("/demo");
+  const tour = page.getByTestId("report-tour");
+  // Opens by itself on the first visit.
+  await expect(tour).toBeVisible();
+  await expect(tour.getByRole("heading", { name: "Wybierz gracza" })).toBeVisible();
+  for (let i = 0; i < 12 && (await tour.getByRole("button", { name: "Dalej" }).count()) > 0; i++) {
+    await tour.getByRole("button", { name: "Dalej" }).click();
+  }
+  await expect(tour.getByRole("heading", { name: "Taki raport dla twoich meczów" })).toBeVisible();
+  await tour.getByRole("button", { name: "Gotowe" }).click();
+  await expect(tour).toHaveCount(0);
+  // Remembered in this browser.
+  await page.reload();
+  await expect(page.getByText("Rada:").first()).toBeVisible();
+  await page.waitForTimeout(600);
+  await expect(tour).toHaveCount(0);
+});
+
+test("strona główna prowadzi do przykładu", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Zobacz przykład" }).first().click();
+  await expect(page).toHaveURL(/\/demo$/);
+  await expectScreen(page, "Raport meczu bez zakładania konta");
 });

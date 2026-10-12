@@ -25,7 +25,11 @@ test("rejestracja, wejście do aplikacji i wylogowanie", async ({ page }, testIn
   await page.getByRole("button", { name: "Załóż konto" }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/register"));
 
-  // A fresh account sees empty states, not someone else's matches.
+  // A fresh account starts with the three steps (S21) and empty states, not someone else's matches.
+  await page.goto("/matches");
+  const start = page.getByTestId("getting-started");
+  await expect(start).toBeVisible();
+  await expect(start.getByRole("link", { name: "Zobacz przykładowy raport" })).toHaveAttribute("href", "/demo");
   await page.goto("/library");
   await expect(page.getByText("Brak zapisanych analiz")).toBeVisible();
 

@@ -30,6 +30,7 @@ import { deleteUploadDemo } from "../src/lib/storage/demo-store";
 import { getR2Config, r2EnsureBucket } from "../src/lib/storage/r2";
 import { refreshNorms } from "../src/lib/norms/persist";
 import { refreshPlanAfterAnalysis } from "../src/lib/coach/persist";
+import { getDemoMatchId, setDemoMatchId } from "../src/lib/demo/demo-match";
 import {
   DEFAULT_FIXTURE_ROUNDS,
   FIXTURE_PLAYER_STEAM_ID,
@@ -193,9 +194,26 @@ async function downloadSampleDemo() {
   }
 }
 
+/**
+ * /demo (S21) shows the newest pro demo; a fresh local setup has none, so the
+ * example is the test account's first sample analysis (local database only).
+ */
+async function ensureDemoMatch() {
+  if (await getDemoMatchId(prisma)) return;
+  const sample = await prisma.demoUpload.findFirst({
+    where: { user: { email: LOCAL_USER.email }, status: "COMPLETED", deletedAt: null, matchId: { not: null } },
+    orderBy: { createdAt: "asc" },
+    select: { matchId: true },
+  });
+  if (sample?.matchId && (await setDemoMatchId(prisma, sample.matchId))) {
+    console.log("setup: przykładowa analiza bez logowania: http://localhost:3000/demo");
+  }
+}
+
 async function main() {
   await ensureBucket();
   await seedAccount();
+  await ensureDemoMatch();
   await downloadSampleDemo();
   console.log("setup: gotowe");
 }

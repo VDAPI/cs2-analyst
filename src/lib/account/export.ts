@@ -33,6 +33,7 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
       publicProfile: true,
       publicSlug: true,
       friendCode: true,
+      stripeCustomerId: true,
       createdAt: true,
       updatedAt: true,
       password: true,
@@ -60,6 +61,8 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     tacticBoards,
     teamRivals,
     friendships,
+    subscriptions,
+    invoices,
   ] = await Promise.all([
     prisma.account.findMany({ where: { userId }, select: { provider: true, providerAccountId: true, type: true } }),
     prisma.demoUpload.findMany({
@@ -116,6 +119,8 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
         addressee: { select: { name: true } },
       },
     }),
+    prisma.billingSubscription.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
+    prisma.billingInvoice.findMany({ where: { userId }, orderBy: { created: "asc" } }),
   ]);
 
   // Findings about the player: in their own uploads, and wherever they
@@ -184,5 +189,6 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
       createdAt: f.createdAt,
       acceptedAt: f.acceptedAt,
     })),
+    billing: { subscriptions, invoices },
   };
 }

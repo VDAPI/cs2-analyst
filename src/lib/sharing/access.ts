@@ -5,12 +5,15 @@
  * `?share=`. A clip link (S25) is limited to its round the same way. Pro demos (the pro pool, S13) are readable by every signed-in
  * player: "co zrobiłby pro" shows their rounds as 2D clips (S14). Teammates
  * read a member's team and rival matches read-only (S17, `teamCanSeeMatch`).
+ * The public example analysis (/demo, S21) is readable by everyone, signed in
+ * or not.
  */
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getAdminUser } from "@/lib/admin/session";
 import type { Prisma } from "@prisma/client";
+import { isDemoMatch } from "@/lib/demo/demo-match";
 import { teamCanSeeMatch } from "@/lib/team/load";
 import { isShareToken } from "./share";
 
@@ -23,6 +26,8 @@ export interface MatchAccess {
   shareId: string | null;
   /** Owner of the match (the one whose notes a share shows). */
   uploaderId: string;
+  /** Read through the public example analysis (/demo): the owner's notes stay private. */
+  demo?: boolean;
 }
 
 export async function getMatchAccess(req: Request, matchId: string): Promise<MatchAccess | null> {
@@ -44,7 +49,12 @@ export async function getMatchAccess(req: Request, matchId: string): Promise<Mat
   }
 
   const token = new URL(req.url).searchParams.get("share");
-  if (!isShareToken(token)) return null;
+  if (!isShareToken(token)) {
+    if (await isDemoMatch(prisma, matchId)) {
+      return { ownerId: null, round: null, shareId: null, uploaderId: upload.userId, demo: true };
+    }
+    return null;
+  }
   const share = await prisma.share.findUnique({ where: { token } });
   if (!share || share.revokedAt || share.matchId !== matchId) return null;
   return {
