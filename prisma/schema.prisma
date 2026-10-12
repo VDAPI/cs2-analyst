@@ -157,6 +157,7 @@ model Match {
   players   MatchPlayer[]
   mechanics MechanicsStats[]
   aim       AimStats[]
+  utility   UtilityStats[]
   tactics   TacticsStats[]
   findings  Finding[]
 
@@ -287,6 +288,9 @@ model Kill {
   victimPosY      Float
   victimPosZ      Float
   isFirstKill     Boolean @default(false)
+  // Victim's inventory at death (item names), for "died with unused utility"
+  // (S11). Null for kills parsed before S11 or when the parser could not read it.
+  victimInventory Json?
 
   round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
 
@@ -529,6 +533,46 @@ model AimStats {
   @@index([steamId])
 }
 
+// Per player per match: smokes, flashes, molotovs, HEs and utility left at
+// death (src/lib/analysis/utility.ts). Computed from GrenadeEvent / ShotEvent
+// (grenade throws) / DamageEvent / Kill / RoundTicks, so no .dem is needed.
+model UtilityStats {
+  id      String @id @default(cuid())
+  matchId String
+  steamId String
+  version Int // UTILITY_VERSION; older rows are recomputed
+
+  smokes             Int
+  smokesVoid         Int // no enemy influence, no info, no team action
+  smokesEarly        Int // void and early in the round, or faded before enemies came
+  flashes            Int
+  flashesBlinding    Int // blinded at least one enemy for 1 s+
+  flashesFollowed    Int // of those: a blinded enemy was seen, hit or killed by the team in time
+  flashEnemySec      Float
+  flashTeamSec       Float // teammates and self
+  teamFlashes        Int // blinded a teammate (or self) for 1 s+
+  hes                Int
+  heDamage           Int
+  molotovs           Int
+  molotovDamage      Int
+  nadeTeamDamage     Int
+  nadesNoEffect      Int
+  deaths             Int // deaths with a known inventory
+  deathsWithUtility  Int
+  unusedUtilityValue Int // $ of grenades held at those deaths
+  inventoryData      Boolean
+
+  throws  Json // UtilityThrow[] — throw origin + angles + landing, feeds the lineup base
+  moments Json // UtilityMoment[]
+
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, steamId])
+  @@index([steamId])
+}
+
 // Teamplay, economy and positions for one player in one match (S12),
 // computed from kills, damage, bombs, RoundPlayer economy and RoundTicks by
 // src/lib/analysis/tactics.ts — no .dem needed.
@@ -559,6 +603,20 @@ model TacticsStats {
 
   @@unique([matchId, steamId])
   @@index([steamId])
+}
+
+// The game's own callout names (last_place_name) on a 128-unit grid per map,
+// summed over every parsed demo. Names smoke landings and lineups (S11).
+model MapPlaceCell {
+  map   String
+  cx    Int
+  cy    Int
+  cz    Int
+  place String
+  count Int
+
+  @@id([map, cx, cy, cz, place])
+  @@index([map])
 }
 
 // One detected mistake at one moment (src/lib/findings/). Built from the

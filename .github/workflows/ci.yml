@@ -78,6 +78,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: npm run test:findings
 
+      - name: Utility and lineups regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:utility
+
       - name: Tactics (trades, economy, positions) regression tests
         if: ${{ !cancelled() }}
         run: npm run test:tactics

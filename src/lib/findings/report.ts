@@ -10,6 +10,7 @@
  */
 import { aimMetrics, type MetricStatus, type PlayerAim } from "@/lib/analysis/aim";
 import { pct } from "@/lib/analysis/movement";
+import type { UtilitySummary } from "@/lib/analysis/utility";
 import { TRADE_WINDOW_S, type TacticsSummary } from "@/lib/analysis/tactics";
 import {
   CATEGORIES,
@@ -49,6 +50,7 @@ export interface MechanicsSummary {
 }
 
 export type AimSummary = Omit<PlayerAim, "steamId" | "moments" | "peekTypes" | "visibility">;
+export type { UtilitySummary };
 
 /** Columns of TacticsStats the report needs. */
 export type { TacticsSummary };
@@ -72,11 +74,70 @@ const AIM_METRIC_TYPE: Record<string, FindingType> = {
   reload: "reload",
 };
 
+const ratio = (num: number, den: number, digits = 0): number | null => {
+  if (den <= 0) return null;
+  const f = 10 ** digits;
+  return Math.round((num / den) * f) / f;
+};
+
+/** Utility numbers of the match (S11), each tied to a finding type. */
+export function utilityMetrics(u: UtilitySummary): ReportMetric[] {
+  const out: ReportMetric[] = [];
+  const blind = ratio(u.flashEnemySec, u.flashes, 1);
+  const team = ratio(u.flashTeamSec, u.flashes, 1);
+  const followed = rounded(pct(u.flashesFollowed, u.flashesBlinding));
+  const wasted = rounded(pct(u.smokesVoid, u.smokes));
+  const he = ratio(u.heDamage, u.hes);
+  const fire = ratio(u.molotovDamage, u.molotovs);
+  const unused = ratio(u.unusedUtilityValue, u.deaths);
+  out.push(
+    {
+      key: "flash_blind", type: "flash_blind", label: "Oślepienie wrogów na flash", value: blind, unit: "s",
+      threshold: "≥ 1,2 s dobrze, < 0,6 s źle", status: higher(blind, 1.2, 0.6), samples: u.flashes,
+      hint: `${u.flashesBlinding} z ${u.flashes} flashy oślepiło wroga na ponad sekundę.`,
+    },
+    {
+      key: "team_flash", type: "team_flash", label: "Oślepienie swoich na flash", value: team, unit: "s",
+      threshold: "≤ 0,3 s dobrze, > 0,8 s źle", status: lower(team, 0.3, 0.8), samples: u.flashes,
+      hint: `${u.teamFlashes} z ${u.flashes} flashy oślepiło kolegę albo ciebie.`,
+    },
+    {
+      key: "flash_follow", type: "flash_no_peek", label: "Flashe z wejściem", value: followed, unit: "%",
+      threshold: "≥ 60% dobrze, < 35% źle", status: higher(followed, 60, 35), samples: u.flashesBlinding,
+      hint: `Po ${u.flashesFollowed} z ${u.flashesBlinding} skutecznych flashy team zobaczył lub trafił oślepionego.`,
+    },
+    {
+      key: "smoke_wasted", type: "smoke_void", label: "Smoke'i bez wpływu", value: wasted, unit: "%",
+      threshold: "≤ 15% dobrze, > 35% źle", status: lower(wasted, 15, 35), samples: u.smokes,
+      hint: `${u.smokesVoid} z ${u.smokes} smoke'ów nic nie zasłoniło (w tym ${u.smokesEarly} za wcześnie).`,
+    },
+    {
+      key: "he_damage", type: "he_no_effect", label: "Obrażenia na HE", value: he, unit: "HP",
+      threshold: "≥ 18 HP dobrze, < 8 HP źle", status: higher(he, 18, 8), samples: u.hes,
+      hint: `${u.heDamage} HP obrażeń z ${u.hes} granatów HE.`,
+    },
+    {
+      key: "molotov_damage", type: "molotov_no_effect", label: "Obrażenia na molotova", value: fire, unit: "HP",
+      threshold: "≥ 12 HP dobrze, < 5 HP źle", status: higher(fire, 12, 5), samples: u.molotovs,
+      hint: `${u.molotovDamage} HP obrażeń z ${u.molotovs} molotovów.`,
+    }
+  );
+  if (u.inventoryData) {
+    out.push({
+      key: "unused_utility", type: "death_with_utility", label: "Utility niewykorzystane na śmierć", value: unused,
+      unit: "$", threshold: "≤ 150 $ dobrze, > 300 $ źle", status: lower(unused, 150, 300), samples: u.deaths,
+      hint: `${u.deathsWithUtility} z ${u.deaths} śmierci z granatami w ekwipunku, razem ${u.unusedUtilityValue} $.`,
+    });
+  }
+  return out;
+}
+
 /** Every judged number of the match for one player, each tied to a finding type. */
 export function playerMetrics(
   mech: MechanicsSummary | null,
   aim: AimSummary | null,
-  tactics: TacticsSummary | null = null
+  tactics: TacticsSummary | null = null,
+  utility: UtilitySummary | null = null
 ): ReportMetric[] {
   const out: ReportMetric[] = [];
   if (mech) {
@@ -150,6 +211,7 @@ export function playerMetrics(
       }
     );
   }
+  if (utility) out.push(...utilityMetrics(utility));
   // Rates and medians over a handful of samples say nothing yet.
   return out.map((m) =>
     m.unit !== "" && m.samples < MIN_METRIC_SAMPLES ? { ...m, status: "none" as MetricStatus } : m

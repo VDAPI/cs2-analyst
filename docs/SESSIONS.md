@@ -53,11 +53,11 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Mechanika | Rodzaje peeków (wide, jiggle, shoulder, dry peek) | ✅ | S9 |
 | Mechanika | Ruch i dźwięk (bieganie przy wrogu, zbędne skoki) | ✅ | S9 |
 | Mechanika | Reload w złym momencie | ✅ | S9 |
-| Taktyka | Smoke za wcześnie / w próżnię | 🆕 | S11 |
-| Taktyka | Flash: czas oślepienia wrogów, flashe w swoich, flash bez peeka | 🆕 | S11 |
-| Taktyka | Molotov i HE bez efektu | 🆕 | S11 |
-| Taktyka | Śmierć z niewykorzystanym utility | 🆕 | S11 |
-| Taktyka | Baza lineupów per mapa i rozpoznawanie lineupów | 🆕 | S11 |
+| Taktyka | Smoke za wcześnie / w próżnię | ✅ | S11 |
+| Taktyka | Flash: czas oślepienia wrogów, flashe w swoich, flash bez peeka | ✅ | S11 |
+| Taktyka | Molotov i HE bez efektu | ✅ | S11 |
+| Taktyka | Śmierć z niewykorzystanym utility | ✅ | S11 |
+| Taktyka | Baza lineupów per mapa i rozpoznawanie lineupów | ✅ | S11 |
 | Taktyka | Śmierć bez trade'u, brak trade'u kolegi | ✅ | S12 |
 | Taktyka | Rotacje (za wcześnie, na fejk) | ✅ | S12 |
 | Taktyka | Błędy ekonomii (force, brak dropu, śmierć z kasą) | ✅ | S12 |
