@@ -36,6 +36,9 @@ async function processDownload(job: Job<FaceitDemoDownloadJobData>) {
   );
 
   const destPath = join(tmpdir(), `${uploadId}.dem`);
+  // Kept only if the replay data failed to store, so the replay can still
+  // fall back to the file (and `npm run backfill:replay` can retry it).
+  let keepDemo = false;
 
   try {
     const faceitMatch = await prisma.faceitMatch.findUnique({
@@ -74,6 +77,7 @@ async function processDownload(job: Job<FaceitDemoDownloadJobData>) {
       { uploadId, filePath: destPath },
       (pct) => job.updateProgress(pct)
     );
+    keepDemo = !result.replayStored;
 
     await prisma.faceitMatch.update({
       where: { faceitMatchId },
@@ -108,9 +112,9 @@ async function processDownload(job: Job<FaceitDemoDownloadJobData>) {
     }
     throw err;
   } finally {
-    // Always clean up the decompressed .dem from temp (the .zst is removed
+    // Clean up the decompressed .dem from temp (the .zst is removed
     // inside downloadAndDecompressDemo). Parse already read it by now.
-    await unlink(destPath).catch(() => {});
+    if (!keepDemo) await unlink(destPath).catch(() => {});
   }
 }
 

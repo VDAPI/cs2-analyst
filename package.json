@@ -16,7 +16,9 @@
     "db:studio": "prisma studio",
     "worker:parse": "tsx workers/demo-parser.worker.ts",
     "worker:faceit": "tsx workers/faceit-demo-download.worker.ts",
-    "test:clutches": "tsx --tsconfig tsconfig.json scripts/test-clutch-wins.ts"
+    "test:clutches": "tsx --tsconfig tsconfig.json scripts/test-clutch-wins.ts",
+    "test:replay": "tsx --tsconfig tsconfig.json scripts/test-replay-ticks.ts",
+    "backfill:replay": "tsx --tsconfig tsconfig.json scripts/backfill-replay-ticks.ts"
   },
   "dependencies": {
     "@laihoe/demoparser2": "^0.41.3",

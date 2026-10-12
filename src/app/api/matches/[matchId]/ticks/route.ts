@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { access } from "fs/promises";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import {
+  REPLAY_TICK_PROPS,
+  decodeRoundTicks,
+  encodeRoundTicks,
+  sampleTickList,
+  subsampleFrames,
+  type ReplayFrame,
+} from "@/lib/replay/round-ticks";
 
 // Dynamic import — demoparser2 uses native Node bindings
 let demoparser: typeof import("@laihoe/demoparser2") | null = null;
@@ -19,8 +28,10 @@ interface Props {
 /**
  * GET /api/matches/[matchId]/ticks?round=1&interval=32
  *
- * Parses tick-level position data on demand for a given round.
- * Returns an array of player snapshots per tick.
+ * Player snapshots per tick for one round. Served from the sampled RoundTicks
+ * stored at parse time, so it keeps working after the .dem is deleted. Matches
+ * parsed before RoundTicks existed fall back to parsing the .dem live while the
+ * file is still on disk (run `npm run backfill:replay` to store them).
  */
 export async function GET(req: Request, { params }: Props) {
   const session = await getServerSession(authOptions);
@@ -31,16 +42,16 @@ export async function GET(req: Request, { params }: Props) {
   const { matchId } = await params;
   const url = new URL(req.url);
   const roundNum = parseInt(url.searchParams.get("round") ?? "1", 10);
-  const interval = parseInt(url.searchParams.get("interval") ?? "32", 10);
+  const requested = parseInt(url.searchParams.get("interval") ?? "32", 10);
+  const interval = Number.isFinite(requested) && requested >= 1 ? requested : 32;
 
-  // Get match + upload file path + round boundaries
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     include: {
       upload: { select: { fileUrl: true, userId: true } },
       rounds: {
         where: { number: roundNum },
-        select: { startTick: true, endTick: true },
+        select: { startTick: true, endTick: true, ticks: true },
       },
     },
   });
@@ -59,74 +70,59 @@ export async function GET(req: Request, { params }: Props) {
     return NextResponse.json({ error: "Round not found" }, { status: 404 });
   }
 
-  // demoparser2 (Rust) needs forward-slash paths to avoid "IllegalPathOp" on Windows.
-  const filePath = match.upload.fileUrl.replace(/\\/g, "/");
-  const parser = await getParser();
+  let frames: ReplayFrame[];
+  let storedInterval: number;
+  let source: "db" | "demo";
 
-  // Generate tick list for this round at the given interval
-  const ticks: number[] = [];
-  for (let t = round.startTick; t <= round.endTick; t += interval) {
-    ticks.push(t);
-  }
-  // Always include the end tick
-  if (ticks[ticks.length - 1] !== round.endTick) {
-    ticks.push(round.endTick);
-  }
-
-  const wantedProps = [
-    "X", "Y", "Z", "yaw", "health",
-    "is_alive", "team_num", "active_weapon_name",
-  ];
-
-  const rawTicks = parser.parseTicks(filePath, wantedProps, ticks);
-
-  // Group by tick for efficient client consumption
-  // Output: { ticks: Array<{ tick, players: Array<PlayerSnapshot> }> }
-  const tickMap = new Map<number, Array<{
-    steamId: string;
-    name: string;
-    team: "CT" | "T";
-    x: number;
-    y: number;
-    z: number;
-    yaw: number;
-    health: number;
-    isAlive: boolean;
-    weapon: string;
-  }>>();
-
-  for (const row of rawTicks) {
-    const tick = Number(row.tick);
-    if (!tickMap.has(tick)) tickMap.set(tick, []);
-
-    const teamNum = Number(row.team_num);
-    // Skip spectators (team 0 or 1)
-    if (teamNum < 2) continue;
-
-    tickMap.get(tick)!.push({
-      steamId: String(row.steamid),
-      name: String(row.name),
-      team: teamNum === 2 ? "T" : "CT",
-      x: Number(row.X),
-      y: Number(row.Y),
-      z: Number(row.Z),
-      yaw: Number(row.yaw),
-      health: Number(row.health),
-      isAlive: Boolean(row.is_alive),
-      weapon: String(row.active_weapon_name ?? ""),
-    });
+  if (round.ticks) {
+    frames = decodeRoundTicks(round.ticks);
+    storedInterval = round.ticks.interval;
+    source = "db";
+  } else {
+    // demoparser2 (Rust) needs forward-slash paths to avoid "IllegalPathOp" on Windows.
+    const filePath = match.upload.fileUrl.replace(/\\/g, "/");
+    const onDisk = await access(filePath).then(() => true, () => false);
+    if (!onDisk) {
+      return NextResponse.json(
+        { error: "Replay data not available: the demo was removed before replay data was stored" },
+        { status: 404 }
+      );
+    }
+    const parser = await getParser();
+    const rows = parser.parseTicks(
+      filePath,
+      REPLAY_TICK_PROPS,
+      sampleTickList(round.startTick, round.endTick, interval)
+    ) as Record<string, unknown>[];
+    frames = decodeRoundTicks(encodeRoundTicks(rows ?? [], round.startTick, round.endTick, interval));
+    storedInterval = interval;
+    source = "demo";
   }
 
-  const tickData = Array.from(tickMap.entries())
-    .sort(([a], [b]) => a - b)
-    .map(([tick, players]) => ({ tick, players }));
+  const step = Math.max(1, Math.round(interval / storedInterval));
+  const ticks = subsampleFrames(frames, step).map((f) => ({
+    tick: f.tick,
+    players: f.players.map((p) => ({
+      steamId: p.steamId,
+      name: p.name,
+      team: p.team,
+      x: p.x,
+      y: p.y,
+      z: p.z,
+      yaw: p.yaw,
+      health: p.health,
+      isAlive: p.isAlive,
+      weapon: p.weapon,
+    })),
+  }));
 
   return NextResponse.json({
     matchId,
     round: roundNum,
     startTick: round.startTick,
     endTick: round.endTick,
-    interval,
-    ticks: tickData,
+    interval: step * storedInterval,
+    source,
+    ticks,
   });
 }

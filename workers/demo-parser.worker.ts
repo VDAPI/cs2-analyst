@@ -33,12 +33,13 @@ async function processDemo(job: Job<DemoParseJobData>) {
     (pct) => job.updateProgress(pct)
   );
 
-  // Clean up FACEIT demos (re-downloadable, save disk space)
+  // Clean up FACEIT demos (re-downloadable, save disk space) — but only once
+  // the replay data is in the DB, otherwise the 2D replay would be lost.
   const upload = await prisma.demoUpload.findUnique({
     where: { id: uploadId },
     select: { source: true },
   });
-  if (upload?.source === "FACEIT") {
+  if (upload?.source === "FACEIT" && result.replayStored) {
     await unlink(filePath).catch(() => {});
   }
 
