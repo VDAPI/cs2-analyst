@@ -157,8 +157,8 @@ if (a && b && c && d) {
   check("A: 30° off B at first sight → crosshair moment", a.moments.some((m) => m.type === "crosshair" && m.tick === 400 && near(m.value, 30, 1)));
   check("A: crosshair moment names its enemy (B)", a.moments.find((m) => m.type === "crosshair" && m.tick === 400)?.enemy === B);
   check("A: reaction only where the first sight is known (B duel)", a.reactionSamples === 1);
-  // Swing starts on the 420 frame: 20 ticks after first sight.
-  check("A: reaction ≈ 313 ms", near(a.reactionMedianMs, 313, 2));
+  // Swing first observed on the 424 frame: 24 ticks after first sight.
+  check("A: reaction ≈ 375 ms", near(a.reactionMedianMs, 375, 2));
   check("A: time to damage ≈ 641 ms (400 → 441)", a.ttdSamples === 1 && near(a.ttdMedianMs, 641, 2));
   check("A: one flick (B), one tracking (D)", a.flicks === 1 && a.trackings === 1 && a.preaims === 0);
   check("A: overflick through B's head", a.overflicks === 1 && a.moments.some((m) => m.type === "overflick" && m.tick === 428));
@@ -192,6 +192,22 @@ if (a && b && c && d) {
   check("spray 0% is bad", spray.value === 0 && spray.status === "bad");
   const noReload = aimMetrics({ ...a, reloadData: false }).find((m) => m.key === "reload")!;
   check("no reload data → no value, status none", noReload.value === null && noReload.status === "none");
+}
+
+// ─── Utility damage is not a duel ────────────────────────
+
+{
+  const nade = analyzeAim({
+    tickRate: TICK_RATE,
+    rounds: [{ number: 1, startTick: 0, frames: round1 }],
+    shots: [],
+    damages: [dmg(1, 441, A, B, "inferno"), dmg(1, 445, A, B, "hegrenade"), dmg(1, 1650, D, A, "knife")],
+    kills: [],
+    flashes: [],
+    reloads: [],
+  });
+  const na = nade.find((r) => r.steamId === A);
+  check("molotov / HE / knife damage opens no duel", !!na && na.duels === 0 && na.crosshairSamples === 0 && na.reactionSamples === 0);
 }
 
 // ─── Report ──────────────────────────────────────────────

@@ -3,9 +3,10 @@
  * Pure, so `npm run test:admin` covers it without a database.
  */
 import type { ParseStatus } from "@prisma/client";
+import { APP_TIME_ZONE } from "@/lib/utils/formatters";
 
 /** Days are counted in the owner's time zone, not UTC. */
-export const METRICS_TIME_ZONE = "Europe/Warsaw";
+export const METRICS_TIME_ZONE = APP_TIME_ZONE;
 
 /** An analysis that sat in QUEUED/DOWNLOADING/PARSING this long without an update is stuck. */
 export const STUCK_AFTER_MS = 30 * 60 * 1000;

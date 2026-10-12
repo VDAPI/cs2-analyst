@@ -108,7 +108,7 @@ model DemoUpload {
   status         ParseStatus  @default(QUEUED)
   progress       Int          @default(0) // 0-100, shown in the analysis queue
   source         UploadSource @default(MANUAL)
-  faceitMatchId  String?      @unique
+  faceitMatchId  String? // per user: @@unique([userId, faceitMatchId]) below
   error          String?
   matchId        String?      @unique
   // fileUrl is a local path, or "r2://<key>" when the demo lives in R2
@@ -131,9 +131,12 @@ model DemoUpload {
   faceitMatch FaceitMatch?
   steamMatch  SteamMatch?
 
+  // Two app users can be in the same FACEIT match: one upload per user.
+  @@unique([userId, faceitMatchId])
   @@index([userId, createdAt])
   @@index([status, updatedAt])
   @@index([createdAt])
+  @@index([faceitMatchId])
 }
 
 enum UploadSource {
@@ -672,7 +675,7 @@ model Finding {
 model FaceitMatch {
   id              String          @id @default(cuid())
   userId          String
-  faceitMatchId   String          @unique
+  faceitMatchId   String
   map             String
   score           String // e.g. "16-9"
   date            DateTime
@@ -686,6 +689,10 @@ model FaceitMatch {
 
   user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   upload DemoUpload? @relation(fields: [uploadId], references: [id])
+
+  // Every app user in the same FACEIT match gets their own row (own result).
+  @@unique([userId, faceitMatchId])
+  @@index([faceitMatchId])
 }
 
 enum MatchResult {

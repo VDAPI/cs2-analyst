@@ -63,7 +63,7 @@ async function processDownload(job: Job<FaceitDemoDownloadJobData>) {
     });
 
     const faceitMatch = await prisma.faceitMatch.findUnique({
-      where: { faceitMatchId },
+      where: { userId_faceitMatchId: { userId, faceitMatchId } },
     });
     if (!faceitMatch || faceitMatch.userId !== userId) {
       // Nothing to retry — the match is gone or not owned by this user.
@@ -80,7 +80,7 @@ async function processDownload(job: Job<FaceitDemoDownloadJobData>) {
     }
     if (!resourceUrl) {
       await prisma.faceitMatch.update({
-        where: { faceitMatchId },
+        where: { userId_faceitMatchId: { userId, faceitMatchId } },
         data: { demoStatus: "NOT_READY" },
       });
       // Retryable — demo may become available on a later attempt.
@@ -105,7 +105,7 @@ async function processDownload(job: Job<FaceitDemoDownloadJobData>) {
     );
 
     await prisma.faceitMatch.update({
-      where: { faceitMatchId },
+      where: { userId_faceitMatchId: { userId, faceitMatchId } },
       data: { demoStatus: "DOWNLOADED" },
     });
 
@@ -161,7 +161,7 @@ async function processDownload(job: Job<FaceitDemoDownloadJobData>) {
       await failUpload(uploadId, err instanceof Error ? err.message : "Unknown error");
       await prisma.faceitMatch
         .update({
-          where: { faceitMatchId },
+          where: { userId_faceitMatchId: { userId, faceitMatchId } },
           data: { demoStatus: "FAILED" },
         })
         .catch(() => {});

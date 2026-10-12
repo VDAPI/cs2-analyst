@@ -135,16 +135,29 @@ export function weaponDisplayName(weapon: string): string {
   return names[weapon.toLowerCase()] ?? weapon;
 }
 
-const dateFmt = new Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "short", year: "numeric" });
-const shortDateFmt = new Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "short" });
+/**
+ * Dates and times are shown in Polish time whatever the host's zone, so the
+ * server render and the browser render print the same text (no hydration
+ * mismatch) and a UTC server never shows UTC hours or the wrong day.
+ */
+export const APP_TIME_ZONE = "Europe/Warsaw";
+
+const dateFmt = new Intl.DateTimeFormat("pl-PL", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: APP_TIME_ZONE,
+});
+const shortDateFmt = new Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "short", timeZone: APP_TIME_ZONE });
 const dateTimeFmt = new Intl.DateTimeFormat("pl-PL", {
+  timeZone: APP_TIME_ZONE,
   day: "numeric",
   month: "short",
   hour: "2-digit",
   minute: "2-digit",
 });
 
-/** "12 paź 2026" — Polish date, same output on server and client. */
+/** "12 paź 2026" — Polish date in APP_TIME_ZONE, same output on server and client. */
 export function formatDate(d: Date | string): string {
   return dateFmt.format(new Date(d));
 }

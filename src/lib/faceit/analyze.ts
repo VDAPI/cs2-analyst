@@ -34,13 +34,13 @@ export function activeUploadId(fm: FaceitMatchWithUpload): string | null {
  * take the (unique) faceitMatchId. A failed one also leaves the queue screen,
  * since the retry replaces it.
  */
-export async function releaseFaceitMatch(faceitMatchId: string): Promise<void> {
+export async function releaseFaceitMatch(userId: string, faceitMatchId: string): Promise<void> {
   await prisma.demoUpload.updateMany({
-    where: { faceitMatchId, OR: [{ status: "FAILED" }, { deletedAt: { not: null } }] },
+    where: { userId, faceitMatchId, OR: [{ status: "FAILED" }, { deletedAt: { not: null } }] },
     data: { faceitMatchId: null, deletedAt: new Date() },
   });
   await prisma.faceitMatch.update({
-    where: { faceitMatchId },
+    where: { userId_faceitMatchId: { userId, faceitMatchId } },
     data: { uploadId: null },
   });
 }
@@ -54,7 +54,7 @@ export async function enqueueFaceitDownload(
   fm: FaceitMatchWithUpload,
   keepDemo = false
 ): Promise<string> {
-  if (fm.upload) await releaseFaceitMatch(fm.faceitMatchId);
+  if (fm.upload) await releaseFaceitMatch(userId, fm.faceitMatchId);
 
   const upload = await prisma.demoUpload.create({
     data: {

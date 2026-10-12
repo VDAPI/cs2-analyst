@@ -68,7 +68,7 @@ export async function POST(req: Request) {
         { status: 409 }
       );
     }
-    if (fm.upload) await releaseFaceitMatch(fm.faceitMatchId);
+    if (fm.upload) await releaseFaceitMatch(userId, fm.faceitMatchId);
     faceitMatchId = fm.faceitMatchId;
   }
 
@@ -122,7 +122,7 @@ export async function POST(req: Request) {
   }
   if (faceitMatchId) {
     await prisma.faceitMatch.update({
-      where: { faceitMatchId },
+      where: { userId_faceitMatchId: { userId, faceitMatchId } },
       data: { uploadId: upload.id },
     });
   }
