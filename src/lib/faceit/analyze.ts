@@ -35,15 +35,16 @@ export function activeUploadId(fm: FaceitMatchWithUpload): string | null {
  * since the retry replaces it.
  */
 export async function releaseFaceitMatch(
+  userId: string,
   faceitMatchId: string,
   db: Prisma.TransactionClient = prisma
 ): Promise<void> {
   await db.demoUpload.updateMany({
-    where: { faceitMatchId, OR: [{ status: "FAILED" }, { deletedAt: { not: null } }] },
+    where: { userId, faceitMatchId, OR: [{ status: "FAILED" }, { deletedAt: { not: null } }] },
     data: { faceitMatchId: null, deletedAt: new Date() },
   });
   await db.faceitMatch.update({
-    where: { faceitMatchId },
+    where: { userId_faceitMatchId: { userId, faceitMatchId } },
     data: { uploadId: null },
   });
 }
@@ -73,7 +74,7 @@ export async function createFaceitUpload(
   fm: FaceitMatchWithUpload,
   keepDemo = false
 ): Promise<string> {
-  if (fm.upload) await releaseFaceitMatch(fm.faceitMatchId, db);
+  if (fm.upload) await releaseFaceitMatch(userId, fm.faceitMatchId, db);
 
   const upload = await db.demoUpload.create({
     data: {

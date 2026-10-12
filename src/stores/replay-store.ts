@@ -2,6 +2,14 @@ import { create } from "zustand";
 import { fetchRoundData } from "@/lib/replay/fetch-round";
 import type { FindingView } from "@/lib/findings/view";
 
+/**
+ * In-flight loads. A newer load (or reset, when the viewer unmounts) aborts the
+ * previous one, and a result is applied only if its request is still the
+ * latest, so a slow round of match A can never land on match B's viewer.
+ */
+let roundRequest: AbortController | null = null;
+let findingsRequest: AbortController | null = null;
+
 export interface PlayerSnapshot {
   steamId: string;
   name: string;
@@ -120,10 +128,15 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   isLoading: false,
 
   loadRound: async (matchId, round) => {
+    roundRequest?.abort();
+    const req = new AbortController();
+    roundRequest = req;
     set({ isLoading: true, isPlaying: false, currentFrameIndex: 0 });
 
     try {
-      const data = await fetchRoundData(matchId, round, { interval: 32 });
+      const data = await fetchRoundData(matchId, round, { interval: 32, signal: req.signal });
+      if (roundRequest !== req) return;
+      roundRequest = null;
       set({
         ...data,
         currentRound: round,
@@ -131,6 +144,8 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
         isLoading: false,
       });
     } catch {
+      if (roundRequest !== req) return; // superseded or reset: not this load's error
+      roundRequest = null;
       set({ isLoading: false, frames: [], grenadeEvents: [], bombEvents: [] });
     }
   },
@@ -184,19 +199,30 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   toggleFov: () => set((s) => ({ showFov: !s.showFov })),
 
   loadFindings: async (matchId) => {
+    findingsRequest?.abort();
+    const req = new AbortController();
+    findingsRequest = req;
     try {
-      const res = await fetch(`/api/matches/${matchId}/findings`);
+      const res = await fetch(`/api/matches/${matchId}/findings`, { signal: req.signal });
       if (!res.ok) return;
       const data = (await res.json()) as { findings?: FindingView[] };
+      if (findingsRequest !== req) return;
       set({ findings: data.findings ?? [] });
     } catch {
+      if (findingsRequest !== req) return;
       set({ findings: [] });
+    } finally {
+      if (findingsRequest === req) findingsRequest = null;
     }
   },
 
   setActiveFinding: (id) => set({ activeFindingId: id }),
 
-  reset: () =>
+  reset: () => {
+    roundRequest?.abort();
+    roundRequest = null;
+    findingsRequest?.abort();
+    findingsRequest = null;
     set({
       frames: [],
       kills: [],
@@ -215,5 +241,6 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
       findings: [],
       activeFindingId: null,
       isLoading: false,
-    }),
+    });
+  },
 }));

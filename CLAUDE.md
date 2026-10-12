@@ -35,11 +35,13 @@ CS2 demo analysis SaaS for FACEIT (and any other) players. Users upload .dem fil
 npm run dev          # Start dev server (Turbopack); runs `prisma db push` first
 npm run build        # Production build
 npm run lint         # ESLint
-npm run db:push      # Push Prisma schema to DB
+npm run db:push      # Push Prisma schema to DB (runs prisma/pre-push.sql first: indexes db push can't add without --accept-data-loss)
 npm run db:migrate   # Run Prisma migrations
 npm run db:generate  # Generate Prisma client
 npm run db:studio    # Open Prisma Studio
 npm run test:clutches # Parser regression test (no demo file needed)
+npm run test:sides   # Round winner/reason codes, per-round sides incl. overtime (no demo file needed)
+npm run test:e2e-demo -- <file.dem> # Parser invariants on a real demo (score, economy sides, deaths, utility damage)
 npm run test:replay   # Replay-data encoding regression test (no demo file needed)
 npm run test:library  # Demo storage / deletion rule / limits / FACEIT filters test (no DB needed)
 npm run test:mechanics # Movement/counter-strafe analysis regression test (no demo file needed)
@@ -142,7 +144,7 @@ Revisit once demoparser2 ships correct `optionalDependencies` (0.41.3 is the lat
 
 - `@laihoe/demoparser2` is in `serverExternalPackages` (native Node.js bindings, server-only)
 - Demo parsing runs in BullMQ workers, not in API routes (the ticks route only parses the .dem as a fallback for old matches without `RoundTicks`)
-- **Sides are per-half, not per-match**: `parsePlayerInfo.team_number` gives the side a player *finished* on, while `round.winner` is an absolute side. Any logic comparing a player to a round-level side must resolve the side for that half or it silently inverts across the whole first half. Follow the `computeClutchWins()` pattern in `src/lib/parsers/demo-parser.ts`.
+- **Sides are per-round, not per-match**: `parsePlayerInfo.team_number` gives the side a player *finished* on, while `round.winner` is an absolute side (demoparser2 returns `round_end` winner/reason as numbers: 2 = T, 3 = CT; mapped in `src/lib/parsers/round-end.ts`). Sides swap at halftime and every overtime half, and a match can end before halftime, so never assume "rounds ≤ 12 are swapped". The parser resolves teamA's side per round from live `team_num` (`resolveTeamASides`); pages and APIs use `createSideResolver(rounds)` from `src/lib/utils/sideSplit.ts` (reads the stored winner + score deltas). Regression tests: `npm run test:clutches`, `npm run test:sides`; on a real demo `npm run test:e2e-demo -- <file.dem>`.
 - **`assists` and `flashAssists` are disjoint**: a flash-assisted kill increments `flashAssists` only, never both. This is a deliberate divergence from HLTV (which folds flash assists into assists) — do not "unify" them. Add the columns together at the call site when comparing against HLTV numbers.
 - Parser invariants that are easy to break have a no-demo regression test: `npm run test:clutches`
 - **Replay data lives in the DB, not the .dem**: the parse pipeline stores sampled player state per round (`RoundTicks`, every 4 ticks, format in `src/lib/replay/round-ticks.ts`) plus every `weapon_fire` (`ShotEvent`) and `player_hurt` (`DamageEvent`). `/api/matches/[matchId]/ticks` reads `RoundTicks` and only falls back to parsing the .dem for old matches. Never delete a .dem unless `parseAndPersistDemo` returned `replayStored: true`. Changing the blob layout means bumping `REPLAY_FORMAT_VERSION`.

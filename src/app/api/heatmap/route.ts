@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { playerSideAtRound } from "@/lib/utils/sideSplit";
+import { createSideResolver } from "@/lib/utils/sideSplit";
 
 /**
  * GET /api/heatmap?map=de_mirage&type=kills|deaths&side=CT|T&player=steamId&matches=id1,id2
@@ -63,10 +63,28 @@ export async function GET(req: Request) {
   });
 
   // Get player roster across all matches (deduplicated)
-  const allPlayers = await prisma.matchPlayer.findMany({
-    where: { matchId: { in: matchIdList } },
-    select: { matchId: true, steamId: true, name: true, team: true },
-  });
+  const [allPlayers, allRounds] = await Promise.all([
+    prisma.matchPlayer.findMany({
+      where: { matchId: { in: matchIdList } },
+      select: { matchId: true, steamId: true, name: true, team: true },
+    }),
+    prisma.round.findMany({
+      where: { matchId: { in: matchIdList } },
+      select: { matchId: true, number: true, winner: true, ctScore: true, tScore: true },
+    }),
+  ]);
+
+  // Side resolver per match: sides come from the stored rounds (halves,
+  // overtime, matches that end early), not a fixed 12-round rule.
+  const roundsByMatch = new Map<string, typeof allRounds>();
+  for (const r of allRounds) {
+    const list = roundsByMatch.get(r.matchId);
+    if (list) list.push(r);
+    else roundsByMatch.set(r.matchId, [r]);
+  }
+  const sideAtByMatch = new Map(
+    matchIdList.map((id) => [id, createSideResolver(roundsByMatch.get(id) ?? [])])
+  );
 
   // Team lookup per (match, player) — matchPlayer.team is the END-OF-MATCH
   // side of that match, and the same player can finish on CT in one match and
@@ -85,7 +103,8 @@ export async function GET(req: Request) {
   /** A player's in-game side in one round of one match (halftime swap included). */
   function getInGameTeam(matchId: string, steamId: string, roundNumber: number): "CT" | "T" | undefined {
     const dbTeam = dbTeamByMatchPlayer.get(`${matchId}:${steamId}`);
-    return dbTeam ? playerSideAtRound(dbTeam, roundNumber) : undefined;
+    const sideAt = sideAtByMatch.get(matchId);
+    return dbTeam && sideAt ? sideAt(dbTeam, roundNumber) : undefined;
   }
 
   // Deduplicated player list
@@ -102,6 +121,11 @@ export async function GET(req: Request) {
     const roundNum = k.round.number;
     // Suicides / world deaths (attacker = victim) are not kills.
     if (type === "kills" && k.attackerSteamId === k.victimSteamId) continue;
+    // Team kills are not kills either (same end-of-match team in that match).
+    if (type === "kills") {
+      const aTeam = dbTeamByMatchPlayer.get(`${k.round.matchId}:${k.attackerSteamId}`);
+      if (aTeam && aTeam === dbTeamByMatchPlayer.get(`${k.round.matchId}:${k.victimSteamId}`)) continue;
+    }
     if (type === "kills") {
       if (side) {
         const team = getInGameTeam(k.round.matchId, k.attackerSteamId, roundNum);

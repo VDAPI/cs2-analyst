@@ -11,6 +11,7 @@ import { CANVAS_COLORS } from "@/lib/canvas/palette";
 import { drawEmptyHint, drawRadarBackground, makeWorldToCanvas, TOOL_CANVAS_SIZE, type RadarConfig } from "@/lib/canvas/radar";
 import { drawHeatmapLayer, HEATMAP_LEGEND_GRADIENT } from "@/lib/canvas/heatmap-layer";
 import { cn } from "@/lib/utils/cn";
+import { formatDate } from "@/lib/utils/formatters";
 
 interface PlayerInfo {
   steamId: string;
@@ -325,7 +326,7 @@ export function HeatmapExplorer({ source, mapName, mapRaw, mapConfig, players }:
                           : "text-[var(--text-disabled)] hover:bg-[var(--surface-2)] hover:text-[var(--text-tertiary)]"
                       )}
                     >
-                      <span>{new Date(m.date).toLocaleDateString("pl-PL")}</span>
+                      <span>{formatDate(m.date)}</span>
                       <span className="font-mono tabular-nums">{m.scoreCT}:{m.scoreT}</span>
                     </button>
                   );

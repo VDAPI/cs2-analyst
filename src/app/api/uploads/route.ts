@@ -3,7 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { demoParseQueue } from "@/lib/queue";
-import { keepDemoSlotsLeft, limitReachedMessage, withUploadSlots } from "@/lib/limits";
+import {
+  checkMonthlyDemoLimit,
+  keepDemoSlotsLeft,
+  limitReachedMessage,
+  withUploadSlots,
+} from "@/lib/limits";
 import { LOCAL_DEMO_DIR, storeDemoFile } from "@/lib/storage/demo-store";
 import { activeUploadId, FACEIT_UPLOAD_INCLUDE, releaseFaceitMatch } from "@/lib/faceit/analyze";
 import { getQueueItems } from "@/lib/library";
@@ -124,13 +129,13 @@ export async function POST(req: Request) {
 
     if (faceitMatchId) {
       const fm = await tx.faceitMatch.findUnique({
-        where: { faceitMatchId },
+        where: { userId_faceitMatchId: { userId, faceitMatchId } },
         include: FACEIT_UPLOAD_INCLUDE,
       });
       if (!fm || activeUploadId(fm)) {
         return { error: "This FACEIT match already has a demo", status: 409 } as const;
       }
-      if (fm.upload) await releaseFaceitMatch(fm.faceitMatchId, tx);
+      if (fm.upload) await releaseFaceitMatch(userId, fm.faceitMatchId, tx);
     }
     if (steamMatchId) {
       const sm = await tx.steamMatch.findUnique({
@@ -165,7 +170,7 @@ export async function POST(req: Request) {
     }
     if (faceitMatchId) {
       await tx.faceitMatch.update({
-        where: { faceitMatchId },
+        where: { userId_faceitMatchId: { userId, faceitMatchId } },
         data: { uploadId: created.id },
       });
     }
