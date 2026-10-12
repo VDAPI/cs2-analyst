@@ -53,3 +53,7 @@ jobs:
       - name: Replay data regression tests
         if: ${{ !cancelled() }}
         run: npm run test:replay
+
+      - name: Demo storage and library regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:library

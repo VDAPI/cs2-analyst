@@ -12,11 +12,15 @@ import {
   GitCompare,
   Settings,
   Flame,
+  ListOrdered,
+  Library,
 } from "lucide-react";
 
 const navItems = [
   { href: "/matches", label: "Matches", icon: BarChart3 },
   { href: "/upload", label: "Upload Demo", icon: Upload },
+  { href: "/queue", label: "Analysis Queue", icon: ListOrdered },
+  { href: "/library", label: "Library", icon: Library },
   { href: "/players", label: "Players", icon: Users },
   { href: "/heatmaps", label: "Heatmaps", icon: Flame },
   { href: "/economy", label: "Economy", icon: DollarSign },

@@ -16,7 +16,7 @@ interface PersistArgs {
 }
 
 /**
- * @param onProgress optional 0-100 progress reporter (e.g. job.updateProgress)
+ * @param reportProgress optional 0-100 progress reporter (e.g. job.updateProgress)
  * @returns the created match id, and whether replay data (sampled ticks,
  *   shots, damage) was stored — only then may the .dem be deleted.
  * On failure, sets the upload to FAILED and rethrows. A failure in the replay
@@ -25,12 +25,19 @@ interface PersistArgs {
 export async function parseAndPersistDemo(
   prisma: PrismaClient,
   { uploadId, filePath }: PersistArgs,
-  onProgress?: (pct: number) => void | Promise<void>
+  reportProgress?: (pct: number) => void | Promise<void>
 ): Promise<{ matchId: string; replayStored: boolean }> {
+  // Progress also goes on the upload row, for the analysis queue screen.
+  const onProgress = async (pct: number) => {
+    await reportProgress?.(pct);
+    await prisma.demoUpload
+      .update({ where: { id: uploadId }, data: { progress: pct } })
+      .catch(() => {});
+  };
   try {
     await prisma.demoUpload.update({
       where: { id: uploadId },
-      data: { status: "PARSING" },
+      data: { status: "PARSING", error: null },
     });
     await onProgress?.(10);
 
@@ -200,7 +207,7 @@ export async function parseAndPersistDemo(
 
     await prisma.demoUpload.update({
       where: { id: uploadId },
-      data: { status: "COMPLETED", matchId: match.id },
+      data: { status: "COMPLETED", matchId: match.id, progress: 100 },
     });
     await onProgress?.(100);
 

@@ -40,6 +40,22 @@ export async function refreshDemoResource(faceitMatchId: string): Promise<{
   return resource;
 }
 
+/** The user's result in a match, from which faction's roster they were in. */
+export function userResult(
+  details: FaceitMatchDetail,
+  faceitPlayerId: string
+): "WIN" | "LOSS" | null {
+  const winner = details.results?.winner;
+  if (!winner) return null;
+  for (const faction of ["faction1", "faction2"] as const) {
+    const roster = details.teams?.[faction]?.roster ?? [];
+    if (roster.some((p) => p.player_id === faceitPlayerId)) {
+      return winner === faction ? "WIN" : "LOSS";
+    }
+  }
+  return null;
+}
+
 interface SyncResult {
   synced: number;
   skipped: number;
@@ -97,8 +113,20 @@ export async function syncFaceitMatches(userId: string, force = false): Promise<
       // Skip if already stored
       const existing = await prisma.faceitMatch.findUnique({
         where: { faceitMatchId: match.match_id },
+        select: { result: true },
       });
       if (existing) {
+        // Matches synced before results were stored get theirs once.
+        if (!existing.result) {
+          const details = await getMatchDetails(match.match_id);
+          const r = userResult(details, user.faceitId);
+          if (r) {
+            await prisma.faceitMatch.update({
+              where: { faceitMatchId: match.match_id },
+              data: { result: r },
+            });
+          }
+        }
         result.skipped++;
         continue;
       }
@@ -133,6 +161,7 @@ export async function syncFaceitMatches(userId: string, force = false): Promise<
           date,
           faceitUrl,
           competition: match.competition_name ?? null,
+          result: userResult(details, user.faceitId),
           demoResourceUrl,
           demoStatus,
         },

@@ -46,7 +46,7 @@ export function FaceitDownloadButton({
           if (!res.ok) return;
           const data = await res.json();
 
-          if (data.status === "QUEUED") {
+          if (data.status === "QUEUED" || data.status === "DOWNLOADING") {
             setState("downloading");
           } else if (data.status === "PARSING") {
             setState("parsing");
@@ -86,6 +86,11 @@ export function FaceitDownloadButton({
       );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
+        // No Downloads API: continue on the upload page for this match.
+        if (res.status === 409 && data.uploadUrl) {
+          router.push(data.uploadUrl);
+          return;
+        }
         setError(data.error ?? "Failed to start download");
         setState("error");
         return;

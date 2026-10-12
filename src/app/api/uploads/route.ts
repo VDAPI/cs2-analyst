@@ -3,8 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { demoParseQueue } from "@/lib/queue";
-import { checkMonthlyDemoLimit } from "@/lib/limits";
-import { writeFile, mkdir } from "fs/promises";
+import { checkMonthlyDemoLimit, limitReachedMessage } from "@/lib/limits";
+import { LOCAL_DEMO_DIR, storeDemoFile } from "@/lib/storage/demo-store";
+import { activeUploadId, FACEIT_UPLOAD_INCLUDE, releaseFaceitMatch } from "@/lib/faceit/analyze";
+import { getQueueItems } from "@/lib/library";
+import { writeFile, mkdir, unlink } from "fs/promises";
 import { join } from "path";
 
 const MAX_FILE_SIZE = 700 * 1024 * 1024; // 700MB
@@ -16,20 +19,28 @@ function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 255);
 }
 
+/**
+ * POST /api/uploads — multipart: file (.dem), optional keepDemo ("true"),
+ * optional faceitMatch (FaceitMatch.id) to attach the demo to a match from
+ * the player's FACEIT history.
+ */
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const userId = session.user.id;
 
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
+  const keepDemo = formData.get("keepDemo") === "true";
+  const faceitMatchRef = formData.get("faceitMatch");
 
   if (!file) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
   }
 
-  if (!file.name.endsWith(".dem")) {
+  if (!file.name.toLowerCase().endsWith(".dem")) {
     return NextResponse.json({ error: "Only .dem files are accepted" }, { status: 400 });
   }
 
@@ -37,15 +48,31 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "File too large (max 700MB)" }, { status: 400 });
   }
 
+  // Optional link to a FACEIT history entry (upload fallback for "Analyze
+  // selected" when automatic downloads aren't available).
+  let faceitMatchId: string | null = null;
+  if (typeof faceitMatchRef === "string" && faceitMatchRef) {
+    const fm = await prisma.faceitMatch.findUnique({
+      where: { id: faceitMatchRef },
+      include: FACEIT_UPLOAD_INCLUDE,
+    });
+    if (!fm || fm.userId !== userId) {
+      return NextResponse.json({ error: "FACEIT match not found" }, { status: 404 });
+    }
+    if (activeUploadId(fm)) {
+      return NextResponse.json(
+        { error: "This FACEIT match already has a demo" },
+        { status: 409 }
+      );
+    }
+    if (fm.upload) await releaseFaceitMatch(fm.faceitMatchId);
+    faceitMatchId = fm.faceitMatchId;
+  }
+
   // Enforce the monthly demo limit (shared with FACEIT downloads)
-  const limit = await checkMonthlyDemoLimit(session.user.id);
+  const limit = await checkMonthlyDemoLimit(userId);
   if (!limit.allowed) {
-    return NextResponse.json(
-      {
-        error: `Monthly demo limit reached (${limit.used}/${limit.limit} on ${limit.plan} plan). Upgrade for more.`,
-      },
-      { status: 403 }
-    );
+    return NextResponse.json({ error: limitReachedMessage(limit) }, { status: 403 });
   }
 
   const originalName = file.name;
@@ -57,52 +84,66 @@ export async function POST(req: Request) {
   // Create upload record (store the sanitized name as DB metadata)
   const upload = await prisma.demoUpload.create({
     data: {
-      userId: session.user.id,
+      userId,
       fileName: safeName,
       fileSize: file.size,
       fileUrl: "",
       status: "QUEUED",
+      keepDemo,
+      ...(faceitMatchId ? { source: "FACEIT" as const, faceitMatchId } : {}),
     },
   });
+  if (faceitMatchId) {
+    await prisma.faceitMatch.update({
+      where: { faceitMatchId },
+      data: { uploadId: upload.id },
+    });
+  }
 
-  // Write file to disk under a cuid-derived name (filesystem-safe by construction)
-  const demosDir = join(process.cwd(), "data", "demos");
-  const filePath = join(demosDir, `${upload.id}.dem`);
-  console.log(`[upload] writing demosDir="${demosDir}" filePath="${filePath}"`);
-
+  // Write file to disk under a cuid-derived name (filesystem-safe by
+  // construction), then hand it to the demo store (moves it to R2 if set up).
+  const filePath = join(LOCAL_DEMO_DIR, `${upload.id}.dem`);
+  let fileUrl: string;
   try {
-    await mkdir(demosDir, { recursive: true });
+    await mkdir(LOCAL_DEMO_DIR, { recursive: true });
     const bytes = new Uint8Array(await file.arrayBuffer());
     await writeFile(filePath, bytes);
+    fileUrl = await storeDemoFile(upload.id, filePath);
   } catch (err) {
-    console.error(`[upload] disk write failed: filePath="${filePath}"`, err);
+    console.error(`[upload] storing demo failed: filePath="${filePath}"`, err);
+    await unlink(filePath).catch(() => {});
     await prisma.demoUpload.update({
       where: { id: upload.id },
       data: {
         status: "FAILED",
-        error: `Disk write failed: ${err instanceof Error ? err.message : String(err)}`,
+        error: `Storing the demo failed: ${err instanceof Error ? err.message : String(err)}`,
       },
     });
-    return NextResponse.json(
-      { error: "Failed to write demo to disk" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to store the demo" }, { status: 500 });
   }
 
-  // Update file URL
   await prisma.demoUpload.update({
     where: { id: upload.id },
-    data: { fileUrl: filePath },
+    data: { fileUrl },
   });
 
   // Enqueue parse job
   await demoParseQueue.add("parse", {
     uploadId: upload.id,
-    filePath,
-    userId: session.user.id,
+    filePath: fileUrl,
+    userId,
   });
 
-  console.log(`[upload] queued parse job uploadId=${upload.id}`);
+  console.log(`[upload] queued parse job uploadId=${upload.id} fileUrl="${fileUrl}"`);
 
   return NextResponse.json({ uploadId: upload.id }, { status: 201 });
+}
+
+/** GET /api/uploads — the analysis queue (unfinished + last day's uploads). */
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return NextResponse.json({ items: await getQueueItems(prisma, session.user.id) });
 }

@@ -17,6 +17,8 @@ export const config = {
   matcher: [
     "/matches/:path*",
     "/upload/:path*",
+    "/queue/:path*",
+    "/library/:path*",
     "/players/:path*",
     "/heatmaps/:path*",
     "/economy/:path*",

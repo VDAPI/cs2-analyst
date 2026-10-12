@@ -4,7 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { Card, StatCard } from "@/components/ui";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { FaceitSyncTrigger } from "@/components/faceit-sync-trigger";
-import { FaceitDownloadButton } from "@/components/faceit-download-button";
+import { FaceitHistoryPicker } from "@/components/faceit-history-picker";
+import { activeUploadId, faceitDownloadsEnabled, FACEIT_UPLOAD_INCLUDE } from "@/lib/faceit/analyze";
+import { getPlanUsage } from "@/lib/limits";
 import Link from "next/link";
 
 export default async function MatchesPage() {
@@ -35,9 +37,11 @@ export default async function MatchesPage() {
   const faceitMatches = userId
     ? await prisma.faceitMatch.findMany({
         where: { userId },
+        include: FACEIT_UPLOAD_INCLUDE,
         orderBy: { date: "desc" },
       })
     : [];
+  const usage = userId ? await getPlanUsage(userId) : null;
 
   // Check DB for faceitId (don't rely on session JWT)
   const dbUser = userId
@@ -250,87 +254,27 @@ export default async function MatchesPage() {
             );
           })}
 
-          {/* FACEIT matches — metadata only, no demo uploaded yet */}
+          {/* FACEIT history — pick matches to analyze */}
           {unlinkedFaceitMatches.length > 0 && (
-            <>
-              {parsedMatches.length > 0 && (
-                <div className="flex items-center gap-3 pt-4">
-                  <div className="h-px flex-1 bg-[var(--border)]" />
-                  <span className="text-xs font-medium text-[var(--text-tertiary)]">
-                    FACEIT Matches — upload demo to analyze
-                  </span>
-                  <div className="h-px flex-1 bg-[var(--border)]" />
-                </div>
-              )}
-
-              {unlinkedFaceitMatches.map((fm) => {
-                const [s1, s2] = fm.score.split("-").map(Number);
-
-                return (
-                  <Card
-                    key={fm.id}
-                    className="flex items-center justify-between border-l-[3px] p-4 opacity-75"
-                    style={{ borderLeftColor: "#ff5500" }}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div
-                        className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--surface-3)] bg-cover bg-center"
-                        style={{
-                          backgroundImage: `url(/maps/${fm.map}_radar.png)`,
-                          filter: "grayscale(40%) brightness(0.7)",
-                        }}
-                      />
-
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-[var(--text-primary)]">
-                            {mapDisplayName(fm.map)}
-                          </p>
-                          <span className="rounded-full bg-[rgba(255,85,0,0.15)] px-1.5 py-0.5 text-[10px] font-bold text-[#ff5500]">
-                            FACEIT
-                          </span>
-                          <span className="rounded-full bg-[var(--surface-3)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-tertiary)]">
-                            No demo
-                          </span>
-                        </div>
-                        <p className="text-xs text-[var(--text-tertiary)]">
-                          {fm.date.toLocaleDateString()}
-                          {fm.competition ? ` — ${fm.competition}` : ""}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2">
-                        <span className="stat-small text-[var(--text-primary)]">
-                          {s1}
-                        </span>
-                        <span className="text-[var(--text-disabled)]">:</span>
-                        <span className="stat-small text-[var(--text-primary)]">
-                          {s2}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={fm.faceitUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex h-8 items-center rounded-lg bg-[var(--surface-3)] px-3 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
-                        >
-                          View on FACEIT
-                        </a>
-                        <FaceitDownloadButton
-                          faceitMatchId={fm.id}
-                          demoStatus={fm.demoStatus}
-                          initialUploadId={fm.uploadId}
-                        />
-                      </div>
-                    </div>
-                  </Card>
-                );
-              })}
-            </>
+            <div className={parsedMatches.length > 0 ? "pt-6" : ""}>
+              <FaceitHistoryPicker
+                matches={unlinkedFaceitMatches.map((fm) => ({
+                  id: fm.id,
+                  map: fm.map,
+                  score: fm.score,
+                  date: fm.date.toISOString(),
+                  competition: fm.competition,
+                  result: fm.result,
+                  faceitUrl: fm.faceitUrl,
+                  demoStatus: fm.demoStatus,
+                  uploadId: activeUploadId(fm),
+                }))}
+                downloadsEnabled={faceitDownloadsEnabled()}
+                remaining={usage?.remaining ?? 0}
+                monthlyLimit={usage?.limit ?? 0}
+                batchSize={usage?.limits.batchSize ?? 0}
+              />
+            </div>
           )}
         </div>
       )}
