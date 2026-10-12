@@ -59,6 +59,7 @@ Open [http://localhost:3000](http://localhost:3000)
 | File | Purpose |
 |------|---------|
 | `PLAN.md` | Full project plan, roadmap, competitive research |
+| `docs/SESSIONS.md` | Feature list and planned Claude Code sessions (S1–S18) |
 | `DESIGN.md` | Design system (colors, typography, components) |
 | `AGENTS.md` | Instructions for AI coding agents |
 | `prisma/schema.prisma` | Database schema |
