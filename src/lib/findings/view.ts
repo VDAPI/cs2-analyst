@@ -21,6 +21,8 @@ export interface FindingView {
   values: FindingValue[];
   detail: string;
   advice: string;
+  /** What it cost the team (S14): round win probability before / after, 0–1. */
+  wp?: { before: number; after: number; kind: string } | null;
 }
 
 export function toFindingView(f: Finding): FindingView {
@@ -39,6 +41,10 @@ export function toFindingView(f: Finding): FindingView {
     values: Array.isArray(f.values) ? (f.values as unknown as FindingValue[]) : [],
     detail: f.detail,
     advice: f.advice,
+    wp:
+      f.wpBefore != null && f.wpAfter != null
+        ? { before: f.wpBefore, after: f.wpAfter, kind: f.wpKind ?? "death" }
+        : null,
   };
 }
 

@@ -66,8 +66,8 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Raport | Raport „co poprawić” z priorytetami | ✅ | S10 |
 | Pro | Pipeline dem pro i normy pro per mapa/strona/sytuacja | ✅ | S13 |
 | Pro | Porównanie każdej metryki z pro i z rangą | ✅ | S13 |
-| Pro | Model szansy wygranej rundy, wpływ każdej decyzji | 🆕 | S14 |
-| Pro | „Co zrobiłby pro” w podobnej sytuacji | 🆕 | S14 |
+| Pro | Model szansy wygranej rundy, wpływ każdej decyzji | ✅ | S14 |
+| Pro | „Co zrobiłby pro” w podobnej sytuacji | ✅ | S14 |
 | Trener AI | Rady w ludzkim języku (Claude API), plan treningu, ćwiczenia | ✅ | S15 |
 | Trener AI | Ocena rad (przydatne / nie) i uczenie kolejności rad | ✅ | S15 |
 | Postęp | Trendy metryk w czasie, cele, odznaki | ✅ | S16 |
@@ -77,7 +77,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Platforma | PWA, powiadomienia „analiza gotowa”, PL/EN | ✅ | S18 |
 | Platforma | Storage R2, limity darmowego planu | 🆕 | S7 |
 | Jakość | Testy E2E (Playwright) głównych ścieżek, desktop i telefon, w CI | ✅ | S19 |
-| Jakość | Lokalne środowisko testowe jednym poleceniem (Docker), dostęp z telefonu w sieci Wi-Fi | 🆕 | S20 |
+| Jakość | Lokalne środowisko testowe jednym poleceniem (Docker), dostęp z telefonu w sieci Wi-Fi | ✅ | S20 |
 | Start | Demo bez logowania: przykładowa analiza meczu pro, przewodnik po aplikacji | 🆕 | S21 |
 | Trening | Generator treningu: mapy Workshop, configi .cfg, rutyna dnia | ✅ | S22 |
 | Trening | Trener lineupów: komendy setpos/setang do skopiowania, config do ćwiczenia granatów | ✅ | S22 |
@@ -169,6 +169,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S13.
 - **Zakres:** osobna usługa w Pythonie (LightGBM/XGBoost) liczy szansę wygranej rundy z (żywi, HP, ekonomia, bomba, czas, pozycje, utility). Wpływ decyzji = zmiana szansy. Wyszukiwanie podobnych sytuacji w danych pro i pokazanie, co pro robili najczęściej, z klipem 2D.
 - **Gotowe, gdy:** Finding pokazuje „kosztowało team X pp szansy na rundę”.
+- **Status:** ✅ zrobione. Szansa wygranej rundy liczona z 27 cech stanu (żywi, HP, pancerz, wartość sprzętu, karabiny, AWP, czas, bomba i czas na defuse, odległości do bomby i bombsite'ów, zużyte utility), `src/lib/winprob/`. Usługa w Pythonie (`ml/`, LightGBM 4.7, serwis `ml` w `docker-compose.yml`, albo `npm run ml:train`) porównuje na danych z bazy (walidacja krzyżowa po meczach) model wyjściowy, regresję logistyczną i dwa warianty LightGBM (z ograniczeniami monotoniczności: śmierć gracza nigdy nie podnosi szansy jego drużyny) i zapisuje najlepszy, gdy jest lepszy od wyjściowego; po każdej analizie worker prosi o ponowny trening, gdy przybyły mecze. Drzewa są eksportowane do JSON i liczone w TypeScripcie (test zgodności z LightGBM). Do 20 meczów z danymi replayu działa model wyjściowy dopasowany do publicznych statystyk rund (oznaczony ≈ w UI). Wpływ błędu liczony kontrfaktycznie: śmierć (szansa z graczem żywym vs. po śmierci), flash w swoich (śmierć kolegi), brak trade'u (gdyby zabójca zginął), brak dropu (kolega z karabinem); typy bez uczciwej miary nie dostają liczby. Karta błędu pokazuje „kosztowało team X pp szansy na rundę” i przycisk „Co zrobiłby pro?”: sytuacje z dem pro na tej mapie (co 2 s każdy żywy gracz: strona, żywi, bomba, czas, odległości, sprzęt; akcja w kolejnych 5 s: plant, defuse, utility, wejście, cofnięcie, zmiana pozycji, trzymanie), najczęstsze akcje pro z ich średnim wpływem na szansę i klipy 2D z dem pro. Raport: suma kosztu błędów, koszt przy każdym problemie i WPA gracza (pp na rundę z zabójstw i śmierci, jak Xenopoulos i in.). Replay: pasek szansy CT/T pod osią czasu. Admin: `/admin/ml` (porównanie modeli, historia, trening ręczny). Test: `npm run test:winprob`, `npm run ml:test`.
 
 ### S15. Trener AI
 - **Wymaga:** S10 (lepiej po S13).
@@ -205,6 +206,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S19. Decyzja właściciela (12.10.2026): na razie bez hostingu, testy lokalnie.
 - **Zakres:** `docker compose up` stawia wszystko: aplikację, worker, Postgres, Redis i MinIO zamiast R2 (to samo API S3). Skrypt `npm run setup:local` (migracje, seed z kontem testowym i 3 przykładowymi analizami, przykładowe demo). Dostęp z telefonu w tej samej sieci Wi-Fi (adres IP komputera, bez problemów z HTTPS/cookies). Instrukcja po polsku krok po kroku w `docs/TESTOWANIE.md` (Windows i macOS), z listą rzeczy do sprawdzenia.
 - **Gotowe, gdy:** na czystym komputerze z Dockerem jedno polecenie uruchamia całą aplikację, a telefon w tej samej sieci ją otwiera.
+- **Status:** ✅ zrobione. `docker compose up -d --build` stawia aplikację, worker analizy, worker FACEIT, Postgres, Redis, MinIO (dema przez klienta R2, `R2_ENDPOINT`) i wejście HTTPS `https://localhost:3443` (Caddy, do łączenia FACEIT). Jednorazowy `setup` (`npm run setup:local`) aktualizuje schemat, tworzy konto `test@cs2analyst.local` / `test1234` (admin) z 3 przykładowymi analizami i pobiera prawdziwe demo do `data/przyklad/`. Telefon w tej samej sieci otwiera `http://<IP komputera>:3000`; logowanie działa na każdym adresie naraz (`AUTH_TRUST_HOST`, middleware czyta ciasteczko sesji z http i https). Instrukcja po polsku: `docs/TESTOWANIE.md` (Windows i macOS, klucze API, admin, FACEIT, lista rzeczy do sprawdzenia). CI (`local-env.yml`) buduje całość na czystej maszynie i sprawdza logowanie z adresu sieciowego oraz analizę prawdziwego dema przez MinIO.
 
 ### S21. Demo bez logowania i onboarding
 - **Wymaga:** S10.

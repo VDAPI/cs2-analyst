@@ -3,10 +3,10 @@ import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { faceitOAuthBaseUrl, faceitRedirectUri } from "@/lib/faceit/oauth";
 
 const TOKEN_URL = "https://api.faceit.com/auth/v1/oauth/token";
 const USERINFO_URL = "https://api.faceit.com/auth/v1/resources/userinfo";
-const REDIRECT_URI = `${process.env.NEXTAUTH_URL}/api/faceit/link/callback`;
 
 interface FaceitUserInfo {
   guid: string;
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
   console.log("[FACEIT Callback] Received:", { code: code ? "present" : "missing", state: state ? "present" : "missing", error });
 
-  const settingsUrl = new URL("/settings", process.env.NEXTAUTH_URL);
+  const settingsUrl = new URL("/settings", faceitOAuthBaseUrl());
 
   // Handle FACEIT errors
   if (error) {
@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
   const tokenBody = new URLSearchParams({
     grant_type: "authorization_code",
     code,
-    redirect_uri: REDIRECT_URI,
+    redirect_uri: faceitRedirectUri(),
     code_verifier: codeVerifier,
   });
 

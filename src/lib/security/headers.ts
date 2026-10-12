@@ -63,8 +63,23 @@ export function securityHeaders(opts: HeaderOptions): { key: string; value: stri
     },
     { key: "X-DNS-Prefetch-Control", value: "off" },
   ];
-  if (!opts.dev && opts.appUrl?.startsWith("https://")) {
+  if (!opts.dev && hstsHost(opts.appUrl)) {
     headers.push({ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" });
   }
   return headers;
+}
+
+/**
+ * HSTS only for a real https domain: never on localhost or a bare IP, where
+ * the local Docker setup (S20) also serves plain http on another port and a
+ * pinned host would lock that out.
+ */
+function hstsHost(appUrl: string | undefined): boolean {
+  if (!appUrl?.startsWith("https://")) return false;
+  try {
+    const host = new URL(appUrl).hostname;
+    return host !== "localhost" && !host.endsWith(".localhost") && !/^[\d.]+$|^\[|:/.test(host);
+  } catch {
+    return false;
+  }
 }

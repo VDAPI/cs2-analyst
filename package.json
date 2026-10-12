@@ -18,6 +18,7 @@
     "preworker:parse": "prisma db execute --schema prisma/schema.prisma --file prisma/pre-push.sql && prisma db push --skip-generate",
     "worker:parse": "tsx workers/demo-parser.worker.ts",
     "worker:faceit": "tsx workers/faceit-demo-download.worker.ts",
+    "setup:local": "npm run db:push && tsx --tsconfig tsconfig.json scripts/local-seed.ts",
     "test:clutches": "tsx --tsconfig tsconfig.json scripts/test-clutch-wins.ts",
     "test:sides": "tsx --tsconfig tsconfig.json scripts/test-sides.ts",
     "test:e2e-demo": "tsx --tsconfig tsconfig.json scripts/e2e-parse.ts",
@@ -42,7 +43,12 @@
     "test:security": "tsx --tsconfig tsconfig.json scripts/test-security.ts",
     "test:e2e": "playwright test",
     "test:e2e:update-snapshots": "bash scripts/e2e-snapshots.sh",
-    "e2e:seed": "tsx --tsconfig tsconfig.json scripts/e2e-seed.ts"
+    "e2e:seed": "tsx --tsconfig tsconfig.json scripts/e2e-seed.ts",
+    "test:winprob": "tsx --tsconfig tsconfig.json scripts/test-winprob.ts",
+    "ml:install": "python3 -m pip install -r ml/requirements.txt",
+    "ml:train": "cd ml && python3 -m cs2ml.train",
+    "ml:serve": "cd ml && python3 -m cs2ml.server",
+    "ml:test": "cd ml && python3 -m pytest -q"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",

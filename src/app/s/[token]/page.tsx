@@ -14,6 +14,7 @@ import { mapDisplayName } from "@/lib/utils/mapNames";
 import { formatDate } from "@/lib/utils/formatters";
 import { loadReportNorms } from "@/lib/norms/report-norms";
 import { ReportBody } from "@/app/(dashboard)/report/[matchId]/report-body";
+import { loadReportWinProb } from "@/lib/winprob/report";
 
 interface Props {
   params: Promise<{ token: string }>;
@@ -63,7 +64,7 @@ export default async function SharedPage({ params }: Props) {
   const { token } = await params;
   const share = await loadShare(token);
   if (!share) notFound();
-  const { t } = await getT();
+  const { t, locale } = await getT();
   await prisma.share.update({ where: { id: share.id }, data: { views: { increment: 1 } } });
 
   const match = share.match;
@@ -154,6 +155,7 @@ export default async function SharedPage({ params }: Props) {
     steamId && loaded?.hasData
       ? await loadReportNorms(prisma, { matchId: match.id, steamId, map: match.map, metrics: loaded.metrics, rounds: loaded.rounds, t })
       : null;
+  const winprob = steamId && loaded?.hasData ? await loadReportWinProb(prisma, match.id, steamId, t, locale) : null;
 
   return (
     <PublicShell>
@@ -169,7 +171,7 @@ export default async function SharedPage({ params }: Props) {
       />
       {loaded?.hasData ? (
         <div className="min-w-0 space-y-8">
-          <ReportBody report={loaded.report} ctx={ctx} nameOf={nameOf} norms={norms} />
+          <ReportBody report={loaded.report} ctx={ctx} nameOf={nameOf} norms={norms} winprob={winprob} />
         </div>
       ) : (
         <EmptyState title={t("shared.noData")} />

@@ -7,6 +7,11 @@
  *
  * Configured with R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and
  * R2_BUCKET. Without them demos stay on local disk (see demo-store.ts).
+ *
+ * Any other S3-compatible store works too (S20: MinIO in the local Docker
+ * setup): set R2_ENDPOINT (e.g. http://minio:9000) instead of R2_ACCOUNT_ID,
+ * and R2_REGION if the store checks it (MinIO: us-east-1). Requests then go
+ * path-style to <endpoint>/<bucket>/<key>.
  */
 import { createHash, createHmac } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
@@ -15,19 +20,29 @@ import { once } from "node:events";
 import { Readable } from "node:stream";
 
 export interface R2Config {
-  accountId: string;
+  /** Origin of the store, e.g. https://<account>.r2.cloudflarestorage.com or http://minio:9000. */
+  endpoint: string;
+  /** SigV4 region: "auto" for R2. */
+  region: string;
   accessKeyId: string;
   secretAccessKey: string;
   bucket: string;
 }
 
-export function getR2Config(): R2Config | null {
-  const accountId = process.env.R2_ACCOUNT_ID;
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-  const bucket = process.env.R2_BUCKET;
-  if (!accountId || !accessKeyId || !secretAccessKey || !bucket) return null;
-  return { accountId, accessKeyId, secretAccessKey, bucket };
+export function getR2Config(env: Record<string, string | undefined> = process.env): R2Config | null {
+  const accountId = env.R2_ACCOUNT_ID;
+  const customEndpoint = env.R2_ENDPOINT?.trim().replace(/\/+$/, "");
+  const accessKeyId = env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = env.R2_SECRET_ACCESS_KEY;
+  const bucket = env.R2_BUCKET;
+  if (!(customEndpoint || accountId) || !accessKeyId || !secretAccessKey || !bucket) return null;
+  return {
+    endpoint: customEndpoint || `https://${accountId}.r2.cloudflarestorage.com`,
+    region: env.R2_REGION?.trim() || "auto",
+    accessKeyId,
+    secretAccessKey,
+    bucket,
+  };
 }
 
 // ─── Signature V4 ────────────────────────────────────────
@@ -122,10 +137,12 @@ export function signS3Request(input: SignInput): Record<string, string> {
 
 // ─── Object operations ───────────────────────────────────
 
-function objectTarget(cfg: R2Config, key: string) {
-  const host = `${cfg.accountId}.r2.cloudflarestorage.com`;
+/** Path-style URL of one object; `host` includes a non-default port (it is signed). */
+export function objectTarget(cfg: R2Config, key: string) {
+  const endpoint = new URL(cfg.endpoint);
+  const host = endpoint.host;
   const path = `/${cfg.bucket}/${key}`;
-  const url = `https://${host}${path.split("/").map(encodeSegment).join("/")}`;
+  const url = `${endpoint.protocol}//${host}${path.split("/").map(encodeSegment).join("/")}`;
   return { host, path, url };
 }
 
@@ -143,7 +160,7 @@ function signed(
       method,
       host,
       path,
-      region: "auto",
+      region: cfg.region,
       accessKeyId: cfg.accessKeyId,
       secretAccessKey: cfg.secretAccessKey,
       headers,
@@ -205,4 +222,32 @@ export async function r2Delete(cfg: R2Config, key: string): Promise<void> {
   if (!res.ok && res.status !== 404) {
     throw new Error(`R2 DELETE ${key} failed: ${res.status} ${res.statusText}`);
   }
+}
+
+/**
+ * Create the bucket if it is missing. Only for a self-hosted store (the
+ * local MinIO from S20, run by `npm run setup:local`); an R2 bucket is
+ * created in the Cloudflare dashboard.
+ */
+export async function r2EnsureBucket(cfg: R2Config): Promise<"created" | "exists"> {
+  const endpoint = new URL(cfg.endpoint);
+  const path = `/${cfg.bucket}`;
+  const headers = signS3Request({
+    method: "PUT",
+    host: endpoint.host,
+    path,
+    region: cfg.region,
+    accessKeyId: cfg.accessKeyId,
+    secretAccessKey: cfg.secretAccessKey,
+    payloadHash: EMPTY_SHA256,
+    date: new Date(),
+  });
+  const res = await fetch(`${endpoint.protocol}//${endpoint.host}/${encodeSegment(cfg.bucket)}`, {
+    method: "PUT",
+    headers,
+  });
+  if (res.ok) return "created";
+  const text = await res.text().catch(() => "");
+  if (res.status === 409 && /BucketAlready(OwnedByYou|Exists)/.test(text)) return "exists";
+  throw new Error(`S3 create bucket ${cfg.bucket} failed: ${res.status} ${text.slice(0, 300)}`);
 }

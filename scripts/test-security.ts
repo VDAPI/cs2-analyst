@@ -90,6 +90,7 @@ async function main() {
   const names = (o: Parameters<typeof securityHeaders>[0]) => securityHeaders(o).map((h) => h.key);
   check("nosniff + DENY + referrer", ["X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy", "Permissions-Policy"].every((k) => names({ dev: false }).includes(k)));
   check("HSTS on https", names({ dev: false, appUrl: "https://cs2.example" }).includes("Strict-Transport-Security"));
+  check("no HSTS on https localhost / IP (S20 local setup)", !names({ dev: false, appUrl: "https://localhost:3443" }).includes("Strict-Transport-Security") && !names({ dev: false, appUrl: "https://192.168.1.5:3443" }).includes("Strict-Transport-Security"));
   check("no HSTS on http / dev", !names({ dev: false, appUrl: "http://localhost:3100" }).includes("Strict-Transport-Security") && !names({ dev: true, appUrl: "https://localhost:3000" }).includes("Strict-Transport-Security"));
 
   // ─── 5. Account deletion + legal texts ───────────────────

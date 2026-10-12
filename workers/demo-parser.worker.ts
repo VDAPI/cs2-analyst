@@ -25,6 +25,8 @@ import { refreshPlanAfterAnalysis } from "../src/lib/coach/persist";
 import { downloadReplayDemo, ReplayGoneError } from "../src/lib/steam/demo-download";
 import { demoParseQueue, type SteamDemoDownloadJobData } from "../src/lib/queue";
 import { backfillNormSamples, refreshNorms, refreshNormsIfStale } from "../src/lib/norms/persist";
+import { backfillWinProb } from "../src/lib/winprob/persist";
+import { requestTraining } from "../src/lib/winprob/train-trigger";
 import { initWorkerSentry, reportJobFailure, reportWorkerError } from "../src/lib/monitoring/worker-sentry";
 import { checkDemoFile } from "../src/lib/security/demo-file";
 
@@ -272,4 +274,14 @@ backfillReplayData(prisma, {}, (line) => console.log(`[replay-backfill]${line}`)
   .catch((err) => {
     console.error("[norms-backfill] failed:", err);
     reportWorkerError(err, "norms-backfill");
+  })
+  // Then win-probability snapshots and pro situations (S14), and a retrain if there is new data.
+  .then(() => backfillWinProb(prisma, { log: (line) => console.log(`[winprob-backfill]${line}`) }))
+  .then(async (done) => {
+    if (done && done > 0) console.log(`[winprob-backfill] stored ${done} matches`);
+    console.log(`[winprob] ${await requestTraining({ force: false })}`);
+  })
+  .catch((err) => {
+    console.error("[winprob-backfill] failed:", err);
+    reportWorkerError(err, "winprob-backfill");
   });
