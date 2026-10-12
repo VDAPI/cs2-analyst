@@ -1,17 +1,28 @@
 import { prisma } from "@/lib/db/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { Card } from "@/components/ui";
-import { mapDisplayName } from "@/lib/utils/mapNames";
-import { getMapConfig } from "@/lib/utils/maps";
 import Link from "next/link";
 import { Flame } from "lucide-react";
+import { Card, PageHeader } from "@/components/ui";
+import { mapDisplayName } from "@/lib/utils/mapNames";
+import {
+  ToolEmptyState,
+  ToolMatchGrid,
+  formatMatchDate,
+  radarUrl,
+} from "@/components/tools/tool-match-grid";
+
+function matchesLabel(n: number) {
+  if (n === 1) return "mecz";
+  const lastTwo = n % 100;
+  const last = n % 10;
+  return last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14) ? "mecze" : "meczów";
+}
 
 export default async function HeatmapsListPage() {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
 
-  // Get all maps the user has matches on, with match count
   const matches = userId
     ? await prisma.match.findMany({
         where: { upload: { userId } },
@@ -20,108 +31,70 @@ export default async function HeatmapsListPage() {
       })
     : [];
 
-  // Group by map
-  const mapGroups = new Map<string, { count: number; latestDate: Date; matchIds: string[] }>();
+  // Group by map for the cross-match heatmaps
+  const mapGroups = new Map<string, { count: number; latestDate: Date }>();
   for (const m of matches) {
-    const existing = mapGroups.get(m.map);
-    if (existing) {
-      existing.count++;
-      existing.matchIds.push(m.id);
-      if (m.date > existing.latestDate) existing.latestDate = m.date;
+    const g = mapGroups.get(m.map);
+    if (g) {
+      g.count++;
+      if (m.date > g.latestDate) g.latestDate = m.date;
     } else {
-      mapGroups.set(m.map, { count: 1, latestDate: m.date, matchIds: [m.id] });
+      mapGroups.set(m.map, { count: 1, latestDate: m.date });
     }
   }
-
-  const sortedMaps = Array.from(mapGroups.entries()).sort(
-    (a, b) => b[1].count - a[1].count
-  );
+  const sortedMaps = [...mapGroups.entries()].sort((a, b) => b[1].count - a[1].count);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
-          Heatmaps
-        </h1>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Visualize kill and death patterns across matches on each map.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Narzędzia"
+        title="Heatmapy"
+        description="Gdzie zabijasz i gdzie giniesz: zbiorczo dla każdej mapy albo dla jednego meczu."
+      />
 
       {sortedMaps.length === 0 ? (
-        <Card>
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-lg font-medium text-[var(--text-secondary)]">
-              No matches to analyze
-            </p>
-            <p className="mt-2 text-sm text-[var(--text-tertiary)]">
-              Upload demos to generate heatmaps.
-            </p>
-            <Link
-              href="/upload"
-              className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--accent)] px-5 text-sm font-medium text-[var(--on-accent)] transition-all hover:bg-[var(--accent-hover)]"
-            >
-              Upload Demo
-            </Link>
-          </div>
-        </Card>
+        <ToolEmptyState icon={Flame} title="Brak meczów do analizy" text="Wgraj demo, aby zobaczyć heatmapy zabójstw i śmierci." />
       ) : (
         <>
-          {/* Map-centric grid */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {sortedMaps.map(([mapRaw, info]) => {
-              const config = getMapConfig(mapRaw);
-              return (
-                <Link key={mapRaw} href={`/heatmaps/map/${mapRaw}`}>
-                  <Card className="group relative overflow-hidden p-0 transition-all duration-150 hover:border-[var(--border-hover)] hover:shadow-[0_0_30px_rgba(255,77,106,0.06)]">
-                    <div
-                      className="h-36 w-full bg-cover bg-center"
-                      style={{
-                        backgroundImage: config
-                          ? `url(${config.radarImage})`
-                          : `url(/maps/${mapRaw}_radar.png)`,
-                        filter: "grayscale(60%) brightness(0.4)",
-                      }}
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                      <Flame className="h-8 w-8 text-[var(--error)]" />
+          <section className="space-y-3">
+            <h2 className="label-overline text-[var(--text-tertiary)]">Zbiorczo per mapa</h2>
+            <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr))]">
+              {sortedMaps.map(([mapRaw, info]) => (
+                <Link
+                  key={mapRaw}
+                  href={`/heatmaps/map/${mapRaw}`}
+                  className="group rounded-xl focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--accent-glow)]"
+                >
+                  <Card className="relative overflow-hidden p-0 md:p-0 group-hover:border-[var(--border-active)]">
+                    <div className="relative h-36 overflow-hidden">
+                      <div
+                        className="absolute inset-0 bg-cover bg-center opacity-40 grayscale transition-transform duration-200 group-hover:scale-105"
+                        style={{ backgroundImage: `url(${radarUrl(mapRaw)})` }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[var(--surface-1)] to-transparent" />
+                      <span className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--glass-bg)] text-[var(--text-secondary)] backdrop-blur-md transition-colors duration-150 group-hover:bg-[var(--accent)] group-hover:text-[var(--on-accent)]">
+                        <Flame className="h-4 w-4" />
+                      </span>
                     </div>
-                    <div className="p-4">
-                      <p className="font-medium text-[var(--text-primary)]">
+                    <div className="px-4 pb-4">
+                      <p className="font-display text-base font-semibold text-[var(--text-primary)]">
                         {mapDisplayName(mapRaw)}
                       </p>
-                      <p className="text-xs text-[var(--text-tertiary)]">
-                        <span className="font-mono">{info.count}</span> match{info.count !== 1 ? "es" : ""}
-                        {" — "}
-                        Last played {info.latestDate.toLocaleDateString()}
+                      <p className="text-[13px] text-[var(--text-tertiary)]">
+                        <span className="font-mono tabular-nums">{info.count}</span> {matchesLabel(info.count)} · ostatni{" "}
+                        {formatMatchDate(info.latestDate)}
                       </p>
                     </div>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Individual matches section */}
-          <div>
-            <h2 className="mb-3 text-sm font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
-              Individual Matches
-            </h2>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {matches.map((match) => (
-                <Link key={match.id} href={`/heatmaps/${match.id}`}>
-                  <Card className="group p-3 transition-all duration-150 hover:border-[var(--border-hover)]">
-                    <p className="text-sm font-medium text-[var(--text-primary)]">
-                      {mapDisplayName(match.map)}
-                    </p>
-                    <p className="text-xs text-[var(--text-tertiary)]">
-                      {match.date.toLocaleDateString()} — <span className="font-mono">{match.scoreCT}:{match.scoreT}</span>
-                    </p>
                   </Card>
                 </Link>
               ))}
             </div>
-          </div>
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="label-overline text-[var(--text-tertiary)]">Pojedyncze mecze</h2>
+            <ToolMatchGrid matches={matches} hrefBase="/heatmaps" icon={Flame} actionLabel="Otwórz heatmapę" />
+          </section>
         </>
       )}
     </div>
