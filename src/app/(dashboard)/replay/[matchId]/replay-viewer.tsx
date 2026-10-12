@@ -38,7 +38,14 @@ interface ReplayViewerProps {
   players: PlayerInfo[];
   scoreCT: number;
   scoreT: number;
+  /** Round to open first (deep link). */
+  initialRound?: number;
+  /** Tick to jump to in initialRound; playback starts a moment before it. */
+  initialTick?: number | null;
 }
+
+/** Seconds of lead-in shown before a deep-linked tick. */
+const DEEP_LINK_LEAD_S = 2;
 
 const CT_COLOR = "#5AA9FF";
 const T_COLOR = "#FFC23D";
@@ -56,6 +63,8 @@ export function ReplayViewer({
   players,
   scoreCT,
   scoreT,
+  initialRound = 1,
+  initialTick = null,
 }: ReplayViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -89,10 +98,19 @@ export function ReplayViewer({
     img.onload = () => setRadarImage(img);
   }, [mapConfig?.radarImage]);
 
-  // Load first round on mount
+  // Load the first (or deep-linked) round on mount
   useEffect(() => {
-    loadRound(matchId, 1);
+    const round = rounds.some((r) => r.number === initialRound) ? initialRound : 1;
+    loadRound(matchId, round).then(() => {
+      if (initialTick == null || round !== initialRound) return;
+      const { frames: loaded, setFrameIndex } = useReplayStore.getState();
+      const target = initialTick - DEEP_LINK_LEAD_S * TICK_RATE;
+      const idx = loaded.findIndex((f) => f.tick >= target);
+      if (idx > 0) setFrameIndex(idx);
+    });
     return () => { reset(); };
+    // Deep-link params only apply on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, loadRound, reset]);
 
   // Convert game coords to canvas pixel coords

@@ -119,9 +119,10 @@ model Match {
   totalTicks  Int
   createdAt   DateTime @default(now())
 
-  upload  DemoUpload?
-  rounds  Round[]
-  players MatchPlayer[]
+  upload    DemoUpload?
+  rounds    Round[]
+  players   MatchPlayer[]
+  mechanics MechanicsStats[]
 }
 
 model MatchPlayer {
@@ -378,6 +379,43 @@ model DamageEvent {
   @@index([roundId])
   @@index([attackerSteamId])
   @@index([victimSteamId])
+}
+
+// ─── Mechanics analysis ─────────────────────────────────
+
+// Per player per match: movement while shooting, counter-strafe, first-bullet
+// accuracy (src/lib/analysis/movement.ts). Computed from ShotEvent /
+// DamageEvent / RoundTicks, so it can be recomputed without the .dem.
+model MechanicsStats {
+  id      String @id @default(cuid())
+  matchId String
+  steamId String
+  version Int // MECHANICS_VERSION; older rows are recomputed
+
+  shots                 Int
+  movingShots           Int
+  firstShots            Int // first shot of a burst in an engagement
+  firstShotsMoving      Int
+  firstShotHits         Int
+  sprayShots            Int // later shots of engagement bursts
+  sprayShotsMoving      Int
+  sprayHits             Int
+  hits                  Int
+  headHits              Int
+  counterStrafes        Int
+  counterStrafeAvgMs    Float?
+  counterStrafeMedianMs Float?
+  shotBeforeStop        Int
+
+  weapons Json // WeaponMechanics[]
+  moments Json // MovementMoment[] — moving first shots
+
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, steamId])
+  @@index([steamId])
 }
 
 // ─── FACEIT ──────────────────────────────────────────

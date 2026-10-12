@@ -6,10 +6,15 @@ import { ReplayViewer } from "./replay-viewer";
 
 interface Props {
   params: Promise<{ matchId: string }>;
+  searchParams: Promise<{ round?: string; tick?: string }>;
 }
 
-export default async function ReplayPage({ params }: Props) {
+export default async function ReplayPage({ params, searchParams }: Props) {
   const { matchId } = await params;
+  // Deep link to a moment (e.g. from the mechanics page): ?round=N&tick=T
+  const query = await searchParams;
+  const initialRound = Number(query.round) || 1;
+  const initialTick = Number(query.tick) || null;
 
   const match = await prisma.match.findUnique({
     where: { id: matchId },
@@ -66,6 +71,8 @@ export default async function ReplayPage({ params }: Props) {
       }))}
       scoreCT={match.scoreCT}
       scoreT={match.scoreT}
+      initialRound={initialRound}
+      initialTick={initialTick}
     />
   );
 }
