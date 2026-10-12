@@ -30,6 +30,7 @@ import {
 import { deleteAnalysis } from "../src/lib/library";
 import type { FaceitDemoDownloadJobData } from "../src/lib/queue";
 import { notifyUploadFinished } from "../src/lib/notifications/notify";
+import { refreshPlanAfterAnalysis } from "../src/lib/coach/persist";
 import { initWorkerSentry, reportJobFailure } from "../src/lib/monitoring/worker-sentry";
 
 initWorkerSentry("worker-faceit");
@@ -210,6 +211,8 @@ const worker = new Worker("faceit-demo-download", processDownload, {
 
 worker.on("completed", (job) => {
   void notifyUploadFinished(prisma, job.data.uploadId);
+  // The uploader's weekly training plan (S15) is rebuilt from the new match.
+  void refreshPlanAfterAnalysis(prisma, job.data.uploadId);
   console.log(
     `FACEIT demo downloaded: ${job.id} -> match ${job.returnvalue?.matchId}`
   );

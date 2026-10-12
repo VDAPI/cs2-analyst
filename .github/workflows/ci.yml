@@ -93,3 +93,7 @@ jobs:
       - name: Progress and sharing regression tests
         if: ${{ !cancelled() }}
         run: npm run test:progress
+
+      - name: AI coach (plan, ratings, grounding) regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:coach

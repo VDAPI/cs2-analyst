@@ -21,6 +21,7 @@ import {
 } from "../src/lib/storage/demo-store";
 import { deleteAnalysis } from "../src/lib/library";
 import { notifyUploadFinished } from "../src/lib/notifications/notify";
+import { refreshPlanAfterAnalysis } from "../src/lib/coach/persist";
 import { downloadReplayDemo, ReplayGoneError } from "../src/lib/steam/demo-download";
 import { demoParseQueue, type SteamDemoDownloadJobData } from "../src/lib/queue";
 import { initWorkerSentry, reportJobFailure, reportWorkerError } from "../src/lib/monitoring/worker-sentry";
@@ -125,6 +126,8 @@ const worker = new Worker("demo-parse", processDemo, {
 worker.on("completed", (job) => {
   console.log(`Demo parsed: ${job.id} -> match ${job.returnvalue?.matchId}`);
   void notifyUploadFinished(prisma, job.data.uploadId);
+  // The uploader's weekly training plan (S15) is rebuilt from the new match.
+  void refreshPlanAfterAnalysis(prisma, job.data.uploadId);
 });
 
 worker.on("failed", (job, err) => {
