@@ -7,7 +7,7 @@ import type { PrismaClient } from "@prisma/client";
 import { getMapConfig } from "@/lib/utils/maps";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import type { RadarConfig } from "@/lib/canvas/radar";
-import { buildReport, playerMetrics, type AimSummary, type PlayerReport } from "./report";
+import { buildReport, playerMetrics, type AimSummary, type PlayerReport, type ReportMetric } from "./report";
 import type { FindingView } from "./view";
 
 export async function loadPlayerReport(
@@ -15,7 +15,14 @@ export async function loadPlayerReport(
   matchId: string,
   steamId: string,
   allFindings: FindingView[]
-): Promise<{ report: PlayerReport<FindingView>; hasData: boolean }> {
+): Promise<{
+  report: PlayerReport<FindingView>;
+  hasData: boolean;
+  /** Every metric of the match (the norms compare them all). */
+  metrics: ReportMetric[];
+  /** Rounds the player played, to put count metrics on the norms' scale. */
+  rounds: number;
+}> {
   const where = { matchId_steamId: { matchId, steamId } };
   const [mech, aim, tactics, util] = await Promise.all([
     prisma.mechanicsStats.findUnique({ where }),
@@ -24,8 +31,14 @@ export async function loadPlayerReport(
     prisma.utilityStats.findUnique({ where }),
   ]);
   const mine = allFindings.filter((f) => f.steamId === steamId);
-  const report = buildReport<FindingView>(mine, playerMetrics(mech, aim as AimSummary | null, tactics, util));
-  return { report, hasData: mech != null || aim != null || tactics != null || util != null };
+  const metrics = playerMetrics(mech, aim as AimSummary | null, tactics, util);
+  const report = buildReport<FindingView>(mine, metrics);
+  return {
+    report,
+    hasData: mech != null || aim != null || tactics != null || util != null,
+    metrics,
+    rounds: tactics?.rounds ?? 0,
+  };
 }
 
 /** What the 2D clips on a report need about the match's map. */

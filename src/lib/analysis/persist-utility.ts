@@ -9,7 +9,7 @@
  */
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { decodeRoundTicks } from "@/lib/replay/round-ticks";
-import { analyzeUtility, UTILITY_VERSION, type GrenadeKind, type UtilityFrame, type UtilityThrow } from "./utility";
+import { analyzeUtility, UTILITY_VERSION, type GrenadeKind, type UtilityFrame, type UtilityInput, type UtilityThrow } from "./utility";
 import { buildLineups, type Lineup, type LineupThrow } from "./lineups";
 import { placeLookup, type PlaceCell } from "./places";
 import type { Point3 } from "./utility";
@@ -31,8 +31,8 @@ const KIND: Record<string, GrenadeKind> = {
 const asStrings = (v: Prisma.JsonValue | null): string[] | null =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : null;
 
-/** Returns the number of players stored, or 0 when the match has no replay data. */
-export async function computeAndPersistUtility(prisma: PrismaClient, matchId: string): Promise<number> {
+/** The analysis input for one match from the DB, or null when there is nothing to analyse. */
+export async function loadUtilityInput(prisma: PrismaClient, matchId: string): Promise<UtilityInput | null> {
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     select: {
@@ -56,9 +56,9 @@ export async function computeAndPersistUtility(prisma: PrismaClient, matchId: st
       },
     },
   });
-  if (!match || !match.rounds.some((r) => r.ticks)) return 0;
+  if (!match || !match.rounds.some((r) => r.ticks)) return null;
 
-  const results = analyzeUtility({
+  return {
     tickRate: match.tickRate,
     rounds: match.rounds.map((r) => ({
       number: r.number,
@@ -83,7 +83,15 @@ export async function computeAndPersistUtility(prisma: PrismaClient, matchId: st
       r.kills.map((k) => ({ ...k, roundNumber: r.number, victimInventory: asStrings(k.victimInventory) }))
     ),
     plants: match.rounds.flatMap((r) => r.bombs.map((b) => ({ roundNumber: r.number, tick: b.tick }))),
-  });
+  };
+}
+
+/** Returns the number of players stored, or 0 when the match has no replay data. */
+export async function computeAndPersistUtility(prisma: PrismaClient, matchId: string): Promise<number> {
+  const input = await loadUtilityInput(prisma, matchId);
+  if (!input) return 0;
+
+  const results = analyzeUtility(input);
 
   await prisma.$transaction([
     prisma.utilityStats.deleteMany({ where: { matchId } }),

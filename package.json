@@ -30,6 +30,9 @@
     "test:scouting": "tsx --tsconfig tsconfig.json scripts/test-scouting.ts",
     "test:tactics": "tsx --tsconfig tsconfig.json scripts/test-tactics.ts",
     "test:admin": "tsx --tsconfig tsconfig.json scripts/test-admin.ts",
+    "test:norms": "tsx --tsconfig tsconfig.json scripts/test-norms.ts",
+    "pro:import": "tsx --tsconfig tsconfig.json scripts/import-pro-demos.ts",
+    "norms:refresh": "tsx --tsconfig tsconfig.json scripts/refresh-norms.ts",
     "test:progress": "tsx --tsconfig tsconfig.json scripts/test-progress.ts"
   },
   "dependencies": {

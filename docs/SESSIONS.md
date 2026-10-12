@@ -64,8 +64,8 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Taktyka | Przewidywalna pozycja (ta sama pozycja wiele rund) | ✅ | S12 |
 | Taktyka | Entry, lurk, post-plant, retake, decyzje w clutchu | ✅ | S12 |
 | Raport | Raport „co poprawić” z priorytetami | ✅ | S10 |
-| Pro | Pipeline dem pro i normy pro per mapa/strona/sytuacja | 🆕 | S13 |
-| Pro | Porównanie każdej metryki z pro i z rangą | 🆕 | S13 |
+| Pro | Pipeline dem pro i normy pro per mapa/strona/sytuacja | ✅ | S13 |
+| Pro | Porównanie każdej metryki z pro i z rangą | ✅ | S13 |
 | Pro | Model szansy wygranej rundy, wpływ każdej decyzji | 🆕 | S14 |
 | Pro | „Co zrobiłby pro” w podobnej sytuacji | 🆕 | S14 |
 | Trener AI | Rady w ludzkim języku (Claude API), plan treningu, ćwiczenia | 🆕 | S15 |
@@ -163,6 +163,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S9, S12.
 - **Zakres:** zanim cokolwiek zautomatyzujesz, sprawdź regulamin HLTV. Pipeline: folder z ręcznie wybranymi demami pro → ten sam parser → te same metryki → normy per mapa, strona, sytuacja (percentyle). Porównanie każdej metryki gracza z pro i z jego rangą.
 - **Gotowe, gdy:** raport pokazuje „pro: X” przy każdej metryce.
+- **Status:** ✅ zrobione. Regulamin HLTV (pkt 2.2, 3.2) zabrania scrapowania i użycia ich materiałów w celach biznesowych, więc nic nie pobieramy automatycznie: dema pro dodaje admin w `/admin/pro` albo `npm run pro:import -- <folder>`. Idą tym samym parserem i tymi samymi metrykami, a `NormSample` + `MetricNorm` dają percentyle per pula (pro, wszyscy, ranga), mapa, strona i broń. Ranga: poziom FACEIT z pokoju meczu, CS Rating Premier i ranga MM z dema. Raport pokazuje „pro: X” i medianę rangi przy każdej metryce oraz tabelę „Ty vs pro”, ekran `/pro` pokazuje wszystkie normy. Do czasu wgrania dem pro wartości są orientacyjne (≈), z publicznych źródeł sprawdzonych przez dwóch niezależnych agentów; przy okazji poprawione progi raportu, które oznaczałyby typowego pro jako „źle” (HS% liczony od trafień, counter-strafe, time to damage, overflick, biegi, skoki, przeładowania, trade'y, HE, molotov, utility na śmierć).
 
 ### S14. Model szansy wygranej i „co zrobiłby pro”
 - **Wymaga:** S13.

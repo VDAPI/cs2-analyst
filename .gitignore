@@ -52,4 +52,4 @@ data/demos/*.dem
 *.dem.zst
 temp/
 
-certificates
+certificatesdata/pro-demos/
