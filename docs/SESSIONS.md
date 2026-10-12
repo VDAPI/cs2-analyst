@@ -84,8 +84,8 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Przed meczem | Scouting rywali z linku do pokoju FACEIT, sugestia veto map | 🆕 | S23 |
 | Pro | „Graj jak pro”: porównanie z wybranym zawodowcem per mapa i rola | ✅ | S24 |
 | ML | Wykrywanie roli (entry, AWP, support, lurk, anchor) i rady pod rolę | ✅ | S24 |
-| Społeczność | Klipy 2D błędów i highlightów do pobrania (MP4/GIF) i udostępnienia | 🆕 | S25 |
-| Społeczność | Ranking znajomych, wyzwania tygodniowe | 🆕 | S25 |
+| Społeczność | Klipy 2D błędów i highlightów do pobrania (MP4/GIF) i udostępnienia | ✅ | S25 |
+| Społeczność | Ranking znajomych, wyzwania tygodniowe | ✅ | S25 |
 | Integracje | Bot Discord: powiadomienia i komenda /stats | 🆕 | S26 |
 | Integracje | Rozszerzenie przeglądarki: przycisk „Analizuj” na stronie meczu FACEIT | 🆕 | S26 |
 | Platforma | Panel admina, monitoring kolejki, błędy (Sentry), statystyki użycia | ✅ | S27 |

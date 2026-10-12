@@ -6,13 +6,15 @@
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import type { TFunction } from "@/lib/i18n/translate";
 
-export type NotificationKind = "ANALYSIS_DONE" | "ANALYSIS_FAILED";
+export type NotificationKind = "ANALYSIS_DONE" | "ANALYSIS_FAILED" | "FRIEND_REQUEST" | "FRIEND_ACCEPTED";
 
 export interface NotificationData {
   map?: string | null;
   score?: string | null;
   fileName?: string | null;
   error?: string | null;
+  /** Friend notifications (S25): the other player's name. */
+  name?: string | null;
 }
 
 export interface NotificationView {
@@ -32,6 +34,12 @@ export function notificationView(
   t: TFunction,
   n: { type: NotificationKind; matchId: string | null; data: NotificationData }
 ): NotificationView {
+  if (n.type === "FRIEND_REQUEST" || n.type === "FRIEND_ACCEPTED") {
+    const name = n.data.name || t("notifications.someone");
+    return n.type === "FRIEND_REQUEST"
+      ? { title: t("notifications.friendRequestTitle"), body: t("notifications.friendRequestBody", { name }), url: "/friends" }
+      : { title: t("notifications.friendAcceptedTitle"), body: t("notifications.friendAcceptedBody", { name }), url: "/friends" };
+  }
   const match = matchLabel(t, n.data);
   if (n.type === "ANALYSIS_DONE") {
     return {
@@ -54,5 +62,5 @@ export function toNotificationData(json: unknown): NotificationData {
   if (typeof json !== "object" || json === null) return {};
   const o = json as Record<string, unknown>;
   const str = (v: unknown) => (typeof v === "string" ? v : null);
-  return { map: str(o.map), score: str(o.score), fileName: str(o.fileName), error: str(o.error) };
+  return { map: str(o.map), score: str(o.score), fileName: str(o.fileName), error: str(o.error), name: str(o.name) };
 }

@@ -21,6 +21,8 @@ import {
   GraduationCap,
   Dumbbell,
   Swords,
+  Clapperboard,
+  UserRound,
   type LucideIcon,
 } from "lucide-react";
 import type { MessageKey } from "@/lib/i18n/translate";
@@ -52,6 +54,7 @@ export const navGroups: NavGroup[] = [
       { href: "/progress", labelKey: "nav.progress", icon: TrendingUp },
       { href: "/coach", labelKey: "nav.coach", icon: GraduationCap },
       { href: "/training", labelKey: "nav.training", icon: Dumbbell },
+      { href: "/clips", labelKey: "nav.clips", icon: Clapperboard },
       { href: "/upload", labelKey: "nav.upload", shortLabelKey: "nav.uploadShort", icon: Upload },
       { href: "/queue", labelKey: "nav.queue", icon: ListOrdered },
       { href: "/library", labelKey: "nav.library", icon: Library },
@@ -77,6 +80,7 @@ export const navGroups: NavGroup[] = [
       { href: "/pro", labelKey: "nav.pro", icon: Trophy },
       { href: "/play-like-pro", labelKey: "nav.playLikePro", icon: Swords },
       { href: "/team", labelKey: "nav.team", icon: Shield },
+      { href: "/friends", labelKey: "nav.friends", icon: UserRound },
     ],
   },
 ];

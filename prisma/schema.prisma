@@ -72,6 +72,9 @@ model User {
   // player compares themselves with; null = the pool's busiest player.
   favoriteProSteamId String?
   publicSlug         String?   @unique
+  // Friends (S25): the code of the player's invite link (/friends/add/<code>);
+  // null until they create one, rotated when they reset it.
+  friendCode         String?   @unique
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -93,6 +96,28 @@ model User {
   lineupMastery     LineupMastery[]
   teamRivals        TeamRival[]
   tacticBoards      TacticBoard[]
+  friendsAsked      Friendship[]       @relation("FriendshipRequester")
+  friendsAnswered   Friendship[]       @relation("FriendshipAddressee")
+}
+
+// Friends (S25): one row per pair. An invite link adds the friend at once
+// (status "accepted"); a request from the FACEIT friends list or a shared
+// match waits for the other player ("pending"). Friends see each other's
+// averages in the ranking and the weekly challenges, never matches or demos.
+model Friendship {
+  id          String    @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      String // "pending" | "accepted"
+  source      String // "invite" | "faceit" | "match"
+  createdAt   DateTime  @default(now())
+  acceptedAt  DateTime?
+
+  requester User @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("FriendshipAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId])
 }
 
 enum UserRole {
@@ -772,6 +797,8 @@ model SteamMatch {
 enum NotificationType {
   ANALYSIS_DONE
   ANALYSIS_FAILED
+  FRIEND_REQUEST
+  FRIEND_ACCEPTED
 }
 
 // In-app notification (bell in the top bar). Text is rendered at display time
@@ -994,10 +1021,13 @@ model Share {
   token       String    @unique
   userId      String
   matchId     String
-  kind        String // "report" | "moment"
-  steamId     String? // player the report / moment is about
-  roundNumber Int? // moment only
-  tick        Int? // moment only
+  kind        String // "report" | "moment" | "clip"
+  steamId     String? // player the report / moment / clip is about
+  roundNumber Int? // moment and clip
+  tick        Int? // moment and clip (the clip's focus tick)
+  // Clip only (S25): ClipShare from src/lib/clips/clip.ts (tick range,
+  // highlight or finding, marks), validated on write and on read.
+  clip        Json?
   views       Int       @default(0)
   createdAt   DateTime  @default(now())
   revokedAt   DateTime?

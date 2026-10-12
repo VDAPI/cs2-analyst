@@ -2,7 +2,7 @@
  * Who may read a match's replay data (ticks, kills, grenades, bombs, notes):
  * the uploader, or anyone holding a live share link of that match (S16). A
  * moment link only opens its own round. Route handlers take the token from
- * `?share=`. Pro demos (the pro pool, S13) are readable by every signed-in
+ * `?share=`. A clip link (S25) is limited to its round the same way. Pro demos (the pro pool, S13) are readable by every signed-in
  * player: "co zrobiłby pro" shows their rounds as 2D clips (S14). Teammates
  * read a member's team and rival matches read-only (S17, `teamCanSeeMatch`).
  */
@@ -49,7 +49,8 @@ export async function getMatchAccess(req: Request, matchId: string): Promise<Mat
   if (!share || share.revokedAt || share.matchId !== matchId) return null;
   return {
     ownerId: null,
-    round: share.kind === "moment" ? share.roundNumber : null,
+    // Moment and clip links (S25) only open their own round.
+    round: share.kind === "report" ? null : share.roundNumber ?? -1,
     shareId: share.id,
     uploaderId: upload.userId,
   };
