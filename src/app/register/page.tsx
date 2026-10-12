@@ -2,6 +2,7 @@ import { CredentialsForm } from "@/components/auth/credentials-form";
 import { SteamLoginButton } from "@/components/auth/steam-login";
 import { AuthShell, AuthDivider } from "@/components/auth/auth-shell";
 import { getT } from "@/lib/i18n/server";
+import { isSteamLoginEnabled } from "@/lib/auth";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -27,11 +28,14 @@ export default async function RegisterPage() {
     >
       <CredentialsForm mode="register" />
 
-      <AuthDivider label={t("auth.or")} />
-
-      <div className="flex justify-center">
-        <SteamLoginButton />
-      </div>
+      {isSteamLoginEnabled() && (
+        <>
+          <AuthDivider label={t("auth.or")} />
+          <div className="flex justify-center">
+            <SteamLoginButton />
+          </div>
+        </>
+      )}
     </AuthShell>
   );
 }

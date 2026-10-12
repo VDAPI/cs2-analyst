@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { mapDisplayName } from "@/lib/utils/mapNames";
-import { playerSideAtRound } from "@/lib/utils/sideSplit";
+import { createSideResolver } from "@/lib/utils/sideSplit";
 import { teamBuySyncScore } from "@/lib/utils/buySync";
 import type { BuyTypeKey } from "@/lib/utils/buyType";
 import { EconomyChart } from "./economy-chart";
@@ -92,15 +92,16 @@ export default async function EconomyPage({ params }: Props) {
     else tRows.push(row);
   }
 
-  // Per-round per-side sync scores. Use playerSideAtRound to assign each
-  // player's actual in-game side at that round.
+  // Per-round per-side sync scores. Resolve each player's actual in-game side
+  // in that round (halves, overtime, short matches) from the stored rounds.
+  const sideAt = createSideResolver(match.rounds);
   for (const round of match.rounds) {
     const ctBuys: BuyTypeKey[] = [];
     const tBuys: BuyTypeKey[] = [];
     for (const rp of round.players) {
       const mp = match.players.find((p) => p.steamId === rp.steamId);
       if (!mp) continue;
-      const side = playerSideAtRound(mp.team as "CT" | "T", round.number);
+      const side = sideAt(mp.team as "CT" | "T", round.number);
       const bt = (rp.buyType ?? "UNKNOWN") as BuyTypeKey;
       if (side === "CT") ctBuys.push(bt);
       else tBuys.push(bt);

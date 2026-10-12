@@ -47,6 +47,9 @@ export async function parseAndPersistDemo(
       .catch(() => {});
   };
   const startedAt = Date.now();
+  // The Match this run created. Deleted again if the run fails, so a failed
+  // or retried parse never leaves an unreachable Match behind.
+  let createdMatchId: string | null = null;
   try {
     await prisma.demoUpload.update({
       where: { id: uploadId },
@@ -102,6 +105,7 @@ export async function parseAndPersistDemo(
             utilityDamage: p.utilityDamage,
             flashAssists: p.flashAssists,
             clutchWins: p.clutchWins,
+            clutchAttempts: p.clutchAttempts,
             firstKills: p.firstKills,
             firstDeaths: p.firstDeaths,
             ...playerUserLinks[i],
@@ -109,6 +113,7 @@ export async function parseAndPersistDemo(
         },
       },
     });
+    createdMatchId = match.id;
     await onProgress?.(70);
 
     const roundRecords = await prisma.round.findMany({
@@ -300,6 +305,12 @@ export async function parseAndPersistDemo(
     }
     await onProgress?.(98);
 
+    // A second run of the same upload (a stalled job picked up again) replaces
+    // the Match the first one linked; drop that one instead of orphaning it.
+    const previous = await prisma.demoUpload.findUnique({
+      where: { id: uploadId },
+      select: { matchId: true },
+    });
     await prisma.demoUpload.update({
       where: { id: uploadId },
       data: {
@@ -309,6 +320,10 @@ export async function parseAndPersistDemo(
         parseMs: Date.now() - startedAt,
       },
     });
+    createdMatchId = null;
+    if (previous?.matchId && previous.matchId !== match.id) {
+      await prisma.match.delete({ where: { id: previous.matchId } }).catch(() => {});
+    }
     await onProgress?.(100);
 
     return { matchId: match.id, replayStored };
@@ -317,6 +332,12 @@ export async function parseAndPersistDemo(
       `[persist-demo] FAILED uploadId=${uploadId} filePath="${filePath}":`,
       error
     );
+    if (createdMatchId) {
+      // Rounds, players, events and replay data cascade with it.
+      await prisma.match.delete({ where: { id: createdMatchId } }).catch((err) => {
+        console.error(`[persist-demo] removing partial match=${createdMatchId} failed:`, err);
+      });
+    }
     await prisma.demoUpload.update({
       where: { id: uploadId },
       data: {
@@ -326,6 +347,29 @@ export async function parseAndPersistDemo(
     });
     throw error;
   }
+}
+
+/**
+ * Mark an upload FAILED if it is still in flight (QUEUED / DOWNLOADING /
+ * PARSING) and not cancelled. Workers call it when BullMQ gives up on a job
+ * (e.g. "job stalled more than allowable limit") without our own catch having
+ * run, so the upload doesn't stay in flight forever and the player can retry.
+ */
+export async function failUploadIfInFlight(
+  prisma: PrismaClient,
+  uploadId: string,
+  message: string
+): Promise<void> {
+  await prisma.demoUpload
+    .updateMany({
+      where: {
+        id: uploadId,
+        deletedAt: null,
+        status: { in: ["QUEUED", "DOWNLOADING", "PARSING"] },
+      },
+      data: { status: "FAILED", error: message },
+    })
+    .catch(() => {});
 }
 
 async function linkUser(prisma: PrismaClient, steamId: string) {

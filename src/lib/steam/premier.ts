@@ -2,7 +2,7 @@
  * Premier / Steam matches the player added (S18): shared helpers for the
  * routes and the upload page. Mirrors src/lib/faceit/analyze.ts.
  */
-import type { SteamMatch } from "@prisma/client";
+import type { Prisma, SteamMatch } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { steamDemoDownloadQueue, STEAM_DOWNLOAD_JOB_OPTS } from "@/lib/queue";
 
@@ -22,8 +22,11 @@ export function activeSteamUploadId(sm: SteamMatchWithUpload): string | null {
 }
 
 /** Detach a failed / deleted upload so the match can be analyzed again. */
-export async function releaseSteamMatch(steamMatchId: string): Promise<void> {
-  await prisma.steamMatch.update({ where: { id: steamMatchId }, data: { uploadId: null } });
+export async function releaseSteamMatch(
+  steamMatchId: string,
+  db: Prisma.TransactionClient = prisma
+): Promise<void> {
+  await db.steamMatch.update({ where: { id: steamMatchId }, data: { uploadId: null } });
 }
 
 /** Creates the upload and queues the replay download. Caller checked ownership and limits. */
@@ -32,8 +35,24 @@ export async function enqueueSteamDownload(
   sm: SteamMatchWithUpload,
   keepDemo = false
 ): Promise<string> {
-  if (sm.upload) await releaseSteamMatch(sm.id);
-  const upload = await prisma.demoUpload.create({
+  const uploadId = await createSteamUpload(prisma, userId, sm, keepDemo);
+  await queueSteamDownload(uploadId, sm.id, userId);
+  return uploadId;
+}
+
+/**
+ * The row half of enqueueSteamDownload: release a failed/deleted upload,
+ * create the new one and link it to the match. Takes the transaction of
+ * withUploadSlots(); queue the job with queueSteamDownload once it commits.
+ */
+export async function createSteamUpload(
+  db: Prisma.TransactionClient,
+  userId: string,
+  sm: SteamMatchWithUpload,
+  keepDemo = false
+): Promise<string> {
+  if (sm.upload) await releaseSteamMatch(sm.id, db);
+  const upload = await db.demoUpload.create({
     data: {
       userId,
       fileName: `premier-${sm.matchId}.dem`,
@@ -45,11 +64,11 @@ export async function enqueueSteamDownload(
     },
     select: { id: true },
   });
-  await prisma.steamMatch.update({ where: { id: sm.id }, data: { uploadId: upload.id } });
-  await steamDemoDownloadQueue.add(
-    "download",
-    { uploadId: upload.id, steamMatchId: sm.id, userId },
-    STEAM_DOWNLOAD_JOB_OPTS
-  );
+  await db.steamMatch.update({ where: { id: sm.id }, data: { uploadId: upload.id } });
   return upload.id;
+}
+
+/** Queue the download of an upload made by createSteamUpload. */
+export async function queueSteamDownload(uploadId: string, steamMatchId: string, userId: string): Promise<void> {
+  await steamDemoDownloadQueue.add("download", { uploadId, steamMatchId, userId }, STEAM_DOWNLOAD_JOB_OPTS);
 }

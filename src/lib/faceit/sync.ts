@@ -33,7 +33,8 @@ export async function refreshDemoResource(faceitMatchId: string): Promise<{
 }> {
   const details = await getMatchDetails(faceitMatchId);
   const resource = extractDemoResource(details);
-  await prisma.faceitMatch.update({
+  // The demo URL is the same for everyone in the match: update every row.
+  await prisma.faceitMatch.updateMany({
     where: { faceitMatchId },
     data: resource,
   });
@@ -112,7 +113,7 @@ export async function syncFaceitMatches(userId: string, force = false): Promise<
     try {
       // Skip if already stored
       const existing = await prisma.faceitMatch.findUnique({
-        where: { faceitMatchId: match.match_id },
+        where: { userId_faceitMatchId: { userId, faceitMatchId: match.match_id } },
         select: { result: true },
       });
       if (existing) {
@@ -122,7 +123,7 @@ export async function syncFaceitMatches(userId: string, force = false): Promise<
           const r = userResult(details, user.faceitId);
           if (r) {
             await prisma.faceitMatch.update({
-              where: { faceitMatchId: match.match_id },
+              where: { userId_faceitMatchId: { userId, faceitMatchId: match.match_id } },
               data: { result: r },
             });
           }

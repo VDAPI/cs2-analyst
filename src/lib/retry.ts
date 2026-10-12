@@ -49,7 +49,7 @@ export async function retryUpload(upload: DemoUpload, { enforceLimit }: RetryOpt
 
   if (upload.faceitMatchId && faceitDownloadsEnabled()) {
     const fm = await prisma.faceitMatch.findUnique({
-      where: { faceitMatchId: upload.faceitMatchId },
+      where: { userId_faceitMatchId: { userId, faceitMatchId: upload.faceitMatchId } },
       include: FACEIT_UPLOAD_INCLUDE,
     });
     if (fm && fm.userId === userId) {

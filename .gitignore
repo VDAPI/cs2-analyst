@@ -52,7 +52,11 @@ data/demos/*.dem
 *.dem.zst
 temp/
 
-certificatesdata/pro-demos/
+certificates
+data/pro-demos/
+e2e/.state/
+e2e/.results/
+e2e/.report/
 
 # python (ml/)
 __pycache__/

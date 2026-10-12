@@ -13,6 +13,8 @@ interface KillInput {
   attackerName: string;
   weapon: string;
   headshot: boolean;
+  /** Suicide / world death / team kill — never counts toward a multi-kill. */
+  teamKill?: boolean;
 }
 
 interface RoundInput {
@@ -37,6 +39,7 @@ export function detectMultiKills(rounds: RoundInput[]): MultiKill[] {
     >();
 
     for (const kill of round.kills) {
+      if (kill.teamKill) continue;
       const existing = grouped.get(kill.attackerSteamId);
       if (existing) {
         existing.weapons.push(kill.weapon);

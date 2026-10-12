@@ -16,36 +16,25 @@ import type {
   GrenadeType,
   DemoHeader,
 } from "@/types";
-import { detectClutches, type ClutchInputKill } from "@/lib/utils/clutches";
+import { detectClutchesBySide, type ClutchInputKill } from "@/lib/utils/clutches";
+import { otherSide, ruleSideAtRound, sideInRound, type Side } from "@/lib/utils/sideSplit";
+import { parseRoundWinner, parseWinReason } from "@/lib/parsers/round-end";
+import { loadDemoParser } from "./load-parser";
 
 /**
  * Weapons whose player_hurt damage counts as utility damage.
  *
  * A player_hurt event carries exactly one weapon string and is counted once, so
  * no event can be billed twice no matter how many aliases this set holds.
- *
- * TODO(utility-damage): confirm the fire-damage weapon string against a real demo
- * before touching this set. demoparser2's weapon-name table (visible as strings in
- * wasm/pkg/demoparser2_bg.wasm) holds `molotov`, `incgrenade` and `firebomb` but no
- * bare `inferno` — yet `inferno` is what this codebase has always matched on, here
- * and in the per-grenade damage bucket below. Two risks, both unresolvable without
- * demo data: (a) if burn damage surfaces as `incgrenade`, every CT incendiary is
- * silently dropped and CT utility damage reads low against T; (b) if the engine
- * emits one player_hurt per alias for a single burn tick, an alias-widened set
- * would double-count. Dump the distinct `player_hurt.weapon` values first:
- * `npx tsx scripts/debug-parse.ts <file.dem>`.
+ * Fire damage arrives as `inferno` (checked on a real CS2 demo with
+ * demoparser2 0.41.3: `npx tsx scripts/debug-parse.ts <file.dem>` dumps the
+ * distinct `player_hurt.weapon` values).
  */
 const UTILITY_WEAPONS = new Set(["hegrenade", "inferno", "molotov"]);
+const FIRE_WEAPONS = new Set(["inferno", "molotov"]);
 
-// Dynamic import — demoparser2 uses native Node bindings
-let demoparser: typeof import("@laihoe/demoparser2") | null = null;
-
-async function getParser() {
-  if (!demoparser) {
-    demoparser = await import("@laihoe/demoparser2");
-  }
-  return demoparser;
-}
+// demoparser2 (native bindings), or the E2E fixture parser.
+const getParser = loadDemoParser;
 
 // ─── Helper: safe field access ────────────────────────────
 
@@ -81,6 +70,7 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
   const rawHeader = parser.parseHeader(filePath);
   const header: DemoHeader = {
     map: str(rawHeader?.map_name, "unknown"),
+    // CS2 headers carry neither of these; both are derived from the rounds below.
     duration: num(rawHeader?.playback_time),
     tickRate: num(rawHeader?.tickrate, 64),
     totalTicks: num(rawHeader?.playback_ticks),
@@ -97,7 +87,9 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
     team_number: number;
   }[];
 
-  // team_number: 2 = T, 3 = CT
+  // team_number: 2 = T, 3 = CT — the side the player FINISHED the match on.
+  // It identifies the team (teammates share it); never compare it to a
+  // round-level side without resolving the side for that round.
   const playerRoster = new Map<string, { name: string; team: "CT" | "T" }>();
   for (const p of playerInfoRaw ?? []) {
     if (!p.steamid) continue;
@@ -106,6 +98,10 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
       team: p.team_number === 2 ? "T" : "CT",
     });
   }
+  const sameTeam = (a: string, b: string) => {
+    const ta = playerRoster.get(a)?.team;
+    return ta !== undefined && ta === playerRoster.get(b)?.team;
+  };
 
   // 3. Detect real match start (skip knife round in FACEIT demos)
   // begin_new_match fires twice in FACEIT: once at start, once after knife round.
@@ -117,37 +113,18 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
     matchStartTick = num(sorted[sorted.length - 1].tick);
   }
 
-  // Detect halftime using announce_phase_end (marks end of first half)
-  const phaseEndEvents = parser.parseEvent(filePath, "announce_phase_end") as Record<string, unknown>[] | null;
-  let halftimeTick = Infinity; // default: no halftime detected means all rounds are first half
-  if (phaseEndEvents && phaseEndEvents.length > 0) {
-    // The first announce_phase_end after match start is halftime
-    const sorted = (phaseEndEvents)
-      .filter((e) => num(e.tick) > matchStartTick)
-      .sort((a, b) => num(a.tick) - num(b.tick));
-    if (sorted.length > 0) {
-      halftimeTick = num(sorted[0].tick);
-    }
-  }
-
   // 4. Round results from round_end events
   const roundEndEvents = parser.parseEvent(filePath, "round_end") as Record<string, unknown>[];
   const roundStartEvents = parser.parseEvent(filePath, "round_start") as Record<string, unknown>[];
 
   const sortedStarts = (roundStartEvents ?? []).sort((a, b) => num(a.tick) - num(b.tick));
 
-  // Filter: skip null winners AND skip rounds before real match start (knife round)
+  // Skip rounds without a winner (draws, restarts) AND rounds before the real
+  // match start (knife round). demoparser2 0.41 returns winner/reason as
+  // numbers (2 = T, 3 = CT; CS2 RoundEndReason) — see round-end.ts.
   const realRoundEnds = (roundEndEvents ?? [])
-    .filter((e) => e.winner != null && str(e.winner) !== "" && num(e.tick) > matchStartTick)
+    .filter((e) => num(e.tick) > matchStartTick && parseRoundWinner(e.winner, e.message) !== null)
     .sort((a, b) => num(a.tick) - num(b.tick));
-
-  // Team mapping from parsePlayerInfo:
-  // team_number gives the team at END of match (second half sides).
-  // In first half, sides are OPPOSITE. We track "teamA" (team_number=3) and "teamB" (team_number=2).
-  // teamA is CT-side in second half → T-side in first half
-  // teamB is T-side in second half → CT-side in first half
-  // First half: CT win → teamB point, T win → teamA point
-  // Second half: CT win → teamA point, T win → teamB point
 
   interface RoundBoundary {
     number: number;
@@ -156,8 +133,6 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
   }
   const boundaries: RoundBoundary[] = [];
   const rounds: ParsedRound[] = [];
-  let teamAScore = 0; // team_number=3 (CT in second half)
-  let teamBScore = 0; // team_number=2 (T in second half)
 
   for (let i = 0; i < realRoundEnds.length; i++) {
     const end = realRoundEnds[i];
@@ -172,39 +147,16 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
       else if (sTick >= endTick) break;
     }
 
-    const winnerStr = str(end.winner);
-    const winner: "CT" | "T" = winnerStr === "T" ? "T" : "CT";
-
-    const isSecondHalf = endTick > halftimeTick;
-
-    // Map side win to team win
-    if (isSecondHalf) {
-      // Second half: CT = teamA, T = teamB
-      if (winner === "CT") teamAScore++;
-      else teamBScore++;
-    } else {
-      // First half: CT = teamB, T = teamA
-      if (winner === "CT") teamBScore++;
-      else teamAScore++;
-    }
-
     boundaries.push({ number: roundNum, startTick, endTick });
-
-    // Map reason string to our enum
-    const reasonStr = str(end.reason).toLowerCase();
-    let winReason = "ELIMINATION";
-    if (reasonStr.includes("bomb_exploded")) winReason = "BOMB_EXPLODED";
-    else if (reasonStr.includes("bomb_defused") || reasonStr.includes("defuse")) winReason = "BOMB_DEFUSED";
-    else if (reasonStr.includes("time") || reasonStr.includes("target_saved")) winReason = "TIME_RAN_OUT";
 
     rounds.push({
       number: roundNum,
-      winner,
-      winReason,
+      winner: parseRoundWinner(end.winner, end.message) ?? "CT",
+      winReason: parseWinReason(end.reason, end.message),
       startTick,
       endTick,
-      ctScore: teamAScore,
-      tScore: teamBScore,
+      ctScore: 0,
+      tScore: 0,
       ctEquipValue: 0,
       tEquipValue: 0,
       ctMoney: 0,
@@ -213,6 +165,23 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
       buyTypeT: "UNKNOWN",
     });
   }
+
+  // Events after the match is over (cs_win_panel_match — e.g. the "world"
+  // suicides when players leave the server) must not count. Without a win
+  // panel, allow a short grace after the last round_end for exit frags.
+  const lastRoundEndTick = boundaries.length ? boundaries[boundaries.length - 1].endTick : Infinity;
+  let matchEndTick = lastRoundEndTick + Math.round(header.tickRate * 5);
+  try {
+    const winPanel = (parser.parseEvent(filePath, "cs_win_panel_match") as Record<string, unknown>[] | null) ?? [];
+    const panelTicks = winPanel
+      .map((e) => num(e.tick))
+      .filter((t) => t >= lastRoundEndTick)
+      .sort((a, b) => a - b);
+    if (panelTicks.length > 0) matchEndTick = panelTicks[0];
+  } catch {
+    // optional event
+  }
+  const inMatch = (tick: number) => tick > matchStartTick && tick <= matchEndTick;
 
   // Per-player per-round economy snapshots (populated during freeze-end loop below)
   // Key: `${roundNumber}|${steamId}` -> snapshot
@@ -224,105 +193,134 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
   // Key: `${roundNumber}|${steamId}` -> damage
   const damageByRoundPlayer = new Map<string, number>();
 
-  // ── Economy data from round_freeze_end + parseTicks ──
+  // ── Live sides + economy from parseTicks ──
+  // One sample tick per round: its round_freeze_end (economy is read there),
+  // or the tick before round_end for a round without one (e.g. a surrender
+  // called in freezetime). `team_num` on a tick is the player's LIVE side
+  // (2 = T, 3 = CT) — unlike parsePlayerInfo.team_number it needs no per-half
+  // flipping.
   const freezeEndEvents = parser.parseEvent(filePath, "round_freeze_end") as Record<string, unknown>[] | null;
-  if (freezeEndEvents && freezeEndEvents.length > 0 && rounds.length > 0) {
-    const freezeTicks = freezeEndEvents
-      .filter((e) => num(e.tick) > matchStartTick)
-      .sort((a, b) => num(a.tick) - num(b.tick));
-
-    // Map each freeze tick to its round
-    const freezeTickToRound = new Map<number, ParsedRound>();
-    for (const fe of freezeTicks) {
-      const tick = num(fe.tick);
-      const roundNum = findRoundNumber(tick);
-      const round = rounds.find((r) => r.number === roundNum);
-      if (round) freezeTickToRound.set(tick, round);
-    }
-
-    if (freezeTickToRound.size > 0) {
-      const tickList = Array.from(freezeTickToRound.keys());
-      try {
-        const tickData = parser.parseTicks(
-          filePath,
-          ["team_num", "current_equip_value", "balance"],
-          tickList
-        ) as Array<Record<string, unknown>>;
-
-        // Group tick data by tick
-        const byTick = new Map<number, Array<Record<string, unknown>>>();
-        for (const td of tickData) {
-          const tick = num(td.tick);
-          const arr = byTick.get(tick);
-          if (arr) arr.push(td);
-          else byTick.set(tick, [td]);
-        }
-
-        for (const [tick, players] of byTick) {
-          const round = freezeTickToRound.get(tick);
-          if (!round) continue;
-
-          const isSecondHalf = tick > halftimeTick;
-
-          // team_num: 2=T(second half), 3=CT(second half) from parsePlayerInfo perspective
-          // In first half, sides are swapped: team_num=3 plays T, team_num=2 plays CT
-          let ctEquipTotal = 0;
-          let tEquipTotal = 0;
-          let ctMoneyTotal = 0;
-          let tMoneyTotal = 0;
-          let ctCount = 0;
-          let tCount = 0;
-
-          for (const p of players) {
-            const teamNum = num(p.team_num);
-            if (teamNum !== 2 && teamNum !== 3) continue;
-
-            const equip = num(p.current_equip_value);
-            const money = num(p.balance);
-            const steamId = str(p.steamid);
-
-            // Determine which side this player is on THIS round
-            const isCTSide = isSecondHalf ? teamNum === 3 : teamNum === 2;
-
-            if (isCTSide) {
-              ctEquipTotal += equip;
-              ctMoneyTotal += money;
-              ctCount++;
-            } else {
-              tEquipTotal += equip;
-              tMoneyTotal += money;
-              tCount++;
-            }
-
-            // Per-player snapshot for RoundPlayer
-            if (steamId) {
-              roundPlayerEcon.set(`${round.number}|${steamId}`, {
-                roundNumber: round.number,
-                steamId,
-                equipValue: equip,
-                money,
-                buyType: classifyBuyType(equip, 1, round.number),
-              });
-            }
-          }
-
-          round.ctEquipValue = ctEquipTotal;
-          round.tEquipValue = tEquipTotal;
-          round.ctMoney = ctMoneyTotal;
-          round.tMoney = tMoneyTotal;
-          round.buyTypeCT = classifyBuyType(ctEquipTotal, ctCount, round.number);
-          round.buyTypeT = classifyBuyType(tEquipTotal, tCount, round.number);
-        }
-      } catch {
-        // parseTicks may fail on some demos — economy data is optional
+  const freezeTickSet = new Set<number>();
+  const sampleTickToRound = new Map<number, ParsedRound>();
+  {
+    const freezeTicks = (freezeEndEvents ?? [])
+      .map((e) => num(e.tick))
+      .filter((t) => t > matchStartTick)
+      .sort((a, b) => a - b);
+    for (const b of boundaries) {
+      const round = rounds[b.number - 1];
+      const ft = freezeTicks.find((t) => t >= b.startTick && t < b.endTick);
+      if (ft !== undefined) {
+        freezeTickSet.add(ft);
+        sampleTickToRound.set(ft, round);
+      } else {
+        sampleTickToRound.set(Math.max(b.startTick, b.endTick - 1), round);
       }
     }
   }
 
-  // header.scoreCT = teamA score (team_number=3, CT in second half)
-  // header.scoreT = teamB score (team_number=2, T in second half)
-  header.scoreCT = teamAScore;
-  header.scoreT = teamBScore;
+  // Live samples per round: steamId → team_num.
+  const liveTeamsByRound = new Map<number, Map<string, number>>();
+  if (sampleTickToRound.size > 0) {
+    try {
+      const tickData = parser.parseTicks(
+        filePath,
+        ["team_num", "current_equip_value", "balance"],
+        Array.from(sampleTickToRound.keys())
+      ) as Array<Record<string, unknown>>;
+
+      // Group tick data by tick
+      const byTick = new Map<number, Array<Record<string, unknown>>>();
+      for (const td of tickData) {
+        const tick = num(td.tick);
+        const arr = byTick.get(tick);
+        if (arr) arr.push(td);
+        else byTick.set(tick, [td]);
+      }
+
+      for (const [tick, players] of byTick) {
+        const round = sampleTickToRound.get(tick);
+        if (!round) continue;
+        const isFreezeEnd = freezeTickSet.has(tick);
+
+        const live = new Map<string, number>();
+        let ctEquipTotal = 0;
+        let tEquipTotal = 0;
+        let ctMoneyTotal = 0;
+        let tMoneyTotal = 0;
+        let ctCount = 0;
+        let tCount = 0;
+
+        for (const p of players) {
+          const teamNum = num(p.team_num);
+          if (teamNum !== 2 && teamNum !== 3) continue;
+
+          const steamId = str(p.steamid);
+          if (steamId) live.set(steamId, teamNum);
+          if (!isFreezeEnd) continue;
+
+          const equip = num(p.current_equip_value);
+          const money = num(p.balance);
+
+          // Live side on this tick — no half logic.
+          if (teamNum === 3) {
+            ctEquipTotal += equip;
+            ctMoneyTotal += money;
+            ctCount++;
+          } else {
+            tEquipTotal += equip;
+            tMoneyTotal += money;
+            tCount++;
+          }
+
+          // Per-player snapshot for RoundPlayer
+          if (steamId) {
+            roundPlayerEcon.set(`${round.number}|${steamId}`, {
+              roundNumber: round.number,
+              steamId,
+              equipValue: equip,
+              money,
+              buyType: classifyBuyType(equip, 1, round.number),
+            });
+          }
+        }
+        liveTeamsByRound.set(round.number, live);
+
+        if (!isFreezeEnd) continue;
+        round.ctEquipValue = ctEquipTotal;
+        round.tEquipValue = tEquipTotal;
+        round.ctMoney = ctMoneyTotal;
+        round.tMoney = tMoneyTotal;
+        round.buyTypeCT = classifyBuyType(ctEquipTotal, ctCount, round.number);
+        round.buyTypeT = classifyBuyType(tEquipTotal, tCount, round.number);
+      }
+    } catch {
+      // parseTicks may fail on some demos — economy is optional and sides
+      // fall back to the MR12/MR3 rule.
+    }
+  }
+
+  // teamA = players who finished on CT, teamB = players who finished on T.
+  // header.scoreCT / Round.ctScore hold teamA's score, scoreT / tScore teamB's.
+  const teamASideByRound = resolveTeamASides({
+    roundNumbers: rounds.map((r) => r.number),
+    liveTeamsByRound,
+    playerRoster,
+  });
+  const score = scoreRounds(rounds, teamASideByRound);
+  header.scoreCT = score.teamA;
+  header.scoreT = score.teamB;
+
+  // CS2 demo headers carry no playback time/ticks — derive them from the rounds.
+  if (boundaries.length > 0) {
+    if (!header.totalTicks) header.totalTicks = lastRoundEndTick;
+    if (!header.duration) {
+      header.duration = Math.max(
+        0,
+        Math.round((lastRoundEndTick - boundaries[0].startTick) / header.tickRate)
+      );
+    }
+  }
 
   const totalRounds = rounds.length || 1;
 
@@ -359,43 +357,43 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
     console.warn("[demo-parser] inventory at death unavailable:", err);
   }
 
+  /** A kill that credits nobody: suicide / world death or a team kill. */
+  const isNonEnemyKill = (k: Pick<ParsedKill, "attackerSteamId" | "victimSteamId">) =>
+    k.attackerSteamId === k.victimSteamId || sameTeam(k.attackerSteamId, k.victimSteamId);
+
   for (const k of killEvents ?? []) {
     const tick = num(k.tick);
-    const attackerId = str(k.attacker_steamid);
-    const victimId = str(k.user_steamid);
+    // Skip warmup/knife kills and post-match deaths
+    if (!inMatch(tick)) continue;
 
-    // Skip kills with no attacker or victim (e.g. world damage)
-    if (!attackerId || !victimId) continue;
+    const victimId = str(k.user_steamid);
+    if (!victimId) continue;
+    // A death without an attacker (fall, bomb, world) is recorded like a
+    // suicide: the victim's death counts, nobody gets the kill.
+    const rawAttackerId = str(k.attacker_steamid);
+    const attackerId = rawAttackerId || victimId;
 
     const roundNum = findRoundNumber(tick);
 
-    // Skip warmup/knife kills (before real match start)
-    if (tick <= matchStartTick) continue;
-
-    const existing = firstKillTicks.get(roundNum);
-    if (existing === undefined || tick < existing) {
-      firstKillTicks.set(roundNum, tick);
-    }
-
-    kills.push({
+    const kill: ParsedKill = {
       tick,
       roundNumber: roundNum,
       attackerSteamId: attackerId,
-      attackerName: str(k.attacker_name),
+      attackerName: rawAttackerId ? str(k.attacker_name) : str(k.user_name),
       victimSteamId: victimId,
       victimName: str(k.user_name),
       assisterSteamId: k.assister_steamid ? str(k.assister_steamid) : undefined,
-      weapon: str(k.weapon),
+      weapon: str(k.weapon) || (rawAttackerId ? "" : "world"),
       headshot: bool(k.headshot),
       wallbang: bool(k.penetrated),
       throughSmoke: bool(k.thrusmoke),
       noScope: bool(k.noscope),
       flashAssisted: bool(k.assistedflash),
-      attackerPos: {
-        x: num(k.attacker_X),
-        y: num(k.attacker_Y),
-        z: num(k.attacker_Z),
-      },
+      // No attacker → no attacker position; use the victim's spot instead of
+      // (0,0,0), which kill heatmaps would draw at the world origin.
+      attackerPos: rawAttackerId
+        ? { x: num(k.attacker_X), y: num(k.attacker_Y), z: num(k.attacker_Z) }
+        : { x: num(k.user_X), y: num(k.user_Y), z: num(k.user_Z) },
       victimPos: {
         x: num(k.user_X),
         y: num(k.user_Y),
@@ -403,26 +401,39 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
       },
       isFirstKill: false,
       victimInventory: inventoryAtDeath.get(`${tick}|${victimId}`) ?? null,
-    });
+    };
+
+    // Opening duels only count enemy kills (no suicides / team kills)
+    if (!isNonEnemyKill(kill)) {
+      const existing = firstKillTicks.get(roundNum);
+      if (existing === undefined || tick < existing) {
+        firstKillTicks.set(roundNum, tick);
+      }
+    }
+
+    kills.push(kill);
   }
 
   // Mark first kills
   for (const kill of kills) {
-    if (firstKillTicks.get(kill.roundNumber) === kill.tick) {
+    if (firstKillTicks.get(kill.roundNumber) === kill.tick && !isNonEnemyKill(kill)) {
       kill.isFirstKill = true;
     }
   }
 
   // 5. Damage events (for ADR)
-  // Track HP per player per round to correctly cap overkill damage.
-  // Also filter out friendly fire by comparing attacker/victim teams.
+  // Track HP per player per round to correctly cap overkill damage. Every hurt
+  // event updates the tracker (self, team and world damage too); only damage
+  // to enemies is credited.
   const damageEvents = parser.parseEvent(filePath, "player_hurt") as Record<string, unknown>[];
   const damageByPlayer = new Map<string, number>();
   const utilityDamageByPlayer = new Map<string, number>();
+  /** Credited (capped, enemy-only) grenade damage, for per-grenade totals. */
+  const grenadeHits: GrenadeHit[] = [];
 
   // Sort damage events by tick to correctly track HP drain within a round
   const sortedDamage = (damageEvents ?? [])
-    .filter((d) => num(d.tick) > matchStartTick)
+    .filter((d) => inMatch(num(d.tick)))
     .sort((a, b) => num(a.tick) - num(b.tick));
 
   // HP tracker: reset to 100 for each player at round start
@@ -430,18 +441,8 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
   let currentRoundForHp = 0;
 
   for (const d of sortedDamage) {
-    const attackerId = str(d.attacker_steamid);
     const victimId = str(d.user_steamid);
-    if (!attackerId || !victimId) continue;
-
-    // Skip self-damage
-    if (attackerId === victimId) continue;
-
-    // Skip friendly fire: check if attacker and victim are on the same team
-    // Use playerRoster (end-of-match teams) — teammates have the same team_number
-    const attackerInfo = playerRoster.get(attackerId);
-    const victimInfo = playerRoster.get(victimId);
-    if (attackerInfo && victimInfo && attackerInfo.team === victimInfo.team) continue;
+    if (!victimId) continue;
 
     const tick = num(d.tick);
     const roundNum = findRoundNumber(tick);
@@ -455,18 +456,31 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
     // Get victim's current HP (default 100 at round start)
     const victimHp = playerHp.get(victimId) ?? 100;
     const rawDmg = num(d.dmg_health);
-    const actualDmg = Math.min(rawDmg, victimHp);
+    const actualDmg = Math.max(0, Math.min(rawDmg, victimHp));
 
-    // Update victim's HP
-    playerHp.set(victimId, Math.max(0, victimHp - actualDmg));
+    // Update victim's HP — the event's remaining health when present
+    const remaining = typeof d.health === "number" ? d.health : victimHp - actualDmg;
+    playerHp.set(victimId, Math.max(0, remaining));
+
+    const attackerId = str(d.attacker_steamid);
+    // World damage, self-damage and friendly fire are not credited
+    if (!attackerId || attackerId === victimId) continue;
+    if (sameTeam(attackerId, victimId)) continue;
 
     damageByPlayer.set(attackerId, (damageByPlayer.get(attackerId) ?? 0) + actualDmg);
 
-    if (UTILITY_WEAPONS.has(str(d.weapon))) {
+    const weapon = str(d.weapon);
+    if (UTILITY_WEAPONS.has(weapon)) {
       utilityDamageByPlayer.set(
         attackerId,
         (utilityDamageByPlayer.get(attackerId) ?? 0) + actualDmg
       );
+      grenadeHits.push({
+        attackerSteamId: attackerId,
+        tick,
+        kind: FIRE_WEAPONS.has(weapon) ? "MOLOTOV" : "HE",
+        damage: actualDmg,
+      });
     }
 
     const rpKey = `${roundNum}|${attackerId}`;
@@ -474,23 +488,37 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
   }
 
   // 6. Bomb events
-  const bombPlanted = parser.parseEvent(filePath, "bomb_planted", ["X", "Y", "Z"]) as Record<string, unknown>[];
-  const bombDefused = parser.parseEvent(filePath, "bomb_defused", ["X", "Y", "Z"]) as Record<string, unknown>[];
-  const bombExploded = parser.parseEvent(filePath, "bomb_exploded", ["X", "Y", "Z"]) as Record<string, unknown>[];
+  // `site` is the bombsite trigger's entity index (e.g. 184), not a letter.
+  // The planter's/defuser's place name ("BombsiteA") gives the letter per index.
+  const bombFields = ["X", "Y", "Z", "last_place_name"];
+  const bombPlanted = parser.parseEvent(filePath, "bomb_planted", bombFields) as Record<string, unknown>[];
+  const bombDefused = parser.parseEvent(filePath, "bomb_defused", bombFields) as Record<string, unknown>[];
+  const bombExploded = parser.parseEvent(filePath, "bomb_exploded", bombFields) as Record<string, unknown>[];
+
+  const siteByEntity = new Map<string, "A" | "B">();
+  for (const b of [...(bombPlanted ?? []), ...(bombDefused ?? [])]) {
+    const letter = bombSiteLetter(b.site, b.user_last_place_name);
+    if (letter && b.site != null) siteByEntity.set(str(b.site), letter);
+  }
 
   const bombEvents: ParsedBombEvent[] = [];
 
   function parseBombEvents(events: Record<string, unknown>[] | null, type: string) {
     for (const b of events ?? []) {
       const tick = num(b.tick);
-      if (tick <= matchStartTick) continue;
+      if (!inMatch(tick)) continue;
+      const roundNumber = findRoundNumber(tick);
+      const site =
+        bombSiteLetter(b.site, type === "EXPLODED" ? undefined : b.user_last_place_name) ??
+        (b.site != null ? siteByEntity.get(str(b.site)) : undefined) ??
+        bombEvents.find((e) => e.roundNumber === roundNumber && e.site)?.site;
       bombEvents.push({
         tick,
-        roundNumber: findRoundNumber(tick),
+        roundNumber,
         type,
         playerSteamId: str(b.user_steamid),
         pos: { x: num(b.user_X), y: num(b.user_Y), z: num(b.user_Z) },
-        site: str(b.site) as "A" | "B" | undefined,
+        site,
       });
     }
   }
@@ -510,45 +538,47 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
     { event: "decoy_detonate", type: "DECOY" },
   ];
 
-  // Pre-parse flash blind events for flash effectiveness
+  // Pre-parse flash blind events for flash effectiveness. Grenade entity
+  // indices are recycled during a match, so a blind belongs to the flash with
+  // the same entityid that detonated on (about) the same tick.
   const blindEvents = parser.parseEvent(filePath, "player_blind") as Record<string, unknown>[] | null;
-  // Group by entityid — each entityid is one flashbang throw
-  const blindByEntity = new Map<number, Array<{ victimId: string; duration: number }>>();
+  const blindByEntity = new Map<number, Array<{ tick: number; victimId: string; duration: number }>>();
   for (const b of blindEvents ?? []) {
+    const tick = num(b.tick);
+    if (!inMatch(tick)) continue;
     const eid = num(b.entityid);
     const victimId = str(b.user_steamid);
     const attackerId = str(b.attacker_steamid);
     if (!victimId || !attackerId) continue;
     // Skip team flashes: only count enemies
-    const attackerInfo = playerRoster.get(attackerId);
-    const victimInfo = playerRoster.get(victimId);
-    if (attackerInfo && victimInfo && attackerInfo.team === victimInfo.team) continue;
+    if (sameTeam(attackerId, victimId)) continue;
     const arr = blindByEntity.get(eid);
-    const entry = { victimId, duration: num(b.blind_duration) };
+    const entry = { tick, victimId, duration: num(b.blind_duration) };
     if (arr) arr.push(entry);
     else blindByEntity.set(eid, [entry]);
   }
 
-  // Pre-parse grenade damage from player_hurt (HE + molotov/inferno)
-  const grenadeDmgByAttackerTick = new Map<string, number>();
-  for (const d of damageEvents ?? []) {
-    const weapon = str(d.weapon);
-    if (weapon !== "hegrenade" && weapon !== "inferno" && weapon !== "molotov") continue;
-    const tick = num(d.tick);
-    if (tick <= matchStartTick) continue;
-    const attackerId = str(d.attacker_steamid);
-    if (!attackerId) continue;
-    // Key: attackerId + tick bucket (±32 ticks grouped together)
-    const bucket = Math.round(tick / 64) * 64;
-    const key = `${attackerId}:${bucket}`;
-    grenadeDmgByAttackerTick.set(key, (grenadeDmgByAttackerTick.get(key) ?? 0) + num(d.dmg_health));
+  // Fire end per molotov: inferno_expire with the same entityid
+  const infernoExpireByEntity = new Map<number, number[]>();
+  try {
+    const expires = (parser.parseEvent(filePath, "inferno_expire") as Record<string, unknown>[] | null) ?? [];
+    for (const e of expires) {
+      const eid = num(e.entityid);
+      const arr = infernoExpireByEntity.get(eid);
+      if (arr) arr.push(num(e.tick));
+      else infernoExpireByEntity.set(eid, [num(e.tick)]);
+    }
+    for (const arr of infernoExpireByEntity.values()) arr.sort((a, b) => a - b);
+  } catch {
+    // optional — falls back to a fixed burn time
   }
+  const grenadeWindows: GrenadeWindow[] = [];
 
   for (const { event, type } of grenadeEventMap) {
     const events = parser.parseEvent(filePath, event, ["X", "Y", "Z"]) as Record<string, unknown>[] | null;
     for (const e of events ?? []) {
       const tick = num(e.tick);
-      if (tick <= matchStartTick) continue;
+      if (!inMatch(tick)) continue;
 
       const throwerSteamId = str(e.user_steamid);
       if (!throwerSteamId) continue;
@@ -559,19 +589,23 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
       let playersFlashed = 0;
       let totalBlindDuration = 0;
       if (type === "FLASH") {
-        const blinds = blindByEntity.get(entityId);
-        if (blinds) {
-          playersFlashed = blinds.length;
-          totalBlindDuration = blinds.reduce((sum, b) => sum + b.duration, 0);
-        }
+        const blinds = (blindByEntity.get(entityId) ?? []).filter(
+          (b) => Math.abs(b.tick - tick) <= FLASH_BLIND_TICK_SLACK
+        );
+        playersFlashed = blinds.length;
+        totalBlindDuration = blinds.reduce((sum, b) => sum + b.duration, 0);
       }
 
-      // HE/Molotov: sum damage from player_hurt near this tick
-      let damageDealt = 0;
       if (type === "HE" || type === "MOLOTOV") {
-        const bucket = Math.round(tick / 64) * 64;
-        const key = `${throwerSteamId}:${bucket}`;
-        damageDealt = grenadeDmgByAttackerTick.get(key) ?? 0;
+        let endTick = tick + HE_DAMAGE_WINDOW_TICKS;
+        if (type === "MOLOTOV") {
+          const expire = infernoExpireByEntity.get(entityId)?.find((t) => t >= tick);
+          // Capped at the max burn time: entity indices are recycled, so a
+          // missing inferno_expire must not pull in a later fire's expire.
+          const maxEnd = tick + Math.round(header.tickRate * MOLOTOV_FALLBACK_BURN_S);
+          endTick = expire !== undefined ? Math.min(expire, maxEnd) : maxEnd;
+        }
+        grenadeWindows.push({ index: grenades.length, kind: type, throwerSteamId, startTick: tick, endTick });
       }
 
       grenades.push({
@@ -584,11 +618,15 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
         landPos: { x: num(e.x), y: num(e.y), z: num(e.z) },
         trajectory: [],
         duration: type === "FLASH" ? Math.round(totalBlindDuration * 1000) : (num(e.duration) || undefined),
-        damageDealt,
+        damageDealt: 0,
         playersFlashed,
       });
     }
   }
+
+  // HE / molotov damage: the thrower's credited damage inside each grenade's window
+  const grenadeDamage = assignGrenadeDamage(grenadeWindows, grenadeHits);
+  for (const [index, dmg] of grenadeDamage) grenades[index].damageDealt = dmg;
 
   // Sort grenades by tick
   grenades.sort((a, b) => a.tick - b.tick);
@@ -624,12 +662,13 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
     });
   }
 
-  // Count kills and deaths from kill events
+  // Count kills and deaths from kill events. Suicides, world deaths and team
+  // kills count as the victim's death but never as a kill.
   for (const k of kills) {
     const attacker = playerStats.get(k.attackerSteamId);
     const victim = playerStats.get(k.victimSteamId);
 
-    if (attacker && k.attackerSteamId !== k.victimSteamId) {
+    if (attacker && !isNonEnemyKill(k)) {
       attacker.kills++;
       if (k.headshot) attacker.hsKills++;
       if (k.isFirstKill) attacker.firstKills++;
@@ -651,11 +690,11 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
   }
 
   // 9. Clutch detection (1vX)
-  const clutchWinsByPlayer = computeClutchWins({
+  const clutchStatsByPlayer = computeClutchStats({
     rounds,
     kills,
     playerRoster,
-    halftimeTick,
+    teamASideByRound,
   });
 
   // Build final player list
@@ -689,7 +728,8 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
       hsPercent: Math.round(hsPercent * 10) / 10,
       utilityDamage: Math.round(utilityDamageByPlayer.get(p.steamId) ?? 0),
       flashAssists: p.flashAssists,
-      clutchWins: clutchWinsByPlayer.get(p.steamId) ?? 0,
+      clutchWins: clutchStatsByPlayer.get(p.steamId)?.wins ?? 0,
+      clutchAttempts: clutchStatsByPlayer.get(p.steamId)?.attempts ?? 0,
       firstKills: p.firstKills,
       firstDeaths: p.firstDeaths,
     };
@@ -726,6 +766,138 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
     roundPlayers,
     ticks: [],
   };
+}
+
+// ─── Pure helpers (exported for the no-demo regression tests) ─────────
+
+/** Blinds are matched to a flash detonating within this many ticks. */
+const FLASH_BLIND_TICK_SLACK = 2;
+/** HE damage lands on (or right after) the detonate tick. */
+const HE_DAMAGE_WINDOW_TICKS = 8;
+/** Max burn time; also used when a molotov has no inferno_expire (≈7 s in CS2). */
+const MOLOTOV_FALLBACK_BURN_S = 7.5;
+
+export interface GrenadeHit {
+  attackerSteamId: string;
+  tick: number;
+  kind: "HE" | "MOLOTOV";
+  /** Credited damage (HP-capped, enemies only). */
+  damage: number;
+}
+
+export interface GrenadeWindow {
+  /** Caller's index of the grenade. */
+  index: number;
+  kind: "HE" | "MOLOTOV";
+  throwerSteamId: string;
+  /** Detonate / inferno_startburn tick. */
+  startTick: number;
+  /** Last tick its damage can land on (inferno_expire for a molotov). */
+  endTick: number;
+}
+
+/**
+ * Damage per grenade: each hit goes to the thrower's grenade of the same kind
+ * whose window covers the hit tick (the latest-started one if several do), so
+ * a molotov collects its whole burn and no hit is counted twice.
+ */
+export function assignGrenadeDamage(
+  windows: GrenadeWindow[],
+  hits: GrenadeHit[]
+): Map<number, number> {
+  const byThrower = new Map<string, GrenadeWindow[]>();
+  for (const w of windows) {
+    const key = `${w.throwerSteamId}|${w.kind}`;
+    const arr = byThrower.get(key);
+    if (arr) arr.push(w);
+    else byThrower.set(key, [w]);
+  }
+  for (const arr of byThrower.values()) arr.sort((a, b) => a.startTick - b.startTick);
+
+  const out = new Map<number, number>();
+  for (const w of windows) out.set(w.index, 0);
+  for (const h of hits) {
+    const arr = byThrower.get(`${h.attackerSteamId}|${h.kind}`);
+    if (!arr) continue;
+    let match: GrenadeWindow | undefined;
+    for (const w of arr) {
+      if (w.startTick > h.tick) break;
+      if (h.tick <= w.endTick) match = w;
+    }
+    if (match) out.set(match.index, (out.get(match.index) ?? 0) + h.damage);
+  }
+  return out;
+}
+
+/**
+ * Bombsite letter from a bomb event's `site` (a letter on some sources, the
+ * trigger's entity index on CS2) or the player's place name ("BombsiteA").
+ */
+export function bombSiteLetter(site: unknown, placeName: unknown): "A" | "B" | undefined {
+  if (site === "A" || site === "B") return site;
+  if (typeof placeName === "string") {
+    const m = /bombsite\s*_?([AB])\b/i.exec(placeName);
+    if (m) return m[1].toUpperCase() as "A" | "B";
+  }
+  return undefined;
+}
+
+export interface TeamASidesInput {
+  roundNumbers: number[];
+  /** Round → steamId → live team_num (2 = T, 3 = CT) sampled in that round. */
+  liveTeamsByRound: Map<number, Map<string, number>>;
+  /** steamId → side at END of match (teamA = finished on CT). */
+  playerRoster: Map<string, { team: Side }>;
+}
+
+/**
+ * teamA's (finished-on-CT team's) side in every round, by majority of the live
+ * team_num samples. Rounds without samples use the MR12/MR3 rule counted back
+ * from the last round, which also covers matches that end before halftime.
+ */
+export function resolveTeamASides({
+  roundNumbers,
+  liveTeamsByRound,
+  playerRoster,
+}: TeamASidesInput): Map<number, Side> {
+  const lastRound = roundNumbers.reduce((m, n) => Math.max(m, n), 0);
+  const out = new Map<number, Side>();
+  for (const n of roundNumbers) {
+    let ct = 0;
+    let t = 0;
+    for (const [steamId, teamNum] of liveTeamsByRound.get(n) ?? []) {
+      const finalSide = playerRoster.get(steamId)?.team;
+      if (!finalSide || (teamNum !== 2 && teamNum !== 3)) continue;
+      const live: Side = teamNum === 3 ? "CT" : "T";
+      // A teamB player on side X means teamA is on the other side.
+      const teamASide = finalSide === "CT" ? live : otherSide(live);
+      if (teamASide === "CT") ct++;
+      else t++;
+    }
+    out.set(n, ct === t ? ruleSideAtRound("CT", n, lastRound) : ct > t ? "CT" : "T");
+  }
+  return out;
+}
+
+/**
+ * Credit every round to the team that played the winning side and fill the
+ * cumulative ctScore (teamA) / tScore (teamB).
+ */
+export function scoreRounds(
+  rounds: Pick<ParsedRound, "number" | "winner" | "ctScore" | "tScore">[],
+  teamASideByRound: Map<number, Side>
+): { teamA: number; teamB: number } {
+  const lastRound = rounds.reduce((m, r) => Math.max(m, r.number), 0);
+  let teamA = 0;
+  let teamB = 0;
+  for (const r of [...rounds].sort((a, b) => a.number - b.number)) {
+    const teamASide = teamASideByRound.get(r.number) ?? ruleSideAtRound("CT", r.number, lastRound);
+    if (r.winner === teamASide) teamA++;
+    else teamB++;
+    r.ctScore = teamA;
+    r.tScore = teamB;
+  }
+  return { teamA, teamB };
 }
 
 export interface AssistCounts {
@@ -767,30 +939,37 @@ export function computeAssistCounts(
 }
 
 export interface ClutchWinsInput {
-  rounds: Pick<ParsedRound, "number" | "winner" | "endTick">[];
+  rounds: Pick<ParsedRound, "number" | "winner">[];
   kills: Pick<ParsedKill, "tick" | "roundNumber" | "attackerSteamId" | "victimSteamId">[];
   /** steamId → side at END of match (as reported by parsePlayerInfo). */
   playerRoster: Map<string, { team: "CT" | "T" }>;
-  /** Rounds ending after this tick belong to the second half. */
-  halftimeTick: number;
+  /**
+   * Side of teamA (the players who finished on CT) in each round — from
+   * `resolveTeamASides`. Rounds missing here use the MR12/MR3 rule.
+   */
+  teamASideByRound: Map<number, Side>;
+}
+
+export interface ClutchTally {
+  wins: number;
+  attempts: number;
 }
 
 /**
- * Count won 1vX clutches per player.
+ * Count 1vX clutches (attempts and wins) per player.
  *
  * A round's `winner` is an absolute side, but `playerRoster` holds end-of-match
- * sides. Each half is therefore resolved against the side map that was actually
- * in play — using the roster verbatim would invert the won/lost flag on every
- * first-half clutch.
+ * sides. Every round is therefore resolved against the side map that was
+ * actually in play (per round, so overtime and short matches work) — using the
+ * roster verbatim would invert the won/lost flag on every round played on the
+ * other side.
  */
-export function computeClutchWins({
+export function computeClutchStats({
   rounds,
   kills,
   playerRoster,
-  halftimeTick,
-}: ClutchWinsInput): Map<string, number> {
-  const clutchWinsByPlayer = new Map<string, number>();
-
+  teamASideByRound,
+}: ClutchWinsInput): Map<string, ClutchTally> {
   const killsByRound = new Map<number, ClutchInputKill[]>();
   for (const k of kills) {
     const entry: ClutchInputKill = {
@@ -803,40 +982,39 @@ export function computeClutchWins({
     else killsByRound.set(k.roundNumber, [entry]);
   }
 
-  for (const isSecondHalf of [false, true]) {
-    const halfRounds = rounds.filter(
-      (r) => (r.endTick > halftimeTick) === isSecondHalf
-    );
-    if (halfRounds.length === 0) continue;
+  const finalTeamBySteamId = new Map<string, Side>();
+  for (const [steamId, info] of playerRoster) finalTeamBySteamId.set(steamId, info.team);
+  const lastRound = rounds.reduce((m, r) => Math.max(m, r.number), 0);
 
-    const teamBySteamId = new Map<string, "CT" | "T">();
-    for (const [steamId, info] of playerRoster) {
-      teamBySteamId.set(
-        steamId,
-        isSecondHalf ? info.team : info.team === "CT" ? "T" : "CT"
-      );
-    }
+  const clutches = detectClutchesBySide({
+    rounds: rounds.map((r) => ({
+      id: String(r.number),
+      number: r.number,
+      winner: r.winner,
+      kills: killsByRound.get(r.number) ?? [],
+    })),
+    finalTeamBySteamId,
+    sideAt: (finalSide, roundNumber) =>
+      sideInRound(finalSide, roundNumber, teamASideByRound, lastRound),
+  });
 
-    const clutches = detectClutches({
-      rounds: halfRounds.map((r) => ({
-        id: String(r.number),
-        number: r.number,
-        winner: r.winner,
-        kills: killsByRound.get(r.number) ?? [],
-      })),
-      teamBySteamId,
-    });
-
-    for (const c of clutches) {
-      if (!c.won) continue;
-      clutchWinsByPlayer.set(
-        c.clutcherSteamId,
-        (clutchWinsByPlayer.get(c.clutcherSteamId) ?? 0) + 1
-      );
-    }
+  const out = new Map<string, ClutchTally>();
+  for (const c of clutches) {
+    const tally = out.get(c.clutcherSteamId) ?? { wins: 0, attempts: 0 };
+    tally.attempts++;
+    if (c.won) tally.wins++;
+    out.set(c.clutcherSteamId, tally);
   }
+  return out;
+}
 
-  return clutchWinsByPlayer;
+/** Won 1vX clutches per player (see computeClutchStats). */
+export function computeClutchWins(input: ClutchWinsInput): Map<string, number> {
+  const wins = new Map<string, number>();
+  for (const [steamId, tally] of computeClutchStats(input)) {
+    if (tally.wins > 0) wins.set(steamId, tally.wins);
+  }
+  return wins;
 }
 
 /**

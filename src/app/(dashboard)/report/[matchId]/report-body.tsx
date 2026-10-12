@@ -399,7 +399,9 @@ function TopIssue({
       </div>
       {worst ? (
         <div className="min-w-0 space-y-1.5">
+          {/* Keyed by the moment: switching player keeps TopIssue (same type) but must reload the clip. */}
           <FindingClip
+            key={worst.id}
             matchId={ctx.matchId}
             mapName={ctx.mapName}
             mapConfig={ctx.mapConfig}

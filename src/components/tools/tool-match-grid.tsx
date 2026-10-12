@@ -5,6 +5,7 @@ import { Card, EmptyState, buttonVariants } from "@/components/ui";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { getMapConfig } from "@/lib/utils/maps";
 import { cn } from "@/lib/utils/cn";
+import { formatDate } from "@/lib/utils/formatters";
 
 export interface ToolMatch {
   id: string;
@@ -19,7 +20,7 @@ export function radarUrl(map: string): string {
 }
 
 export function formatMatchDate(date: Date): string {
-  return date.toLocaleDateString("pl-PL", { day: "numeric", month: "short", year: "numeric" });
+  return formatDate(date);
 }
 
 /** Picker of the user's matches that opens a tool (replay, heatmap, grenades, economy). */

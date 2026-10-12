@@ -3,15 +3,26 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { demoParseQueue } from "@/lib/queue";
-import { checkMonthlyDemoLimit, limitReachedMessage } from "@/lib/limits";
+import {
+  checkMonthlyDemoLimit,
+  keepDemoSlotsLeft,
+  limitReachedMessage,
+  withUploadSlots,
+} from "@/lib/limits";
 import { LOCAL_DEMO_DIR, storeDemoFile } from "@/lib/storage/demo-store";
 import { activeUploadId, FACEIT_UPLOAD_INCLUDE, releaseFaceitMatch } from "@/lib/faceit/analyze";
 import { getQueueItems } from "@/lib/library";
 import { activeSteamUploadId, releaseSteamMatch, STEAM_UPLOAD_INCLUDE } from "@/lib/steam/premier";
-import { writeFile, mkdir, unlink } from "fs/promises";
+import { mkdir, unlink } from "fs/promises";
+import { createWriteStream } from "fs";
+import { Readable } from "stream";
+import { pipeline } from "stream/promises";
+import type { ReadableStream as NodeReadableStream } from "stream/web";
 import { join } from "path";
 
 const MAX_FILE_SIZE = 700 * 1024 * 1024; // 700MB
+/** The file plus multipart headers and the small form fields. */
+const MAX_BODY_SIZE = MAX_FILE_SIZE + 1024 * 1024;
 
 function sanitizeFileName(name: string): string {
   // Keep alphanumerics, dots, hyphens, underscores. Replace everything else with _.
@@ -33,9 +44,25 @@ export async function POST(req: Request) {
   }
   const userId = session.user.id;
 
+  // req.formData() buffers the whole body in memory, so refuse oversize (or
+  // unsized, chunked) bodies before reading a byte. Node enforces the
+  // declared Content-Length, so this bounds what formData() can buffer.
+  const contentLength = Number(req.headers.get("content-length"));
+  if (!Number.isFinite(contentLength) || contentLength <= 0) {
+    return NextResponse.json({ error: "Missing Content-Length" }, { status: 411 });
+  }
+  if (contentLength > MAX_BODY_SIZE) {
+    return NextResponse.json({ error: "File too large (max 700MB)" }, { status: 413 });
+  }
+  // Cheap check first: a player over the monthly limit never uploads the body.
+  const earlyLimit = await checkMonthlyDemoLimit(userId);
+  if (!earlyLimit.allowed) {
+    return NextResponse.json({ error: limitReachedMessage(earlyLimit) }, { status: 403 });
+  }
+
   const formData = await req.formData();
   const file = formData.get("file") as File | null;
-  const keepDemo = formData.get("keepDemo") === "true";
+  const wantKeepDemo = formData.get("keepDemo") === "true";
   const faceitMatchRef = formData.get("faceitMatch");
   const steamMatchRef = formData.get("steamMatch");
 
@@ -68,7 +95,6 @@ export async function POST(req: Request) {
         { status: 409 }
       );
     }
-    if (fm.upload) await releaseFaceitMatch(fm.faceitMatchId);
     faceitMatchId = fm.faceitMatchId;
   }
 
@@ -85,14 +111,7 @@ export async function POST(req: Request) {
     if (activeSteamUploadId(sm)) {
       return NextResponse.json({ error: "This Premier match already has a demo" }, { status: 409 });
     }
-    if (sm.upload) await releaseSteamMatch(sm.id);
     steamMatchId = sm.id;
-  }
-
-  // Enforce the monthly demo limit (shared with FACEIT downloads)
-  const limit = await checkMonthlyDemoLimit(userId);
-  if (!limit.allowed) {
-    return NextResponse.json({ error: limitReachedMessage(limit) }, { status: 403 });
   }
 
   const originalName = file.name;
@@ -101,31 +120,66 @@ export async function POST(req: Request) {
     `[upload] received file="${originalName}" sanitized="${safeName}" size=${file.size}`
   );
 
-  // Create upload record (store the sanitized name as DB metadata)
-  const upload = await prisma.demoUpload.create({
-    data: {
-      userId,
-      fileName: safeName,
-      fileSize: file.size,
-      fileUrl: "",
-      status: "QUEUED",
-      keepDemo,
-      ...(faceitMatchId ? { source: "FACEIT" as const, faceitMatchId } : {}),
-      ...(steamMatchId ? { source: "STEAM" as const } : {}),
-    },
+  // Enforce the monthly demo limit and the "keep demo" cap (shared with
+  // FACEIT/Premier downloads), then create the upload record (sanitized name
+  // as DB metadata) and claim the FACEIT/Premier match — one step per user,
+  // so parallel uploads can't all take the same last slot or the same match.
+  const reserved = await withUploadSlots(userId, async (tx, usage) => {
+    if (!usage.allowed) return { error: limitReachedMessage(usage), status: 403 } as const;
+
+    if (faceitMatchId) {
+      const fm = await tx.faceitMatch.findUnique({
+        where: { userId_faceitMatchId: { userId, faceitMatchId } },
+        include: FACEIT_UPLOAD_INCLUDE,
+      });
+      if (!fm || activeUploadId(fm)) {
+        return { error: "This FACEIT match already has a demo", status: 409 } as const;
+      }
+      if (fm.upload) await releaseFaceitMatch(userId, fm.faceitMatchId, tx);
+    }
+    if (steamMatchId) {
+      const sm = await tx.steamMatch.findUnique({
+        where: { id: steamMatchId },
+        include: STEAM_UPLOAD_INCLUDE,
+      });
+      if (!sm || activeSteamUploadId(sm)) {
+        return { error: "This Premier match already has a demo", status: 409 } as const;
+      }
+      if (sm.upload) await releaseSteamMatch(sm.id, tx);
+    }
+
+    // Over the plan's "keep demo" cap the analysis still runs, without keeping the .dem.
+    const keepDemo = wantKeepDemo && keepDemoSlotsLeft(usage) > 0;
+    const created = await tx.demoUpload.create({
+      data: {
+        userId,
+        fileName: safeName,
+        fileSize: file.size,
+        fileUrl: "",
+        status: "QUEUED",
+        keepDemo,
+        ...(faceitMatchId ? { source: "FACEIT" as const, faceitMatchId } : {}),
+        ...(steamMatchId ? { source: "STEAM" as const } : {}),
+      },
+    });
+    if (steamMatchId) {
+      await tx.steamMatch.update({
+        where: { id: steamMatchId },
+        data: { uploadId: created.id },
+      });
+    }
+    if (faceitMatchId) {
+      await tx.faceitMatch.update({
+        where: { userId_faceitMatchId: { userId, faceitMatchId } },
+        data: { uploadId: created.id },
+      });
+    }
+    return { upload: created, keepDemo } as const;
   });
-  if (steamMatchId) {
-    await prisma.steamMatch.update({
-      where: { id: steamMatchId },
-      data: { uploadId: upload.id },
-    });
+  if ("error" in reserved) {
+    return NextResponse.json({ error: reserved.error }, { status: reserved.status });
   }
-  if (faceitMatchId) {
-    await prisma.faceitMatch.update({
-      where: { faceitMatchId },
-      data: { uploadId: upload.id },
-    });
-  }
+  const { upload, keepDemo } = reserved;
 
   // Write file to disk under a cuid-derived name (filesystem-safe by
   // construction), then hand it to the demo store (moves it to R2 if set up).
@@ -133,8 +187,11 @@ export async function POST(req: Request) {
   let fileUrl: string;
   try {
     await mkdir(LOCAL_DEMO_DIR, { recursive: true });
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    await writeFile(filePath, bytes);
+    // Stream to disk instead of arrayBuffer(), which made a second full copy.
+    await pipeline(
+      Readable.fromWeb(file.stream() as unknown as NodeReadableStream<Uint8Array>),
+      createWriteStream(filePath)
+    );
     fileUrl = await storeDemoFile(upload.id, filePath);
   } catch (err) {
     console.error(`[upload] storing demo failed: filePath="${filePath}"`, err);
@@ -163,7 +220,11 @@ export async function POST(req: Request) {
 
   console.log(`[upload] queued parse job uploadId=${upload.id} fileUrl="${fileUrl}"`);
 
-  return NextResponse.json({ uploadId: upload.id }, { status: 201 });
+  return NextResponse.json(
+    // keepDemoIgnored: "keep demo" was asked for but the plan's cap is reached.
+    { uploadId: upload.id, keepDemo, keepDemoIgnored: wantKeepDemo && !keepDemo },
+    { status: 201 }
+  );
 }
 
 /** GET /api/uploads — the analysis queue (unfinished + last day's uploads). */

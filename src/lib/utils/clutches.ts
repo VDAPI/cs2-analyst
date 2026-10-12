@@ -88,3 +88,40 @@ export function clutchesByRoundId(clutches: Clutch[]): Map<string, Clutch> {
   for (const c of clutches) map.set(c.roundId, c);
   return map;
 }
+
+export interface ClutchBySideInput {
+  rounds: ClutchInputRound[];
+  /** steamId → side the player FINISHED the match on (MatchPlayer.team / roster). */
+  finalTeamBySteamId: Map<string, "CT" | "T">;
+  /**
+   * Side a player played in a round, from their end-of-match side
+   * (see `createSideResolver` / `sideInRound` in sideSplit.ts).
+   */
+  sideAt: (finalSide: "CT" | "T", roundNumber: number) => "CT" | "T";
+}
+
+/**
+ * detectClutches with per-round sides. `round.winner` is an absolute side, so
+ * each round is checked against the side map actually in play that round (two
+ * maps at most: as finished, or swapped). Using end-of-match sides verbatim
+ * would invert won/lost in every round played on the other side.
+ */
+export function detectClutchesBySide({
+  rounds,
+  finalTeamBySteamId,
+  sideAt,
+}: ClutchBySideInput): Clutch[] {
+  const asFinished: ClutchInputRound[] = [];
+  const swapped: ClutchInputRound[] = [];
+  for (const r of rounds) {
+    if (sideAt("CT", r.number) === "CT") asFinished.push(r);
+    else swapped.push(r);
+  }
+  const swappedTeams = new Map<string, "CT" | "T">();
+  for (const [id, team] of finalTeamBySteamId) swappedTeams.set(id, team === "CT" ? "T" : "CT");
+
+  return [
+    ...detectClutches({ rounds: asFinished, teamBySteamId: finalTeamBySteamId }),
+    ...detectClutches({ rounds: swapped, teamBySteamId: swappedTeams }),
+  ].sort((a, b) => a.roundNumber - b.roundNumber);
+}

@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 const TOKEN_URL = "https://api.faceit.com/auth/v1/oauth/token";
 const USERINFO_URL = "https://api.faceit.com/auth/v1/resources/userinfo";
@@ -63,14 +65,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(settingsUrl.toString());
   }
 
-  // Parse userId from state
-  let userId: string;
+  // Link to the signed-in user, never to the id inside the state: the state
+  // and its cookie are both under the caller's control in their own browser.
+  // The state's userId must still match, so a flow started by one account
+  // can't be finished by another.
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id;
+  let stateUserId: unknown;
   try {
-    const parsed = JSON.parse(Buffer.from(state, "base64url").toString());
-    userId = parsed.userId;
-    console.log("[FACEIT Callback] Extracted userId:", userId);
+    const parsed: unknown = JSON.parse(Buffer.from(state, "base64url").toString());
+    stateUserId = (parsed as { userId?: unknown } | null)?.userId;
   } catch {
     console.error("[FACEIT Callback] Failed to parse state");
+    settingsUrl.searchParams.set("error", "faceit-link-failed");
+    return NextResponse.redirect(settingsUrl.toString());
+  }
+  if (!userId || stateUserId !== userId) {
+    console.error("[FACEIT Callback] No session, or the state belongs to another user");
     settingsUrl.searchParams.set("error", "faceit-link-failed");
     return NextResponse.redirect(settingsUrl.toString());
   }

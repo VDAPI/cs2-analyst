@@ -10,7 +10,7 @@ import { Worker, UnrecoverableError, type Job } from "bullmq";
 import { stat, mkdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
-import { parseAndPersistDemo } from "../src/lib/parsers/persist-demo";
+import { failUploadIfInFlight, parseAndPersistDemo } from "../src/lib/parsers/persist-demo";
 import { backfillReplayData } from "../src/lib/parsers/backfill-replay";
 import {
   deleteStoredDemo,
@@ -120,6 +120,11 @@ async function processDemo(job: Job<DemoParseJobData>) {
 const worker = new Worker("demo-parse", processDemo, {
   connection: { url: REDIS_URL },
   concurrency: 2,
+  // demoparser2 blocks the event loop for a whole native parse, so the lock
+  // can't be renewed meanwhile. With BullMQ's 30 s default a big demo lost its
+  // lock and was parsed a second time by the other slot. Same as the
+  // download workers.
+  lockDuration: 10 * 60 * 1000,
   limiter: {
     max: 10,
     duration: 60_000,
@@ -136,8 +141,17 @@ worker.on("completed", (job) => {
 worker.on("failed", (job, err) => {
   console.error(`Demo parse failed: ${job?.id}`, err.message);
   reportJobFailure("demo-parse", job, err);
-  // Parse jobs run once; the upload is FAILED now (no-op if it isn't).
-  if (job) void notifyUploadFinished(prisma, job.data.uploadId);
+  // Parse jobs run once. Our own catch normally left the upload FAILED; if it
+  // didn't, mark it FAILED here or it stays PARSING and can never be retried.
+  // That includes a job that stalled more often than allowed (the process died
+  // mid-parse): BullMQ fails it through the next Worker that picks it up, with
+  // "job stalled more than allowable limit", without running processDemo.
+  if (job) {
+    const { uploadId } = job.data;
+    void failUploadIfInFlight(prisma, uploadId, err.message).then(() =>
+      notifyUploadFinished(prisma, uploadId)
+    );
+  }
 });
 
 worker.on("ready", () => {
@@ -214,6 +228,15 @@ const steamWorker = new Worker("steam-demo-download", processSteamDownload, {
 steamWorker.on("failed", (job, err) => {
   console.error(`Steam replay download failed: ${job?.id}`, err.message);
   reportJobFailure("steam-demo-download", job, err);
+  // finishedOn is set only when the job won't be retried. Our catch settles
+  // the upload on the last attempt, but a job failed for stalling too often
+  // never reaches it: settle it here (no-op if it is FAILED already).
+  if (job?.finishedOn) {
+    const { uploadId } = job.data;
+    void failUploadIfInFlight(prisma, uploadId, err.message).then(() =>
+      notifyUploadFinished(prisma, uploadId)
+    );
+  }
 });
 
 // Store replay data for older matches that still have their .dem, so nobody

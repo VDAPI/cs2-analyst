@@ -10,7 +10,7 @@ import { ToolHeader } from "@/components/tools/tool-header";
 import { ControlGroup, Segmented, ToolSelect } from "@/components/tools/segmented";
 import { CANVAS_COLORS, GRENADE_STYLE, grenadeStyle } from "@/lib/canvas/palette";
 import { drawEmptyHint, drawRadarBackground, makeWorldToCanvas, TOOL_CANVAS_SIZE, type RadarConfig } from "@/lib/canvas/radar";
-import { playerSideAtRound } from "@/lib/utils/sideSplit";
+import { sideInRound, type Side } from "@/lib/utils/sideSplit";
 import { cn } from "@/lib/utils/cn";
 
 interface PlayerInfo {
@@ -54,6 +54,8 @@ interface GrenadeViewerProps {
   totalRounds: number;
   scoreCT: number;
   scoreT: number;
+  /** Side of the team that finished on CT, per round (teamASidesFromScores). */
+  teamASideByRound: Record<number, Side>;
 }
 
 type SideFilter = "all" | "CT" | "T";
@@ -86,6 +88,7 @@ export function GrenadeViewer({
   totalRounds,
   scoreCT,
   scoreT,
+  teamASideByRound,
 }: GrenadeViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const radar = useRadarImage(mapConfig?.radarImage ?? `/maps/${mapRaw}_radar.png`);
@@ -138,11 +141,11 @@ export function GrenadeViewer({
         if (playerFilter !== "all" && g.throwerSteamId !== playerFilter) return false;
         if (sideFilter !== "all") {
           const team = teamById.get(g.throwerSteamId);
-          if (team && playerSideAtRound(team, g.round) !== sideFilter) return false;
+          if (team && sideInRound(team, g.round, teamASideByRound, totalRounds) !== sideFilter) return false;
         }
         return true;
       }),
-    [grenades, showTypes, playerFilter, sideFilter, teamById]
+    [grenades, showTypes, playerFilter, sideFilter, teamById, teamASideByRound, totalRounds]
   );
 
   const selected = filtered.find((g) => g.id === selectedId) ?? null;
