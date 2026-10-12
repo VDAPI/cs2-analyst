@@ -57,9 +57,25 @@ export async function enqueueFaceitDownload(
   fm: FaceitMatchWithUpload,
   keepDemo = false
 ): Promise<string> {
-  if (fm.upload) await releaseFaceitMatch(fm.faceitMatchId);
+  const uploadId = await createFaceitUpload(prisma, userId, fm, keepDemo);
+  await queueFaceitDownload(uploadId, fm.faceitMatchId, userId);
+  return uploadId;
+}
 
-  const upload = await prisma.demoUpload.create({
+/**
+ * The row half of enqueueFaceitDownload: release a failed/deleted upload,
+ * create the new one and link it to the match. Takes the transaction of
+ * withUploadSlots(); queue the job with queueFaceitDownload once it commits.
+ */
+export async function createFaceitUpload(
+  db: Prisma.TransactionClient,
+  userId: string,
+  fm: FaceitMatchWithUpload,
+  keepDemo = false
+): Promise<string> {
+  if (fm.upload) await releaseFaceitMatch(fm.faceitMatchId, db);
+
+  const upload = await db.demoUpload.create({
     data: {
       userId,
       fileName: `${fm.faceitMatchId}.dem`,
@@ -72,20 +88,25 @@ export async function enqueueFaceitDownload(
     },
     select: { id: true },
   });
-  await prisma.faceitMatch.update({
+  await db.faceitMatch.update({
     where: { id: fm.id },
     data: { uploadId: upload.id },
   });
+  return upload.id;
+}
 
+/** Queue the download of an upload made by createFaceitUpload. */
+export async function queueFaceitDownload(
+  uploadId: string,
+  faceitMatchId: string,
+  userId: string
+): Promise<void> {
   await faceitDemoDownloadQueue.add(
     "download",
-    { uploadId: upload.id, faceitMatchId: fm.faceitMatchId, userId },
+    { uploadId, faceitMatchId, userId },
     FACEIT_DOWNLOAD_JOB_OPTS
   );
-  console.log(
-    `[faceit-download] queued uploadId=${upload.id} faceitMatchId=${fm.faceitMatchId}`
-  );
-  return upload.id;
+  console.log(`[faceit-download] queued uploadId=${uploadId} faceitMatchId=${faceitMatchId}`);
 }
 
 export const FACEIT_UPLOAD_INCLUDE = {

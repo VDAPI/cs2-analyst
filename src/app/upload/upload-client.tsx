@@ -72,7 +72,7 @@ function sendUpload(
   item: Item,
   keepDemo: boolean,
   onProgress: (pct: number) => void
-): Promise<{ uploadId: string }> {
+): Promise<{ uploadId: string; keepDemoIgnored: boolean }> {
   return new Promise((resolve, reject) => {
     const form = new FormData();
     form.append("file", item.file);
@@ -86,14 +86,14 @@ function sendUpload(
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     };
     xhr.onload = () => {
-      let data: { uploadId?: string; error?: string } = {};
+      let data: { uploadId?: string; error?: string; keepDemoIgnored?: boolean } = {};
       try {
         data = JSON.parse(xhr.responseText);
       } catch {
         // non-JSON error page
       }
       if (xhr.status >= 200 && xhr.status < 300 && data.uploadId) {
-        resolve({ uploadId: data.uploadId });
+        resolve({ uploadId: data.uploadId, keepDemoIgnored: data.keepDemoIgnored === true });
       } else {
         reject(new Error(data.error ?? t("upload.sendFailedStatus", { status: xhr.status })));
       }
@@ -210,10 +210,12 @@ export function UploadClient({
     for (const it of items.filter((i) => i.status === "pending" || i.status === "error")) {
       update(it.key, { status: "uploading", uploadPct: 0, error: undefined });
       try {
-        const { uploadId } = await sendUpload(t, it, keepDemo, (pct) =>
+        const { uploadId, keepDemoIgnored } = await sendUpload(t, it, keepDemo, (pct) =>
           update(it.key, { uploadPct: pct })
         );
         update(it.key, { status: "queued", uploadId });
+        // The plan's "keep demo" cap is reached: analyzed, but the .dem goes.
+        if (keepDemoIgnored) setNotice(t("upload.keepDemoCapped"));
         ensurePolling();
       } catch (err) {
         update(it.key, {

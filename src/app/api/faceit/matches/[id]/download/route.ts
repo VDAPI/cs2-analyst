@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { checkMonthlyDemoLimit, limitReachedMessage } from "@/lib/limits";
+import { limitReachedMessage, withUploadSlots } from "@/lib/limits";
 import {
   activeUploadId,
-  enqueueFaceitDownload,
+  createFaceitUpload,
   faceitDownloadsEnabled,
   FACEIT_UPLOAD_INCLUDE,
+  queueFaceitDownload,
 } from "@/lib/faceit/analyze";
 
 /**
@@ -57,12 +58,24 @@ export async function POST(
   }
 
   // Enforce the monthly demo limit (same as manual upload). A FAILED upload
-  // being retried isn't counted (it's excluded from the tally).
-  const limit = await checkMonthlyDemoLimit(userId);
-  if (!limit.allowed) {
-    return NextResponse.json({ error: limitReachedMessage(limit) }, { status: 403 });
+  // being retried isn't counted (it's excluded from the tally). Counting,
+  // re-checking the match and creating the row are one step per user, so
+  // parallel requests can't share the last slot or both claim the match.
+  const result = await withUploadSlots(userId, async (tx, usage) => {
+    if (!usage.allowed) return { error: limitReachedMessage(usage) } as const;
+    const fm = await tx.faceitMatch.findUnique({ where: { id }, include: FACEIT_UPLOAD_INCLUDE });
+    if (!fm) return { error: "Not found", status: 404 } as const;
+    const active = activeUploadId(fm);
+    if (active) return { existing: active } as const;
+    return { uploadId: await createFaceitUpload(tx, userId, fm) } as const;
+  });
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: "status" in result ? result.status : 403 });
+  }
+  if ("existing" in result) {
+    return NextResponse.json({ uploadId: result.existing }, { status: 200 });
   }
 
-  const uploadId = await enqueueFaceitDownload(userId, faceitMatch);
-  return NextResponse.json({ uploadId }, { status: 201 });
+  await queueFaceitDownload(result.uploadId, faceitMatch.faceitMatchId, userId);
+  return NextResponse.json({ uploadId: result.uploadId }, { status: 201 });
 }

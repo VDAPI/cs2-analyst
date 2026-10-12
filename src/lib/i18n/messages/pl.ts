@@ -209,6 +209,7 @@ export const pl = {
     maxFiles: "Możesz dodać maksymalnie {n} naraz.",
     addedOnly: "Dodano tylko {n} (limit {max}).",
     keepDemo: "Zachowaj pliki demo. Domyślnie demo jest usuwane po analizie; raport i powtórka 2D zostają.",
+    keepDemoCapped: "Limit zachowanych dem w Twoim planie jest wyczerpany: analiza działa, ale plik demo zostanie usunięty po analizie.",
     start: "Wgraj i analizuj",
     startCount: "Wgraj i analizuj ({n})",
     queue: "Kolejka analiz",

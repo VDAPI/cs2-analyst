@@ -6,7 +6,7 @@
  * uploaded .dem files, storing results in PostgreSQL.
  */
 
-import { QueueEvents, Worker, UnrecoverableError, type Job } from "bullmq";
+import { Worker, UnrecoverableError, type Job } from "bullmq";
 import { stat, mkdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -22,7 +22,7 @@ import {
 import { deleteAnalysis } from "../src/lib/library";
 import { notifyUploadFinished } from "../src/lib/notifications/notify";
 import { downloadReplayDemo, ReplayGoneError } from "../src/lib/steam/demo-download";
-import { demoParseQueue, steamDemoDownloadQueue, type SteamDemoDownloadJobData } from "../src/lib/queue";
+import { demoParseQueue, type SteamDemoDownloadJobData } from "../src/lib/queue";
 import { backfillNormSamples, refreshNorms, refreshNormsIfStale } from "../src/lib/norms/persist";
 import { initWorkerSentry, reportJobFailure, reportWorkerError } from "../src/lib/monitoring/worker-sentry";
 
@@ -137,8 +137,10 @@ worker.on("failed", (job, err) => {
   console.error(`Demo parse failed: ${job?.id}`, err.message);
   reportJobFailure("demo-parse", job, err);
   // Parse jobs run once. Our own catch normally left the upload FAILED; if it
-  // didn't (e.g. a lost lock), mark it FAILED here or it stays PARSING and can
-  // never be retried. Stalled jobs come through parseEvents below instead.
+  // didn't, mark it FAILED here or it stays PARSING and can never be retried.
+  // That includes a job that stalled more often than allowed (the process died
+  // mid-parse): BullMQ fails it through the next Worker that picks it up, with
+  // "job stalled more than allowable limit", without running processDemo.
   if (job) {
     const { uploadId } = job.data;
     void failUploadIfInFlight(prisma, uploadId, err.message).then(() =>
@@ -149,21 +151,6 @@ worker.on("failed", (job, err) => {
 
 worker.on("ready", () => {
   console.log("Demo parser worker ready, waiting for jobs...");
-});
-
-// A job that stalled more often than allowed (the process died or was killed
-// mid-parse) is failed by BullMQ's stalled checker, which emits no "failed"
-// on the Worker and runs none of our code: settle its upload from the queue's
-// event stream instead.
-const parseEvents = new QueueEvents("demo-parse", { connection: { url: REDIS_URL } });
-parseEvents.on("failed", ({ jobId, failedReason }) => {
-  void (async () => {
-    const job = await demoParseQueue.getJob(jobId);
-    const uploadId = (job?.data as DemoParseJobData | undefined)?.uploadId;
-    if (!uploadId) return;
-    await failUploadIfInFlight(prisma, uploadId, failedReason);
-    await notifyUploadFinished(prisma, uploadId);
-  })().catch((err) => console.error(`[parser] settling failed job ${jobId} failed`, err));
 });
 
 // ─── Premier / Steam replay downloads (S18) ──────────────
@@ -236,18 +223,15 @@ const steamWorker = new Worker("steam-demo-download", processSteamDownload, {
 steamWorker.on("failed", (job, err) => {
   console.error(`Steam replay download failed: ${job?.id}`, err.message);
   reportJobFailure("steam-demo-download", job, err);
-});
-
-// Same as the parse queue: a download that stalled too often never reached our catch.
-const steamEvents = new QueueEvents("steam-demo-download", { connection: { url: REDIS_URL } });
-steamEvents.on("failed", ({ jobId, failedReason }) => {
-  void (async () => {
-    const job = await steamDemoDownloadQueue.getJob(jobId);
-    const uploadId = job?.data.uploadId;
-    if (!uploadId) return;
-    await failUploadIfInFlight(prisma, uploadId, failedReason);
-    await notifyUploadFinished(prisma, uploadId);
-  })().catch((err) => console.error(`[steam-download] settling failed job ${jobId} failed`, err));
+  // finishedOn is set only when the job won't be retried. Our catch settles
+  // the upload on the last attempt, but a job failed for stalling too often
+  // never reaches it: settle it here (no-op if it is FAILED already).
+  if (job?.finishedOn) {
+    const { uploadId } = job.data;
+    void failUploadIfInFlight(prisma, uploadId, err.message).then(() =>
+      notifyUploadFinished(prisma, uploadId)
+    );
+  }
 });
 
 // Store replay data for older matches that still have their .dem, so nobody
