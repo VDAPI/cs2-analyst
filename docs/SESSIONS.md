@@ -77,7 +77,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Platforma | PWA, powiadomienia „analiza gotowa”, PL/EN | 🆕 | S18 |
 | Platforma | Storage R2, limity darmowego planu | 🆕 | S7 |
 | Jakość | Testy E2E (Playwright) głównych ścieżek, desktop i telefon, w CI | 🆕 | S19 |
-| Jakość | Środowisko testowe online (staging) z przykładowymi danymi | 🆕 | S20 |
+| Jakość | Lokalne środowisko testowe jednym poleceniem (Docker), dostęp z telefonu w sieci Wi-Fi | 🆕 | S20 |
 | Start | Demo bez logowania: przykładowa analiza meczu pro, przewodnik po aplikacji | 🆕 | S21 |
 | Trening | Generator treningu: mapy Workshop, configi .cfg, rutyna dnia | 🆕 | S22 |
 | Trening | Trener lineupów: komendy setpos/setang do skopiowania, config do ćwiczenia granatów | 🆕 | S22 |
@@ -196,10 +196,10 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Zakres:** Playwright z przykładowym demem (fixture) i seedem bazy: logowanie, upload, kolejka, raport, replay, porównanie, usuwanie dema. Każdy test na 1280 px i 390 px. Zrzuty ekranu do porównań wizualnych. Uruchamianie w CI (Postgres i Redis jako services). Napraw błędy, które testy znajdą.
 - **Gotowe, gdy:** CI uruchamia E2E na każdym PR i są zielone.
 
-### S20. Środowisko testowe online (staging)
-- **Wymaga:** S19. Hosting wybiera właściciel (pytanie w wątku planu).
-- **Zakres:** konfiguracja deployu aplikacji, workera, Postgresa, Redisa i R2 zgodnie z wyborem; zmienne środowiskowe opisane w `.env.example`; seed z kontem testowym i 3 przykładowymi analizami; automatyczny deploy z main; instrukcja w README.
-- **Gotowe, gdy:** właściciel może wejść na adres staging z telefonu i przetestować aplikację.
+### S20. Lokalne środowisko testowe jednym poleceniem
+- **Wymaga:** S19. Decyzja właściciela (12.10.2026): na razie bez hostingu, testy lokalnie.
+- **Zakres:** `docker compose up` stawia wszystko: aplikację, worker, Postgres, Redis i MinIO zamiast R2 (to samo API S3). Skrypt `npm run setup:local` (migracje, seed z kontem testowym i 3 przykładowymi analizami, przykładowe demo). Dostęp z telefonu w tej samej sieci Wi-Fi (adres IP komputera, bez problemów z HTTPS/cookies). Instrukcja po polsku krok po kroku w `docs/TESTOWANIE.md` (Windows i macOS), z listą rzeczy do sprawdzenia.
+- **Gotowe, gdy:** na czystym komputerze z Dockerem jedno polecenie uruchamia całą aplikację, a telefon w tej samej sieci ją otwiera.
 
 ### S21. Demo bez logowania i onboarding
 - **Wymaga:** S10.
