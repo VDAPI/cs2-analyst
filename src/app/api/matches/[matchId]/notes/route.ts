@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { getMatchAccess, roundAllowed } from "@/lib/sharing/access";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 import { MAX_NOTE_LENGTH } from "@/lib/sharing/share";
 
 const MAX_NOTES_PER_MATCH = 200;
@@ -43,6 +44,8 @@ export async function POST(req: Request, { params }: Props) {
   const { matchId } = await params;
   const access = await getMatchAccess(req, matchId);
   if (!access?.ownerId) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const limited = await rateLimit("write", access.ownerId);
+  if (limited) return limited;
 
   const body = schema.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "Invalid note" }, { status: 400 });

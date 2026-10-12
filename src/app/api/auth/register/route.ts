@@ -4,15 +4,23 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db/prisma";
 import { isReservedEmail } from "@/lib/norms/pro-pool";
 import { isSteamPseudoEmail, normalizeEmail } from "@/lib/email";
+import { clientIp } from "@/lib/security/rate-limit";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 const registerSchema = z.object({
   name: z.string().min(1).max(50).optional(),
   // Stored trimmed + lowercase, so "Admin@Site.com" can't sit next to "admin@site.com".
-  email: z.string().trim().email().transform(normalizeEmail),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  email: z.string().trim().max(254).email().transform(normalizeEmail),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    .max(200, "Password must be at most 200 characters"),
 });
 
 export async function POST(req: Request) {
+  const limited = await rateLimit("register", clientIp(req.headers));
+  if (limited) return limited;
+
   const body: unknown = await req.json().catch(() => null);
   const result = registerSchema.safeParse(body);
 

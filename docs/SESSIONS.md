@@ -90,7 +90,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Integracje | Rozszerzenie przeglądarki: przycisk „Analizuj” na stronie meczu FACEIT | 🆕 | S26 |
 | Platforma | Panel admina, monitoring kolejki, błędy (Sentry), statystyki użycia | ✅ | S27 |
 | Platforma | Wydajność: szybsze parsowanie, cache, Lighthouse mobile ≥ 90 | 🆕 | S28 |
-| Platforma | Bezpieczeństwo i RODO: usunięcie konta i danych, polityka prywatności, rate limiting | 🆕 | S29 |
+| Platforma | Bezpieczeństwo i RODO: usunięcie konta i danych, polityka prywatności, rate limiting | ✅ | S29 |
 | Platforma | Plan Pro i płatności (Stripe) | 🆕 | S30 |
 
 ## Sesje

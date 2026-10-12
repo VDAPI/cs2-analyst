@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getAdminUser } from "@/lib/admin/session";
 import { demoParseQueue } from "@/lib/queue";
 import { LOCAL_DEMO_DIR, storeDemoFile } from "@/lib/storage/demo-store";
+import { classifyDemoHeader, DEMO_HEADER_BYTES, demoHeaderError } from "@/lib/security/demo-file";
 import { getProPoolUserId, labelFromFileName, sanitizeLabel } from "@/lib/norms/pro-pool";
 
 const MAX_FILE_SIZE = 700 * 1024 * 1024;
@@ -24,6 +25,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Only .dem files are accepted" }, { status: 400 });
   }
   if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: "File too large (max 700MB)" }, { status: 400 });
+  const headerError = demoHeaderError(
+    classifyDemoHeader(new Uint8Array(await file.slice(0, DEMO_HEADER_BYTES).arrayBuffer()))
+  );
+  if (headerError) return NextResponse.json({ error: headerError }, { status: 400 });
 
   const rawLabel = form.get("label");
   const proLabel = sanitizeLabel(typeof rawLabel === "string" ? rawLabel : null) ?? labelFromFileName(file.name);

@@ -5,6 +5,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { notFound } from "next/navigation";
 import { isAdminUser } from "./access";
 
 export interface AdminUser {
@@ -26,4 +27,16 @@ export async function getAdminUser(): Promise<AdminUser | null> {
 /** For layouts: whether to show the admin link in the navigation. */
 export async function currentUserIsAdmin(): Promise<boolean> {
   return (await getAdminUser().catch(() => null)) !== null;
+}
+
+/**
+ * For admin pages: the admin, or a 404. Every admin page.tsx calls it itself;
+ * the admin layout's check alone is not enough, because a client router
+ * request (RSC header + router state tree) can render a page without
+ * re-running the layouts it says it already has.
+ */
+export async function requireAdminPage(): Promise<AdminUser> {
+  const admin = await getAdminUser();
+  if (!admin) notFound();
+  return admin;
 }

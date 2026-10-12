@@ -4,6 +4,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/db/prisma";
 import bcrypt from "bcryptjs";
 import { normalizeEmail } from "@/lib/email";
+import { clientIp, hitRateLimit } from "@/lib/security/rate-limit";
 
 const DEV_EMAIL = "dev@cs2analyst.local";
 
@@ -20,9 +21,19 @@ export const authOptions: AuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
         const email = normalizeEmail(credentials.email);
+
+        // Password guessing: per address and per client IP. The client maps
+        // this message to "too many attempts" (credentials-form.tsx).
+        const [byEmail, byIp] = await Promise.all([
+          hitRateLimit("loginEmail", email),
+          hitRateLimit("loginIp", clientIp(req?.headers ?? {})),
+        ]);
+        if (!byEmail.allowed || !byIp.allowed) throw new Error("RATE_LIMITED");
+        // bcrypt only reads 72 bytes; anything far longer is not a password.
+        if (credentials.password.length > 200) return null;
 
         // Dev bypass
         if (process.env.NODE_ENV === "development" && email === DEV_EMAIL) {
@@ -121,7 +132,10 @@ export const authOptions: AuthOptions = {
           where: { id: token.id as string },
           select: { image: true },
         });
-        session.user.image = dbUser?.image ?? null;
+        // A JWT outlives a deleted account (S29: "delete my account"). Without
+        // the user row the session has no user, so every route answers 401.
+        if (!dbUser) return { expires: session.expires } as typeof session;
+        session.user.image = dbUser.image ?? null;
       }
       return session;
     },

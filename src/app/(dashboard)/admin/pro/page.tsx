@@ -9,6 +9,7 @@ import { getT } from "@/lib/i18n/server";
 import { formatDateTime } from "@/lib/utils/formatters";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { normsRefreshedAt, proPoolSize } from "@/lib/norms/persist";
+import { requireAdminPage } from "@/lib/admin/session";
 
 const STATUS_VARIANT: Record<string, "success" | "error" | "warning" | "default"> = {
   COMPLETED: "success",
@@ -20,6 +21,7 @@ const STATUS_VARIANT: Record<string, "success" | "error" | "warning" | "default"
 
 /** The pro pool the norms are measured on (S13): add demos, remove them, recompute. */
 export default async function AdminProPage() {
+  await requireAdminPage();
   const { t } = await getT();
   const [counts, pool, refreshedAt, ranked, uploads] = await Promise.all([
     countAdminUploads(),

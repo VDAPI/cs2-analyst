@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db/prisma";
 import { FaceitApiError } from "@/lib/faceit/api";
 import { parseRoomInput } from "@/lib/scouting/analysis";
 import { RoomNotFoundError, scoutRoom } from "@/lib/scouting/scout";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 const bodySchema = z.object({ room: z.string().min(1).max(500) });
 
@@ -22,6 +23,8 @@ export async function POST(req: Request) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Zaloguj się, aby skautować rywali." }, { status: 401 });
   }
+  const limited = await rateLimit("scouting", session.user.id);
+  if (limited) return limited;
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   const matchId = parsed.success ? parseRoomInput(parsed.data.room) : null;

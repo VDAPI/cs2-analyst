@@ -9,6 +9,7 @@ import {
   queueSteamDownload,
   STEAM_UPLOAD_INCLUDE,
 } from "@/lib/steam/premier";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 /**
  * POST /api/steam/matches/[id]/analyze — the player asked to analyze this
@@ -18,6 +19,8 @@ import {
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await rateLimit("analyze", session.user.id);
+  if (limited) return limited;
   const userId = session.user.id;
   const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as { keepDemo?: unknown };

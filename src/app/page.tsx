@@ -200,7 +200,11 @@ export default async function HomePage() {
       </main>
 
       <footer className="border-t border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--text-tertiary)] sm:px-6">
-        CS2 Analyst &copy; {new Date().getFullYear()} · Projekt niezależny, niezwiązany z Valve Corporation ani FACEIT.
+        <p>CS2 Analyst &copy; {new Date().getFullYear()} · Projekt niezależny, niezwiązany z Valve Corporation ani FACEIT.</p>
+        <nav aria-label="Dokumenty" className="mt-3 flex justify-center gap-4">
+          <Link href="/privacy" className="hover:text-[var(--text-primary)]">Polityka prywatności</Link>
+          <Link href="/terms" className="hover:text-[var(--text-primary)]">Regulamin</Link>
+        </nav>
       </footer>
     </div>
   );

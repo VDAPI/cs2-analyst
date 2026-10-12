@@ -28,6 +28,7 @@ export default async function SettingsPage() {
       steamAuthCode: true,
       publicProfile: true,
       publicSlug: true,
+      password: true,
     },
   });
 
@@ -57,6 +58,7 @@ export default async function SettingsPage() {
           faceitId: dbUser.faceitId,
           faceitNickname: dbUser.faceitNickname,
         }}
+        hasPassword={Boolean(dbUser.password)}
         premierHistory={Boolean(dbUser.steamAuthCode)}
         publicProfile={{
           enabled: dbUser.publicProfile,

@@ -1,10 +1,25 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs/config";
+import { securityHeaders } from "./src/lib/security/headers";
 
 const sentryDsn = process.env.SENTRY_DSN;
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@laihoe/demoparser2"],
+  poweredByHeader: false,
+  // S29: CSP, framing, sniffing, referrer, permissions, HSTS (on https).
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders({
+          dev: process.env.NODE_ENV === "development",
+          appUrl: process.env.NEXTAUTH_URL,
+          sentryDsn,
+        }),
+      },
+    ];
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "750mb",

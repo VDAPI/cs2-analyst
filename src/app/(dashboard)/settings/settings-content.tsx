@@ -20,6 +20,7 @@ import { useT } from "@/lib/i18n/client";
 import type { MessageKey } from "@/lib/i18n/translate";
 import { InstallCard, LanguageCard, PushCard } from "./platform-cards";
 import { PublicProfileCard, SharesCard, type ShareRow } from "./sharing-cards";
+import { PrivacyCard } from "./privacy-card";
 
 interface SettingsContentProps {
   user: {
@@ -31,6 +32,8 @@ interface SettingsContentProps {
     faceitId: string | null;
     faceitNickname: string | null;
   };
+  /** The account has a password (account deletion asks for it). */
+  hasPassword: boolean;
   /** Premier / Steam match history is switched on (opt-in, S18). */
   premierHistory: boolean;
   /** Public profile (S16): on/off and its address (a suggestion until first saved). */
@@ -79,7 +82,7 @@ function Notice({ tone, children }: { tone: "good" | "mistake"; children: React.
   );
 }
 
-export function SettingsContent({ user, premierHistory, publicProfile, shares, usage }: SettingsContentProps) {
+export function SettingsContent({ user, hasPassword, premierHistory, publicProfile, shares, usage }: SettingsContentProps) {
   const t = useT();
   const { update } = useSession();
   const toast = useToast();
@@ -536,6 +539,8 @@ export function SettingsContent({ user, premierHistory, publicProfile, shares, u
           </Link>
         </div>
       </Card>
+
+      <PrivacyCard hasPassword={hasPassword} />
 
       {/* Unlink FACEIT confirmation modal */}
       {showUnlinkConfirm && (

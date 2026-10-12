@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getLocale } from "@/lib/i18n/server";
 import { planCoachText, planContent } from "@/lib/coach/persist";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 const textSchema = z.object({ planId: z.string().min(1), force: z.boolean().optional() });
 const daySchema = z.object({ planId: z.string().min(1), day: z.number().int().min(0).max(6), done: z.boolean() });
@@ -17,6 +18,8 @@ async function ownPlan(userId: string, planId: string) {
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await rateLimit("coach", session.user.id);
+  if (limited) return limited;
   const body = textSchema.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const row = await ownPlan(session.user.id, body.data.planId);
@@ -31,6 +34,8 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await rateLimit("write", session.user.id);
+  if (limited) return limited;
   const body = daySchema.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const row = await ownPlan(session.user.id, body.data.planId);

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 export async function PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -9,6 +10,8 @@ export async function PATCH(req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const limited = await rateLimit("write", session.user.id);
+  if (limited) return limited;
 
   let name: string;
   try {

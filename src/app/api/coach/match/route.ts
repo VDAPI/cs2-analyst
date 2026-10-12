@@ -9,6 +9,7 @@ import { toFindingView } from "@/lib/findings/view";
 import { getLocale } from "@/lib/i18n/server";
 import { matchCoachInput, ownedMatchForCoach } from "@/lib/coach/match";
 import { loadFeedbackWeights, matchCoachText } from "@/lib/coach/persist";
+import { rateLimit } from "@/lib/security/rate-limit-http";
 
 const schema = z.object({
   matchId: z.string().min(1),
@@ -24,6 +25,8 @@ const schema = z.object({
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const limited = await rateLimit("coach", session.user.id);
+  if (limited) return limited;
   const userId = session.user.id;
   const body = schema.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });

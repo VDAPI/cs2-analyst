@@ -19,7 +19,8 @@ interface FaceitUserInfo {
 }
 
 export async function GET(req: NextRequest) {
-  console.log("=== FACEIT CALLBACK HIT ===", req.url);
+  // No req.url in the log: it carries the OAuth code.
+  console.log("[FACEIT Callback] hit");
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
@@ -142,11 +143,7 @@ export async function GET(req: NextRequest) {
     }
 
     faceitUser = await userRes.json();
-    console.log("[FACEIT Callback] FACEIT user:", {
-      guid: faceitUser.guid,
-      nickname: faceitUser.nickname,
-      email: faceitUser.email,
-    });
+    console.log("[FACEIT Callback] FACEIT user:", { guid: faceitUser.guid });
   } catch (err) {
     console.error("[FACEIT Callback] UserInfo error:", err);
     settingsUrl.searchParams.set("error", "faceit-link-failed");

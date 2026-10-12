@@ -8,8 +8,10 @@ import { countAdminUploads, getAdminOverview, getAdminUploads, METRIC_DAYS } fro
 import { getQueueStats } from "@/lib/admin/queue-stats";
 import { formatDuration } from "@/lib/admin/metrics";
 import { sentryEnabled } from "@/lib/monitoring/sentry-options";
+import { requireAdminPage } from "@/lib/admin/session";
 
 export default async function AdminOverviewPage() {
+  await requireAdminPage();
   const [overview, queue, counts, failed] = await Promise.all([
     getAdminOverview(),
     getQueueStats(),
