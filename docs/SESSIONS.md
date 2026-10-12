@@ -58,11 +58,11 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Taktyka | Molotov i HE bez efektu | 🆕 | S11 |
 | Taktyka | Śmierć z niewykorzystanym utility | 🆕 | S11 |
 | Taktyka | Baza lineupów per mapa i rozpoznawanie lineupów | 🆕 | S11 |
-| Taktyka | Śmierć bez trade'u, brak trade'u kolegi | 🆕 | S12 |
-| Taktyka | Rotacje (za wcześnie, na fejk) | 🆕 | S12 |
-| Taktyka | Błędy ekonomii (force, brak dropu, śmierć z kasą) | 🆕 | S12 |
-| Taktyka | Przewidywalna pozycja (ta sama pozycja wiele rund) | 🆕 | S12 |
-| Taktyka | Entry, lurk, post-plant, retake, decyzje w clutchu | 🆕 | S12 |
+| Taktyka | Śmierć bez trade'u, brak trade'u kolegi | ✅ | S12 |
+| Taktyka | Rotacje (za wcześnie, na fejk) | ✅ | S12 |
+| Taktyka | Błędy ekonomii (force, brak dropu, śmierć z kasą) | ✅ | S12 |
+| Taktyka | Przewidywalna pozycja (ta sama pozycja wiele rund) | ✅ | S12 |
+| Taktyka | Entry, lurk, post-plant, retake, decyzje w clutchu | ✅ | S12 |
 | Raport | Raport „co poprawić” z priorytetami | ✅ | S10 |
 | Pro | Pipeline dem pro i normy pro per mapa/strona/sytuacja | 🆕 | S13 |
 | Pro | Porównanie każdej metryki z pro i z rangą | 🆕 | S13 |

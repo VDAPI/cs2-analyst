@@ -58,15 +58,16 @@ export default async function ReportPage({ params, searchParams }: Props) {
     players.find((p) => p.steamId === session.user.steamId) ??
     [...players].sort((a, b) => (countOf.get(b.steamId) ?? 0) - (countOf.get(a.steamId) ?? 0))[0];
 
-  const [mech, aim] = selected
+  const [mech, aim, tactics] = selected
     ? await Promise.all([
         prisma.mechanicsStats.findUnique({ where: { matchId_steamId: { matchId, steamId: selected.steamId } } }),
         prisma.aimStats.findUnique({ where: { matchId_steamId: { matchId, steamId: selected.steamId } } }),
+        prisma.tacticsStats.findUnique({ where: { matchId_steamId: { matchId, steamId: selected.steamId } } }),
       ])
-    : [null, null];
+    : [null, null, null];
 
   const mine = selected ? all.filter((f) => f.steamId === selected.steamId) : [];
-  const metrics = playerMetrics(mech, aim as AimSummary | null);
+  const metrics = playerMetrics(mech, aim as AimSummary | null, tactics);
   const report = buildReport<FindingView>(mine, metrics);
 
   const mapConfig = getMapConfig(match.map);
@@ -84,7 +85,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
         }
       : null,
   };
-  const hasData = mech != null || aim != null;
+  const hasData = mech != null || aim != null || tactics != null;
 
   return (
     <div className="min-w-0 space-y-8">

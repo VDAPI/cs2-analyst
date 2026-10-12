@@ -12,6 +12,7 @@ import { formatReplayStats, parseAndPersistReplayData } from "./persist-replay";
 import { computeAndPersistMechanics } from "../analysis/persist-mechanics";
 import { computeAndPersistAim } from "../analysis/persist-aim";
 import { computeAndPersistFindings } from "../findings/persist";
+import { computeAndPersistTactics } from "../analysis/persist-tactics";
 
 interface PersistArgs {
   uploadId: string;
@@ -221,6 +222,12 @@ export async function parseAndPersistDemo(
         console.log(`[persist-demo] aim match=${match.id}: ${players} players`);
       } catch (error) {
         console.error(`[persist-demo] aim FAILED match=${match.id}:`, error);
+      }
+      try {
+        const players = await computeAndPersistTactics(prisma, match.id);
+        console.log(`[persist-demo] tactics match=${match.id}: ${players} players`);
+      } catch (error) {
+        console.error(`[persist-demo] tactics FAILED match=${match.id}:`, error);
       }
       try {
         const findings = await computeAndPersistFindings(prisma, match.id);
