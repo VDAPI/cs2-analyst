@@ -182,6 +182,9 @@ model Round {
   grenades GrenadeEvent[]
   bombs    BombEvent[]
   players  RoundPlayer[]
+  ticks    RoundTicks?
+  shots    ShotEvent[]
+  damages  DamageEvent[]
 
   @@unique([matchId, number])
 }
@@ -303,6 +306,78 @@ enum BombAction {
   EXPLODED
   DROPPED
   PICKED_UP
+}
+
+// ─── Replay data (survives deleting the .dem) ───────────
+
+// Sampled player state for one round, so the 2D replay and the mechanics
+// analysis work after the .dem file is gone. Encoded by
+// src/lib/replay/round-ticks.ts: delta-encoded Int16 columns, gzipped.
+model RoundTicks {
+  id         String @id @default(cuid())
+  roundId    String @unique
+  version    Int    @default(1) // encoding version
+  startTick  Int
+  interval   Int // ticks between frames; frame i is at startTick + i * interval
+  frameCount Int
+  players    Json // [{ steamId, name }] — column order inside data
+  weapons    Json // string[] — weapon column holds an index into this
+  data       Bytes
+  byteSize   Int // compressed size of data, for monitoring storage per match
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+}
+
+// Every weapon_fire, with the shooter's exact state on that tick (movement
+// accuracy, counter-strafe, first-bullet analysis).
+model ShotEvent {
+  id      String @id @default(cuid())
+  roundId String
+  tick    Int
+  steamId String
+  weapon  String
+  x       Float
+  y       Float
+  z       Float
+  pitch   Float
+  yaw     Float
+  velX    Float
+  velY    Float
+  velZ    Float
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@index([roundId])
+  @@index([steamId])
+}
+
+// Every player_hurt, with both players' positions and view angles.
+model DamageEvent {
+  id              String  @id @default(cuid())
+  roundId         String
+  tick            Int
+  attackerSteamId String?
+  victimSteamId   String
+  weapon          String
+  dmgHealth       Int
+  dmgArmor        Int
+  healthAfter     Int
+  armorAfter      Int
+  hitgroup        String
+  attackerX       Float?
+  attackerY       Float?
+  attackerZ       Float?
+  attackerPitch   Float?
+  attackerYaw     Float?
+  victimX         Float
+  victimY         Float
+  victimZ         Float
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@index([roundId])
+  @@index([attackerSteamId])
+  @@index([victimSteamId])
 }
 
 // ─── FACEIT ──────────────────────────────────────────
