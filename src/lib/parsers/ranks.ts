@@ -4,6 +4,7 @@
  * rank (their levels come from the FACEIT match room, src/lib/norms/ranks.ts).
  */
 import type { RankType } from "@/lib/norms/norms";
+import { loadDemoParser } from "./load-parser";
 
 /** m_iCompetitiveRankType values that carry a rank we can pool. */
 const RANK_TYPES: Record<number, RankType> = { 11: "premier", 12: "competitive" };
@@ -33,7 +34,7 @@ export function ranksFromTicks(rows: Array<Record<string, unknown>>): DemoRank[]
 export async function parsePlayerRanks(filePath: string, ticks: number[]): Promise<DemoRank[]> {
   if (ticks.length === 0) return [];
   try {
-    const parser = await import("@laihoe/demoparser2");
+    const parser = await loadDemoParser();
     const rows = parser.parseTicks(filePath.replace(/\\/g, "/"), ["rank", "comp_rank_type"], ticks) as Array<
       Record<string, unknown>
     >;

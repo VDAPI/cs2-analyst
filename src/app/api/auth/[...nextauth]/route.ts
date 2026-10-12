@@ -1,6 +1,6 @@
 import NextAuth, { getServerSession } from "next-auth";
 import Steam from "next-auth-steam";
-import { authOptions } from "@/lib/auth";
+import { authOptions, isSteamLoginEnabled } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
@@ -18,9 +18,8 @@ async function handler(
     debug: process.env.NODE_ENV === "development",
     providers: [
       ...authOptions.providers,
-      Steam(req, {
-        clientSecret: process.env.STEAM_API_KEY!,
-      }),
+      // Steam is optional: without a key the provider throws on every auth request.
+      ...(isSteamLoginEnabled() ? [Steam(req, { clientSecret: process.env.STEAM_API_KEY! })] : []),
     ],
     callbacks: {
       ...authOptions.callbacks,

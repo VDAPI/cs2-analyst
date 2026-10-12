@@ -109,3 +109,78 @@ jobs:
       - name: Training generator and lineup trainer regression tests
         if: ${{ !cancelled() }}
         run: npm run test:training
+
+      - name: Parser checks on the E2E fixture demo
+        if: ${{ !cancelled() }}
+        run: npm run test:e2e-demo -- --fixture
+
+  # S19: end-to-end tests in a browser, at 1280 px and 360 px. Runs in the
+  # Playwright image so screenshots match the committed baselines
+  # (regenerate them with `npm run test:e2e:update-snapshots`).
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cs2analyst
+          POSTGRES_PASSWORD: cs2analyst
+          POSTGRES_DB: cs2analyst_e2e
+        options: >-
+          --health-cmd "pg_isready -U cs2analyst"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      CI: "true"
+      E2E_DATABASE_URL: postgresql://cs2analyst:cs2analyst@postgres:5432/cs2analyst_e2e
+      E2E_REDIS_URL: redis://redis:6379/5
+      # The build reads the same environment the E2E server runs with.
+      DATABASE_URL: postgresql://cs2analyst:cs2analyst@postgres:5432/cs2analyst_e2e
+      NEXTAUTH_URL: http://localhost:3100
+      NEXTAUTH_SECRET: e2e-only-secret-not-for-production
+      E2E_FIXTURE_DEMOS: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The image ships Node 22 with npm 10 already; pin it anyway (see CLAUDE.md).
+      - name: Pin npm 10
+        run: npm install -g npm@10
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build
+        run: npm run build
+
+      - name: E2E tests (Playwright)
+        run: npx playwright test
+
+      - name: Upload Playwright report
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/.report
+            e2e/.results
+            e2e/.state/worker.log
+          retention-days: 7
