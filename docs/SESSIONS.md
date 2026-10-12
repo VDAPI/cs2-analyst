@@ -37,8 +37,8 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Porównanie | Radar, statystyki obok siebie, head-to-head, mapy, forma | 🎨 | S4 |
 | Replay 2D | Odtwarzacz rund (Canvas), sterowanie dotykiem, zoom, wybór gracza | ✅ | S5, S6 |
 | Replay 2D | Dane replaya z bazy zamiast z pliku .dem | 🆕 | S6 |
-| Replay 2D | Stożek widzenia (FOV), timery utility, HP, broń | 🆕 | S10 |
-| Replay 2D | Znaczniki błędów na osi czasu, skok do błędu, klip 2D błędu | 🆕 | S10 |
+| Replay 2D | Stożek widzenia (FOV), timery utility, HP, broń | ✅ | S10 |
+| Replay 2D | Znaczniki błędów na osi czasu, skok do błędu, klip 2D błędu | ✅ | S10 |
 | Replay 2D | Notatki na mapie, udostępnianie linku do momentu | 🆕 | S16 |
 | Heatmapy | Heatmapy meczu i zbiorcze per mapa | ✅ | S5 |
 | Granaty | Trajektorie granatów, utility damage | ✅ | S5 |
@@ -63,7 +63,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Taktyka | Błędy ekonomii (force, brak dropu, śmierć z kasą) | 🆕 | S12 |
 | Taktyka | Przewidywalna pozycja (ta sama pozycja wiele rund) | 🆕 | S12 |
 | Taktyka | Entry, lurk, post-plant, retake, decyzje w clutchu | 🆕 | S12 |
-| Raport | Raport „co poprawić” z priorytetami | 🆕 | S10 |
+| Raport | Raport „co poprawić” z priorytetami | ✅ | S10 |
 | Pro | Pipeline dem pro i normy pro per mapa/strona/sytuacja | 🆕 | S13 |
 | Pro | Porównanie każdej metryki z pro i z rangą | 🆕 | S13 |
 | Pro | Model szansy wygranej rundy, wpływ każdej decyzji | 🆕 | S14 |

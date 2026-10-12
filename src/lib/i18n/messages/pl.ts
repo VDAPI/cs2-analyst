@@ -28,6 +28,7 @@ export const pl = {
     groupPro: "Pro i drużyna",
     matches: "Mecze",
     upload: "Wgraj demo",
+    report: "Raport",
     uploadShort: "Wgraj",
     queue: "Kolejka analiz",
     library: "Biblioteka",

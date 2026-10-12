@@ -45,35 +45,35 @@ model VerificationToken {
 }
 
 model User {
-  id              String    @id @default(cuid())
-  steamId         String?   @unique
-  faceitId        String?   @unique
-  faceitNickname  String?
-  lastFaceitSync  DateTime?
-  name            String?
-  email           String?   @unique
-  emailVerified   DateTime?
-  image           String?
-  password        String?
-  plan            Plan      @default(FREE)
-  locale          String    @default("pl") // UI language ("pl" | "en"), also used for push notifications
+  id                 String    @id @default(cuid())
+  steamId            String?   @unique
+  faceitId           String?   @unique
+  faceitNickname     String?
+  lastFaceitSync     DateTime?
+  name               String?
+  email              String?   @unique
+  emailVerified      DateTime?
+  image              String?
+  password           String?
+  plan               Plan      @default(FREE)
+  locale             String    @default("pl") // UI language ("pl" | "en"), also used for push notifications
   // Premier / Steam match history (opt-in, S18): the player's own "game
   // authentication code" plus the newest share code we know. Never set
   // unless the player asked for it in Settings.
   steamAuthCode      String?
   steamLastShareCode String?
   lastSteamSync      DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  accounts      Account[]
-  sessions      Session[]
-  matchPlayers  MatchPlayer[]
-  teams         TeamMember[]
-  uploads       DemoUpload[]
-  faceitMatches FaceitMatch[]
-  steamMatches  SteamMatch[]
-  notifications Notification[]
+  accounts          Account[]
+  sessions          Session[]
+  matchPlayers      MatchPlayer[]
+  teams             TeamMember[]
+  uploads           DemoUpload[]
+  faceitMatches     FaceitMatch[]
+  steamMatches      SteamMatch[]
+  notifications     Notification[]
   pushSubscriptions PushSubscription[]
 }
 
@@ -128,49 +128,54 @@ enum ParseStatus {
 }
 
 model Match {
-  id          String   @id @default(cuid())
-  map         String
-  date        DateTime
-  duration    Int // seconds
-  server      String?
-  shareCode   String?  @unique
-  scoreCT     Int
-  scoreT      Int
-  tickRate    Int      @default(64)
-  totalTicks  Int
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  map        String
+  date       DateTime
+  duration   Int // seconds
+  server     String?
+  shareCode  String?  @unique
+  scoreCT    Int
+  scoreT     Int
+  tickRate   Int      @default(64)
+  totalTicks Int
+  createdAt  DateTime @default(now())
 
   upload    DemoUpload?
   rounds    Round[]
   players   MatchPlayer[]
   mechanics MechanicsStats[]
   aim       AimStats[]
+  findings  Finding[]
+
+  // FINDINGS_STAMP the stored findings were built with (null = never); a
+  // different stamp makes the report rebuild them (src/lib/findings/persist.ts).
+  findingsVersion String?
 }
 
 model MatchPlayer {
-  id       String @id @default(cuid())
-  matchId  String
-  userId   String?
-  steamId  String
-  name     String
-  team     Team_Side
-  
-  // Aggregate stats
-  kills    Int @default(0)
-  deaths   Int @default(0)
-  assists  Int @default(0)
-  adr      Float @default(0)
-  hltvRating Float @default(0)
-  hsPercent  Float @default(0)
-  utilityDamage Int @default(0)
-  flashAssists  Int @default(0)
-  firstKills    Int @default(0)
-  firstDeaths   Int @default(0)
-  clutchWins    Int @default(0)
-  clutchAttempts Int @default(0)
+  id      String    @id @default(cuid())
+  matchId String
+  userId  String?
+  steamId String
+  name    String
+  team    Team_Side
 
-  match Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  user  User?  @relation(fields: [userId], references: [id])
+  // Aggregate stats
+  kills          Int   @default(0)
+  deaths         Int   @default(0)
+  assists        Int   @default(0)
+  adr            Float @default(0)
+  hltvRating     Float @default(0)
+  hsPercent      Float @default(0)
+  utilityDamage  Int   @default(0)
+  flashAssists   Int   @default(0)
+  firstKills     Int   @default(0)
+  firstDeaths    Int   @default(0)
+  clutchWins     Int   @default(0)
+  clutchAttempts Int   @default(0)
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id])
 
   @@unique([matchId, steamId])
   @@index([steamId])
@@ -184,21 +189,21 @@ enum Team_Side {
 // ─── Round ───────────────────────────────────────────────
 
 model Round {
-  id          String     @id @default(cuid())
-  matchId     String
-  number      Int
-  winner      Team_Side
-  winReason   WinReason
-  startTick   Int
-  endTick     Int
-  ctScore     Int
-  tScore      Int
-  ctEquipVal  Int        @default(0)
-  tEquipVal   Int        @default(0)
-  ctMoney     Int        @default(0)
-  tMoney      Int        @default(0)
-  buyType_CT  BuyType    @default(UNKNOWN)
-  buyType_T   BuyType    @default(UNKNOWN)
+  id         String    @id @default(cuid())
+  matchId    String
+  number     Int
+  winner     Team_Side
+  winReason  WinReason
+  startTick  Int
+  endTick    Int
+  ctScore    Int
+  tScore     Int
+  ctEquipVal Int       @default(0)
+  tEquipVal  Int       @default(0)
+  ctMoney    Int       @default(0)
+  tMoney     Int       @default(0)
+  buyType_CT BuyType   @default(UNKNOWN)
+  buyType_T  BuyType   @default(UNKNOWN)
 
   match    Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
   kills    Kill[]
@@ -277,22 +282,22 @@ model Kill {
 }
 
 model GrenadeEvent {
-  id            String      @id @default(cuid())
-  roundId       String
-  tick          Int
+  id             String      @id @default(cuid())
+  roundId        String
+  tick           Int
   throwerSteamId String
-  throwerName   String
-  grenadeType   GrenadeType
-  throwPosX     Float
-  throwPosY     Float
-  throwPosZ     Float
-  landPosX      Float
-  landPosY      Float
-  landPosZ      Float
-  trajectory    Json? // Array of {tick, x, y, z}
-  duration      Int?  // ms for smokes/molotovs
-  damageDealt   Int   @default(0)
-  playersFlashed Int  @default(0)
+  throwerName    String
+  grenadeType    GrenadeType
+  throwPosX      Float
+  throwPosY      Float
+  throwPosZ      Float
+  landPosX       Float
+  landPosY       Float
+  landPosZ       Float
+  trajectory     Json? // Array of {tick, x, y, z}
+  duration       Int? // ms for smokes/molotovs
+  damageDealt    Int         @default(0)
+  playersFlashed Int         @default(0)
 
   round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
 
@@ -309,15 +314,15 @@ enum GrenadeType {
 }
 
 model BombEvent {
-  id        String    @id @default(cuid())
-  roundId   String
-  tick      Int
-  type      BombAction
+  id            String     @id @default(cuid())
+  roundId       String
+  tick          Int
+  type          BombAction
   playerSteamId String
-  posX      Float
-  posY      Float
-  posZ      Float
-  site      String? // A or B
+  posX          Float
+  posY          Float
+  posZ          Float
+  site          String? // A or B
 
   round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
 }
@@ -511,6 +516,34 @@ model AimStats {
   @@index([steamId])
 }
 
+// One detected mistake at one moment (src/lib/findings/). Built from the
+// stored analysis (MechanicsStats, AimStats — later utility, teamplay,
+// economy), so it can be rebuilt without the .dem. `type` is a key of
+// FINDING_TYPES; advice is stored per row so S15 can rewrite it per player.
+model Finding {
+  id            String  @id @default(cuid())
+  matchId       String
+  steamId       String
+  type          String // FindingType (catalog.ts)
+  category      String // FindingCategory
+  severity      String // high | medium | low
+  roundNumber   Int
+  tick          Int
+  roundTime     Float // seconds since round start
+  costly        Boolean // lost duel, damage taken, death or missed shot
+  targetSteamId String? // enemy the mistake was against
+  values        Json // FindingValue[]
+  detail        String
+  advice        String
+
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, steamId])
+  @@index([steamId, type])
+}
+
 // ─── FACEIT ──────────────────────────────────────────
 
 model FaceitMatch {
@@ -518,7 +551,7 @@ model FaceitMatch {
   userId          String
   faceitMatchId   String          @unique
   map             String
-  score           String          // e.g. "16-9"
+  score           String // e.g. "16-9"
   date            DateTime
   faceitUrl       String
   competition     String?
@@ -631,10 +664,10 @@ model Team {
 }
 
 model TeamMember {
-  id     String    @id @default(cuid())
-  teamId String
-  userId String
-  role   TeamRole  @default(PLAYER)
+  id       String   @id @default(cuid())
+  teamId   String
+  userId   String
+  role     TeamRole @default(PLAYER)
   joinedAt DateTime @default(now())
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)

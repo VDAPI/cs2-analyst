@@ -25,7 +25,7 @@
 import { normalizeWeapon, WEAPON_MAX_SPEED } from "./movement";
 
 /** Bump when the analysis changes, so stored stats are recomputed. */
-export const AIM_VERSION = 1;
+export const AIM_VERSION = 2;
 
 // ─── Tunables ────────────────────────────────────────────
 
@@ -219,6 +219,10 @@ export interface AimMoment {
   detail: string;
   /** Did it end badly (lost duel, got hit, died)? */
   costly: boolean;
+  /** The enemy the moment is about (duel opponent, enemy within earshot…), if known. */
+  enemy?: string;
+  /** Gun, for moments about one shot (air_shot). */
+  weapon?: string;
 }
 
 export interface PeekTally {
@@ -584,6 +588,7 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
           value: Math.round(err0.total),
           detail: `${Math.round(Math.abs(err0.yaw))}° w poziomie od głowy wroga`,
           costly: lost,
+          enemy: eId,
         });
       }
 
@@ -625,6 +630,7 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
             value: Math.round(ms),
             detail: "wolna reakcja na wroga, przegrany pojedynek",
             costly: true,
+            enemy: eId,
           });
         }
       }
@@ -670,6 +676,7 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
               value: Math.round(Math.abs(e)),
               detail: `przestrzelony flick o ${Math.round(Math.abs(e))}°`,
               costly: lost,
+              enemy: eId,
             });
             break;
           }
@@ -745,6 +752,7 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
                 value: Math.round(peekSpeed),
                 detail: `${type === "wide" ? "szeroki" : "ciasny"} peek bez flasha, przegrany`,
                 costly: true,
+                enemy: eId,
               });
             }
           }
@@ -797,6 +805,7 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
         value: Math.round(Math.abs(s.velZ)),
         detail: `strzał w powietrzu (${s.gun})`,
         costly: false,
+        weapon: s.gun,
       });
     }
   }
@@ -828,6 +837,7 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
               value: Math.round(((endTick - startTick) / tickRate) * 10) / 10,
               detail: costly ? "bieg słyszalny dla wroga, potem trafienie" : "bieg w zasięgu słuchu znanego wroga",
               costly,
+              enemy: runEnemy,
             });
           }
         }
@@ -871,6 +881,7 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
                 value: Math.round(dist(me, near)),
                 detail: costly ? "skok przy wrogu, potem trafienie" : "zbędny skok w zasięgu słuchu wroga",
                 costly,
+                enemy: near.steamId,
               });
             }
           }
@@ -892,18 +903,28 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
       (k) => k.victimSteamId === rl.steamId && k.tick >= rl.tick && k.tick <= rl.tick + s2t(RELOAD_RISK_S)
     );
     let early = false;
+    let enemy: string | undefined;
     if (r && gun && rl.clip != null && rl.clip >= (MAG_SIZE[gun] ?? 30) * RELOAD_EARLY_FRACTION) {
       const i = frameAt(r, rl.tick);
       const me = r.index[i]?.get(rl.steamId);
       if (me) {
         for (const o of r.index[i].values()) {
           if (o.team === me.team || !o.isAlive || dist(me, o) > RELOAD_DANGER_RANGE) continue;
-          if (teamKnew(r, i, me.team, o.steamId)) early = true;
+          if (teamKnew(r, i, me.team, o.steamId)) {
+            early = true;
+            enemy = o.steamId;
+          }
         }
       }
     }
     if (hitDuring || diedDuring || early) {
       p.badReloads++;
+      if (hitDuring || diedDuring) {
+        enemy =
+          enemyDamage.find(
+            (d) => d.victimSteamId === rl.steamId && d.tick >= rl.tick && d.tick <= rl.tick + s2t(RELOAD_RISK_S)
+          )?.attackerSteamId ?? enemy;
+      }
       const mag = gun ? MAG_SIZE[gun] : undefined;
       addMoment(rl.steamId, {
         type: "reload",
@@ -917,6 +938,7 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
             ? "trafiony w trakcie przeładowania"
             : `przeładowanie przy wrogu z ${rl.clip}/${mag ?? "?"} w magazynku`,
         costly: diedDuring || hitDuring,
+        enemy,
       });
     }
   }

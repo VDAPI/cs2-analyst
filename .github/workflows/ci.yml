@@ -73,3 +73,7 @@ jobs:
       - name: Scouting and veto regression tests
         if: ${{ !cancelled() }}
         run: npm run test:scouting
+
+      - name: Findings and report regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:findings

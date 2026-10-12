@@ -57,7 +57,7 @@ const HIT_WINDOW_TICKS = 4;
 export const MAX_MOMENTS = 150;
 
 /** Bump when the analysis changes, so stored stats are recomputed. */
-export const MECHANICS_VERSION = 1;
+export const MECHANICS_VERSION = 2;
 
 /** Display names (replay frames' active_weapon_name, after stripping spaces/dashes). */
 const DISPLAY_ALIASES: Record<string, string> = {
@@ -140,6 +140,8 @@ export interface MovementMoment {
   hit: boolean;
   /** Counter-strafe that was still in progress when the shot went off. */
   strafeMs: number | null;
+  /** The enemy of the engagement (hit by the burst, or who hit the shooter). */
+  enemy?: string;
 }
 
 export interface PlayerMechanics {
@@ -172,6 +174,8 @@ interface ShotState extends ShotInput {
   moving: boolean;
   hit: boolean;
   head: boolean;
+  /** Enemy this shot hit. */
+  victim?: string;
 }
 
 export function analyzeMovement(input: MovementInput): PlayerMechanics[] {
@@ -222,11 +226,11 @@ export function analyzeMovement(input: MovementInput): PlayerMechanics[] {
   }
 
   // Enemy damage → the shooter's latest shot with that gun at or before it.
-  const enemyHitsOn = new Map<string, number[]>(); // victim → ticks hit by an enemy
+  const enemyHitsOn = new Map<string, Array<{ tick: number; attacker: string }>>(); // victim → hits by an enemy
   for (const d of input.damages) {
     if (!d.attackerSteamId || !isEnemy(d.roundNumber, d.attackerSteamId, d.victimSteamId)) continue;
     const victimHits = enemyHitsOn.get(d.victimSteamId) ?? [];
-    victimHits.push(d.tick);
+    victimHits.push({ tick: d.tick, attacker: d.attackerSteamId });
     enemyHitsOn.set(d.victimSteamId, victimHits);
 
     const gun = normalizeWeapon(d.weapon);
@@ -243,6 +247,7 @@ export function analyzeMovement(input: MovementInput): PlayerMechanics[] {
     }
     if (!shot) continue;
     shot.hit = true;
+    shot.victim ??= d.victimSteamId;
     if (d.hitgroup.toLowerCase() === "head") shot.head = true;
   }
 
@@ -280,11 +285,10 @@ export function analyzeMovement(input: MovementInput): PlayerMechanics[] {
     for (const burst of bursts) {
       const first = burst[0];
       const last = burst[burst.length - 1];
-      const engaged =
-        burst.some((s) => s.hit) ||
-        takenHits.some(
-          (t) => t >= first.tick - ENGAGEMENT_LOOKBACK_S * tickRate && t <= last.tick + HIT_WINDOW_TICKS
-        );
+      const takenInBurst = takenHits.find(
+        (h) => h.tick >= first.tick - ENGAGEMENT_LOOKBACK_S * tickRate && h.tick <= last.tick + HIT_WINDOW_TICKS
+      );
+      const engaged = burst.some((s) => s.hit) || !!takenInBurst;
 
       for (const s of burst) {
         let w = weapons.get(s.gun);
@@ -345,6 +349,7 @@ export function analyzeMovement(input: MovementInput): PlayerMechanics[] {
           airborne: first.airborne,
           hit: first.hit,
           strafeMs: strafe?.kind === "late" ? strafe.ms : null,
+          enemy: burst.find((s) => s.victim)?.victim ?? takenInBurst?.attacker,
         });
       }
     }

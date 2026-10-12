@@ -14,6 +14,7 @@ import {
   Library,
   Gamepad2,
   Binoculars,
+  ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 import type { MessageKey } from "@/lib/i18n/translate";
@@ -41,6 +42,7 @@ export const navGroups: NavGroup[] = [
     labelKey: "nav.groupAnalysis",
     items: [
       { href: "/matches", labelKey: "nav.matches", icon: BarChart3 },
+      { href: "/report", labelKey: "nav.report", icon: ClipboardCheck },
       { href: "/upload", labelKey: "nav.upload", shortLabelKey: "nav.uploadShort", icon: Upload },
       { href: "/queue", labelKey: "nav.queue", icon: ListOrdered },
       { href: "/library", labelKey: "nav.library", icon: Library },
@@ -71,7 +73,7 @@ export const navGroups: NavGroup[] = [
 export const settingsItem: NavItem = { href: "/settings", labelKey: "nav.settings", icon: Settings };
 
 /** The four destinations pinned to the mobile bottom bar; the rest live under "Więcej". */
-export const mobilePrimaryHrefs = ["/matches", "/upload", "/replay", "/players"];
+export const mobilePrimaryHrefs = ["/matches", "/report", "/upload", "/replay"];
 
 export function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);

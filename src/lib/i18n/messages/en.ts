@@ -27,6 +27,7 @@ export const en: Messages = {
     groupPro: "Pro & team",
     matches: "Matches",
     upload: "Upload demo",
+    report: "Report",
     uploadShort: "Upload",
     queue: "Analysis queue",
     library: "Library",

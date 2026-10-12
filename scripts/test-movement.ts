@@ -131,6 +131,8 @@ if (a && b) {
 
   check("B: 3 shots, all engagement first shots", b.shots === 3 && b.firstShots === 3);
   check("B: airborne deagle + fast AWP are moving, slow AWP isn't", b.firstShotsMoving === 2);
+  check("A: moment's enemy is who hit A (B)", a.moments[0]?.enemy === B);
+  check("B: airborne moment's enemy is the player B hit (A)", b.moments.find((m) => m.weapon === "deagle")?.enemy === A);
   check("B: airborne moment flagged", b.moments.some((m) => m.weapon === "deagle" && m.airborne && m.hit));
   check("B: AWP and deagle split per weapon", b.weapons.length === 2);
 }
