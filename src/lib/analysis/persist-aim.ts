@@ -6,10 +6,10 @@
  */
 import type { PrismaClient } from "@prisma/client";
 import { decodeRoundTicks } from "@/lib/replay/round-ticks";
-import { analyzeAim, AIM_VERSION, type AimFrame } from "./aim";
+import { analyzeAim, AIM_VERSION, type AimFrame, type AimInput } from "./aim";
 
-/** Returns the number of players stored, or 0 when the match has no replay data. */
-export async function computeAndPersistAim(prisma: PrismaClient, matchId: string): Promise<number> {
+/** The analysis input for one match from the DB, or null when there is nothing to analyse. */
+export async function loadAimInput(prisma: PrismaClient, matchId: string): Promise<AimInput | null> {
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     select: {
@@ -29,9 +29,9 @@ export async function computeAndPersistAim(prisma: PrismaClient, matchId: string
       },
     },
   });
-  if (!match || !match.rounds.some((r) => r.ticks)) return 0;
+  if (!match || !match.rounds.some((r) => r.ticks)) return null;
 
-  const results = analyzeAim({
+  return {
     tickRate: match.tickRate,
     rounds: match.rounds.map((r) => ({
       number: r.number,
@@ -43,7 +43,15 @@ export async function computeAndPersistAim(prisma: PrismaClient, matchId: string
     kills: match.rounds.flatMap((r) => r.kills.map((k) => ({ ...k, roundNumber: r.number }))),
     flashes: match.rounds.flatMap((r) => r.grenades.map((g) => ({ ...g, roundNumber: r.number }))),
     reloads: match.rounds.flatMap((r) => r.reloads.map((l) => ({ ...l, roundNumber: r.number }))),
-  });
+  };
+}
+
+/** Returns the number of players stored, or 0 when the match has no replay data. */
+export async function computeAndPersistAim(prisma: PrismaClient, matchId: string): Promise<number> {
+  const input = await loadAimInput(prisma, matchId);
+  if (!input) return 0;
+
+  const results = analyzeAim(input);
 
   await prisma.$transaction([
     prisma.aimStats.deleteMany({ where: { matchId } }),

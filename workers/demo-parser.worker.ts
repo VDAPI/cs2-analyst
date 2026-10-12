@@ -23,6 +23,7 @@ import { deleteAnalysis } from "../src/lib/library";
 import { notifyUploadFinished } from "../src/lib/notifications/notify";
 import { downloadReplayDemo, ReplayGoneError } from "../src/lib/steam/demo-download";
 import { demoParseQueue, type SteamDemoDownloadJobData } from "../src/lib/queue";
+import { backfillNormSamples, refreshNorms, refreshNormsIfStale } from "../src/lib/norms/persist";
 import { initWorkerSentry, reportJobFailure, reportWorkerError } from "../src/lib/monitoring/worker-sentry";
 
 initWorkerSentry("worker-parse");
@@ -224,4 +225,15 @@ backfillReplayData(prisma, {}, (line) => console.log(`[replay-backfill]${line}`)
   .catch((err) => {
     console.error("[replay-backfill] failed:", err);
     reportWorkerError(err, "replay-backfill");
+  })
+  // Then norm samples (S13) for matches analysed before them, and the norms.
+  .then(() => backfillNormSamples(prisma, { log: (line) => console.log(`[norms-backfill]${line}`) }))
+  .then(async (sampled) => {
+    if (sampled > 0) console.log(`[norms-backfill] sampled ${sampled} matches`);
+    if (sampled > 0) await refreshNorms(prisma);
+    else await refreshNormsIfStale(prisma);
+  })
+  .catch((err) => {
+    console.error("[norms-backfill] failed:", err);
+    reportWorkerError(err, "norms-backfill");
   });

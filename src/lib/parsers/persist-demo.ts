@@ -16,6 +16,9 @@ import { computeAndPersistUtility, persistPlaceCells } from "../analysis/persist
 import { aggregatePlaces } from "../analysis/places";
 import { parsePlaceSamples } from "./replay-data";
 import { computeAndPersistTactics } from "../analysis/persist-tactics";
+import { parsePlayerRanks } from "./ranks";
+import { persistMatchRanks } from "../norms/ranks";
+import { computeAndPersistNormSamples, refreshNorms, refreshNormsIfStale } from "../norms/persist";
 
 interface PersistArgs {
   uploadId: string;
@@ -252,6 +255,36 @@ export async function parseAndPersistDemo(
         console.log(`[persist-demo] findings match=${match.id}: ${findings}`);
       } catch (error) {
         console.error(`[persist-demo] findings FAILED match=${match.id}:`, error);
+      }
+    }
+    // Ranks and norm samples (S13). Neither may fail the analysis.
+    const upload = await prisma.demoUpload.findUnique({
+      where: { id: uploadId },
+      select: { faceitMatchId: true, pro: true },
+    });
+    if (!upload?.pro) {
+      try {
+        const ticks = [parsed.rounds[0]?.startTick, parsed.rounds[parsed.rounds.length - 1]?.startTick].filter(
+          (t): t is number => typeof t === "number" && t > 0
+        );
+        const ranked = await persistMatchRanks(prisma, match.id, {
+          faceitMatchId: upload?.faceitMatchId ?? null,
+          demoRanks: await parsePlayerRanks(filePath, ticks),
+        });
+        console.log(`[persist-demo] ranks match=${match.id}: ${ranked} players`);
+      } catch (error) {
+        console.error(`[persist-demo] ranks FAILED match=${match.id}:`, error);
+      }
+    }
+    if (replayStored) {
+      try {
+        const samples = await computeAndPersistNormSamples(prisma, match.id);
+        // A new pro demo changes the pro norms at once; rank pools catch up periodically.
+        if (upload?.pro) await refreshNorms(prisma);
+        else await refreshNormsIfStale(prisma);
+        console.log(`[persist-demo] norm samples match=${match.id}: ${samples}`);
+      } catch (error) {
+        console.error(`[persist-demo] norms FAILED match=${match.id}:`, error);
       }
     }
     await onProgress?.(98);

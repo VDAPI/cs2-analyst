@@ -112,6 +112,10 @@ model DemoUpload {
   parseStartedAt DateTime? // last time the parser picked it up (admin metrics)
   parseMs       Int? // wall time of the last successful parse + persist, in ms
   retries       Int          @default(0) // times a failed/stuck analysis was queued again
+  // Pro demo (S13): part of the pro pool the norms are measured on. Owned by
+  // the pro-pool system user (src/lib/norms/pro-pool.ts), never a player.
+  pro           Boolean      @default(false)
+  proLabel      String? // e.g. "Vitality vs MOUZ, IEM Cologne 2026" (admin-entered)
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
@@ -160,6 +164,7 @@ model Match {
   utility   UtilityStats[]
   tactics   TacticsStats[]
   findings  Finding[]
+  normSamples NormSample[]
 
   // FINDINGS_STAMP the stored findings were built with (null = never); a
   // different stamp makes the report rebuild them (src/lib/findings/persist.ts).
@@ -187,6 +192,12 @@ model MatchPlayer {
   firstDeaths    Int   @default(0)
   clutchWins     Int   @default(0)
   clutchAttempts Int   @default(0)
+
+  // Rank in this match (S13): "faceit" (level 1-10, from the FACEIT match
+  // room), "premier" (CS Rating from the demo) or "competitive" (skill group
+  // 1-18 from the demo). Null when unknown.
+  rankType  String?
+  rankValue Int?
 
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
   user  User? @relation(fields: [userId], references: [id])
@@ -794,4 +805,52 @@ model FaceitApiCache {
   updatedAt DateTime @updatedAt
 
   @@index([expiresAt])
+}
+
+// ─── Norms (S13) ─────────────────────────────────────────
+
+/// One player's report metrics in one match, for one side ("CT" | "T" |
+/// "all"), computed by the same analysis as the report
+/// (src/lib/norms/sample.ts). The pro pool and the rank pools are built from
+/// these rows; `metrics` is { "<metric>@<situation>": [value, samples] }.
+model NormSample {
+  id      String  @id @default(cuid())
+  matchId String
+  steamId String
+  side    String // "CT" | "T" | "all"
+  map     String
+  pro     Boolean // from a pro demo (DemoUpload.pro)
+  version String // NORMS_STAMP; older rows are recomputed
+  metrics Json
+
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, steamId, side])
+  @@index([pro, version])
+}
+
+/// Percentiles of one metric in one pool, map, side and situation, rebuilt
+/// from NormSample by refreshNorms() (src/lib/norms/persist.ts). Pool is
+/// "pro", "all" (every analysed player) or a rank bucket ("faceit:7",
+/// "premier:15000", "competitive:12").
+model MetricNorm {
+  id        String   @id @default(cuid())
+  pool      String
+  map       String // "all" or the map name
+  side      String // "CT" | "T" | "all"
+  situation String // "all" or a weapon class ("rifle", "awp", "smg", "pistol")
+  metric    String // ReportMetric.key
+  n         Int // player-matches
+  p10       Float
+  p25       Float
+  p50       Float
+  p75       Float
+  p90       Float
+  mean      Float
+  updatedAt DateTime @updatedAt
+
+  @@unique([pool, map, side, situation, metric])
+  @@index([pool])
 }

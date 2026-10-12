@@ -1016,7 +1016,7 @@ export function aimMetrics(s: Omit<PlayerAim, "steamId" | "moments" | "peekTypes
     },
     {
       key: "ttd", label: "Time to damage", value: s.ttdMedianMs, unit: "ms",
-      threshold: "≤ 500 ms dobrze, > 800 ms źle", status: lower(s.ttdMedianMs, 500, 800),
+      threshold: "≤ 600 ms dobrze, > 900 ms źle", status: lower(s.ttdMedianMs, 600, 900),
       samples: s.ttdSamples, moments: null,
       hint: "Od pojawienia się wroga do pierwszych zadanych mu obrażeń.",
     },
@@ -1034,7 +1034,7 @@ export function aimMetrics(s: Omit<PlayerAim, "steamId" | "moments" | "peekTypes
     },
     {
       key: "overflick", label: "Overflick", value: overflickPct, unit: "%",
-      threshold: "≤ 15% dobrze, > 30% źle", status: lower(overflickPct, 15, 30),
+      threshold: "≤ 25% dobrze, > 40% źle", status: lower(overflickPct, 25, 40),
       samples: s.flicks + s.overflicks, moments: "overflick",
       hint: `Flick, który minął głowę o co najmniej ${OVERFLICK_DEG}° i wymagał poprawki.`,
     },
@@ -1046,19 +1046,19 @@ export function aimMetrics(s: Omit<PlayerAim, "steamId" | "moments" | "peekTypes
     },
     {
       key: "noise", label: "Bieg przy wrogu", value: s.noiseEpisodes, unit: "",
-      threshold: "0–2 dobrze, > 5 źle", status: lower(s.noiseEpisodes, 2, 5),
+      threshold: "0–4 dobrze, > 10 źle", status: lower(s.noiseEpisodes, 4, 10),
       samples: s.noiseEpisodes, moments: "noise",
       hint: `Bieg (kroki słychać) w zasięgu ${HEAR_RANGE} jednostek od wroga, o którym team wiedział. ${s.noiseCostly} skończyło się trafieniem.`,
     },
     {
       key: "jump", label: "Zbędne skoki", value: s.jumpsNearEnemy, unit: "",
-      threshold: "0–1 dobrze, > 3 źle", status: lower(s.jumpsNearEnemy, 1, 3),
+      threshold: "0–2 dobrze, > 5 źle", status: lower(s.jumpsNearEnemy, 2, 5),
       samples: s.jumps, moments: "jump",
       hint: `Skoki w zasięgu słuchu wroga (lądowanie słychać). Wszystkich skoków: ${s.jumps}, strzałów w powietrzu: ${s.airShots}.`,
     },
     {
       key: "reload", label: "Reload w złym momencie", value: s.reloadData ? s.badReloads : null, unit: "",
-      threshold: "0 dobrze, > 2 źle", status: s.reloadData ? lower(s.badReloads, 0, 2) : "none",
+      threshold: "0–2 dobrze, > 5 źle", status: s.reloadData ? lower(s.badReloads, 2, 5) : "none",
       samples: s.reloads, moments: "reload",
       hint: s.reloadData
         ? "Trafiony lub zabity w trakcie przeładowania albo przeładowanie z pełnym w połowie magazynkiem przy znanym wrogu."

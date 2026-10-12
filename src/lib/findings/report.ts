@@ -113,19 +113,19 @@ export function utilityMetrics(u: UtilitySummary): ReportMetric[] {
     },
     {
       key: "he_damage", type: "he_no_effect", label: "Obrażenia na HE", value: he, unit: "HP",
-      threshold: "≥ 18 HP dobrze, < 8 HP źle", status: higher(he, 18, 8), samples: u.hes,
+      threshold: "≥ 15 HP dobrze, < 6 HP źle", status: higher(he, 15, 6), samples: u.hes,
       hint: `${u.heDamage} HP obrażeń z ${u.hes} granatów HE.`,
     },
     {
       key: "molotov_damage", type: "molotov_no_effect", label: "Obrażenia na molotova", value: fire, unit: "HP",
-      threshold: "≥ 12 HP dobrze, < 5 HP źle", status: higher(fire, 12, 5), samples: u.molotovs,
+      threshold: "≥ 10 HP dobrze, < 3 HP źle", status: higher(fire, 10, 3), samples: u.molotovs,
       hint: `${u.molotovDamage} HP obrażeń z ${u.molotovs} molotovów.`,
     }
   );
   if (u.inventoryData) {
     out.push({
       key: "unused_utility", type: "death_with_utility", label: "Utility niewykorzystane na śmierć", value: unused,
-      unit: "$", threshold: "≤ 150 $ dobrze, > 300 $ źle", status: lower(unused, 150, 300), samples: u.deaths,
+      unit: "$", threshold: "≤ 200 $ dobrze, > 350 $ źle", status: lower(unused, 200, 350), samples: u.deaths,
       hint: `${u.deathsWithUtility} z ${u.deaths} śmierci z granatami w ekwipunku, razem ${u.unusedUtilityValue} $.`,
     });
   }
@@ -152,7 +152,7 @@ export function playerMetrics(
       },
       {
         key: "strafe", type: "late_strafe", label: "Czas counter-strafe", value: rounded(mech.counterStrafeAvgMs), unit: "ms",
-        threshold: "≤ 110 ms dobrze, > 160 ms źle", status: lower(mech.counterStrafeAvgMs, 110, 160),
+        threshold: "≤ 70 ms dobrze, > 100 ms źle", status: lower(mech.counterStrafeAvgMs, 70, 100),
         samples: mech.counterStrafes, hint: "Średni czas od biegu do prędkości, przy której strzał jest celny.",
       },
       {
@@ -162,7 +162,7 @@ export function playerMetrics(
       },
       {
         key: "hs", type: "headshots", label: "Trafienia w głowę", value: hs, unit: "%",
-        threshold: "≥ 45% dobrze, < 30% źle", status: higher(hs, 45, 30), samples: mech.hits,
+        threshold: "≥ 28% dobrze, < 18% źle", status: higher(hs, 28, 18), samples: mech.hits,
         hint: `${mech.headHits} z ${mech.hits} trafień w głowę.`,
       }
     );
@@ -185,12 +185,12 @@ export function playerMetrics(
     out.push(
       {
         key: "traded_deaths", type: "untraded_death", label: "Śmierci odegrane przez team", value: traded, unit: "%",
-        threshold: "≥ 30% dobrze, < 15% źle", status: higher(traded, 30, 15), samples: tactics.deaths,
+        threshold: "≥ 25% dobrze, < 12% źle", status: higher(traded, 25, 12), samples: tactics.deaths,
         hint: `${tactics.tradedDeaths} z ${tactics.deaths} śmierci odegrane w ${TRADE_WINDOW_S} s; ${tactics.isolatedDeaths} bez kolegi w zasięgu.`,
       },
       {
         key: "trades", type: "missed_trade", label: "Wykorzystane trade'y", value: trades, unit: "%",
-        threshold: "≥ 50% dobrze, < 25% źle", status: higher(trades, 50, 25), samples: tactics.tradeChances,
+        threshold: "≥ 45% dobrze, < 20% źle", status: higher(trades, 45, 20), samples: tactics.tradeChances,
         hint: `${tactics.tradesMade} z ${tactics.tradeChances} sytuacji, w których byłeś najbliżej ginącego kolegi.`,
       },
       {
