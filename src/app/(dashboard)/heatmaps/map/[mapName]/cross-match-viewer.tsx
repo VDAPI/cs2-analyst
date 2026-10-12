@@ -123,7 +123,7 @@ export function CrossMatchHeatmap({
     const w = canvas.width;
     const h = canvas.height;
 
-    ctx.fillStyle = "#0a0a12";
+    ctx.fillStyle = "#08070D";
     ctx.fillRect(0, 0, w, h);
 
     if (radarImage) {
@@ -151,7 +151,7 @@ export function CrossMatchHeatmap({
       for (let i = 0; i < canvasPoints.length; i++) {
         const cp = canvasPoints[i];
         const p = points[i];
-        const dotColor = heatmapType === "kills" ? "rgba(239, 68, 68, 0.7)" : "rgba(107, 114, 128, 0.7)";
+        const dotColor = heatmapType === "kills" ? "rgba(255, 77, 106, 0.7)" : "rgba(110, 104, 144, 0.7)";
 
         ctx.beginPath();
         ctx.arc(cp.x, cp.y, p.headshot ? 5 : 3.5, 0, Math.PI * 2);
@@ -159,7 +159,7 @@ export function CrossMatchHeatmap({
         ctx.fill();
 
         if (p.headshot) {
-          ctx.strokeStyle = "#f59e0b";
+          ctx.strokeStyle = "#FFB020";
           ctx.lineWidth = 1;
           ctx.stroke();
         }
@@ -230,14 +230,14 @@ export function CrossMatchHeatmap({
             className="h-full w-full"
           />
           {/* Legend overlay */}
-          <div className="absolute bottom-3 left-3 rounded-lg bg-[rgba(15,15,18,0.85)] px-3 py-2 backdrop-blur-sm">
+          <div className="absolute bottom-3 left-3 rounded-lg bg-[rgba(16,14,25,0.85)] px-3 py-2 backdrop-blur-sm">
             <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
               Intensity
             </p>
             <div className="flex items-center gap-1">
               <span className="text-[9px] text-[var(--text-tertiary)]">Low</span>
               <div className="h-2 w-24 rounded-full" style={{
-                background: "linear-gradient(to right, rgba(59,130,246,0.3), rgba(34,197,94,0.5), rgba(251,191,36,0.7), rgba(239,68,68,0.9))"
+                background: "linear-gradient(to right, rgba(155,107,255,0.3), rgba(61,245,160,0.5), rgba(255,194,61,0.7), rgba(255,77,106,0.9))"
               }} />
               <span className="text-[9px] text-[var(--text-tertiary)]">High</span>
             </div>
@@ -256,7 +256,7 @@ export function CrossMatchHeatmap({
                 onClick={() => setHeatmapType("kills")}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-150 ${
                   heatmapType === "kills"
-                    ? "bg-[rgba(239,68,68,0.15)] text-[#ef4444]"
+                    ? "bg-[rgba(255,77,106,0.15)] text-[#FF4D6A]"
                     : "bg-[var(--surface-2)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
                 }`}
               >
@@ -267,7 +267,7 @@ export function CrossMatchHeatmap({
                 onClick={() => setHeatmapType("deaths")}
                 className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-150 ${
                   heatmapType === "deaths"
-                    ? "bg-[rgba(107,114,128,0.15)] text-[#6b7280]"
+                    ? "bg-[rgba(110,104,144,0.15)] text-[#6E6890]"
                     : "bg-[var(--surface-2)] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
                 }`}
               >
@@ -394,7 +394,7 @@ export function CrossMatchHeatmap({
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-[var(--text-secondary)]">Headshots</span>
-                <span className="font-mono text-[#f59e0b]">
+                <span className="font-mono text-[#FFB020]">
                   {points.filter((p) => p.headshot).length}
                 </span>
               </div>

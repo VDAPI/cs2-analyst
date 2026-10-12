@@ -1,6 +1,12 @@
-export { Button, type ButtonProps } from "./button";
-export { Card } from "./card";
+export { Button, buttonVariants, type ButtonProps } from "./button";
+export { Card, CardHeader } from "./card";
 export { StatCard } from "./stat-card";
 export { Badge, type BadgeProps } from "./badge";
 export { InitialsAvatar } from "./initials-avatar";
 export { UserAvatar } from "./user-avatar";
+export { Checkbox, type CheckboxProps } from "./checkbox";
+export { Input } from "./input";
+export { Tabs, TabsList, TabsTrigger, TabsContent } from "./tabs";
+export { Progress } from "./progress";
+export { FindingTag, type FindingSeverity } from "./finding-tag";
+export { ToastProvider, useToast } from "./toast";

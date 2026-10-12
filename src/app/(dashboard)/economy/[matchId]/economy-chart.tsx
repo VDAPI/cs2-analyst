@@ -50,7 +50,7 @@ const BUY_TYPE_LABELS: Record<string, string> = {
 const BUY_TYPE_COLORS: Record<string, string> = {
   FULL_BUY: "var(--success)",
   FORCE_BUY: "var(--warning)",
-  HALF_BUY: "#f59e0b",
+  HALF_BUY: "#FFB020",
   ECO: "var(--error)",
   PISTOL: "var(--accent)",
   UNKNOWN: "var(--text-disabled)",
@@ -135,12 +135,12 @@ export function EconomyChart({
           <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
             <defs>
               <linearGradient id="ctGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.3} />
-                <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.02} />
+                <stop offset="0%" stopColor="#5AA9FF" stopOpacity={0.3} />
+                <stop offset="100%" stopColor="#5AA9FF" stopOpacity={0.02} />
               </linearGradient>
               <linearGradient id="tGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#fbbf24" stopOpacity={0.3} />
-                <stop offset="100%" stopColor="#fbbf24" stopOpacity={0.02} />
+                <stop offset="0%" stopColor="#FFC23D" stopOpacity={0.3} />
+                <stop offset="100%" stopColor="#FFC23D" stopOpacity={0.02} />
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
@@ -173,20 +173,20 @@ export function EconomyChart({
             <Area
               type="monotone"
               dataKey="ct"
-              stroke="#60a5fa"
+              stroke="#5AA9FF"
               strokeWidth={2}
               fill="url(#ctGrad)"
               dot={false}
-              activeDot={{ r: 4, strokeWidth: 0, fill: "#60a5fa" }}
+              activeDot={{ r: 4, strokeWidth: 0, fill: "#5AA9FF" }}
             />
             <Area
               type="monotone"
               dataKey="t"
-              stroke="#fbbf24"
+              stroke="#FFC23D"
               strokeWidth={2}
               fill="url(#tGrad)"
               dot={false}
-              activeDot={{ r: 4, strokeWidth: 0, fill: "#fbbf24" }}
+              activeDot={{ r: 4, strokeWidth: 0, fill: "#FFC23D" }}
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -281,7 +281,7 @@ function EconomyTooltip({ active, payload }: { active?: boolean; payload?: Toolt
   const data = payload[0].payload;
 
   return (
-    <div className="rounded-lg border border-[var(--border)] bg-[rgba(15,15,18,0.95)] px-3 py-2 shadow-lg backdrop-blur-sm">
+    <div className="rounded-lg border border-[var(--border)] bg-[rgba(16,14,25,0.95)] px-3 py-2 shadow-lg backdrop-blur-sm">
       <p className="mb-1 text-xs font-medium text-[var(--text-primary)]">
         Round {data.round}
         <span className="ml-2 font-mono text-[10px] text-[var(--text-tertiary)]">

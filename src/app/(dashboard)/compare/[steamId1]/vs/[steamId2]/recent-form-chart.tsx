@@ -109,8 +109,8 @@ export function RecentFormChart({
         Last 5 matches — HLTV Rating (1.0 baseline)
       </p>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        <Sparkline data={player1Form} color="#60a5fa" name={player1Name} />
-        <Sparkline data={player2Form} color="#fbbf24" name={player2Name} />
+        <Sparkline data={player1Form} color="#5AA9FF" name={player1Name} />
+        <Sparkline data={player2Form} color="#FFC23D" name={player2Name} />
       </div>
     </Card>
   );
