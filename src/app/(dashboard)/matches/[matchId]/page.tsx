@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Card, PageHeader, buttonVariants } from "@/components/ui";
 import { MapThumb } from "@/components/match";
 import Link from "next/link";
-import { Crosshair, DollarSign, Flame, Footprints, Play } from "lucide-react";
+import { ClipboardCheck, Crosshair, DollarSign, Flame, Footprints, Play } from "lucide-react";
 import { RoundTimeline } from "./round-timeline";
 import { ScoreboardLegend, ScoreboardTable } from "./scoreboard-table";
 import { formatDate } from "@/lib/utils/formatters";
@@ -140,6 +140,7 @@ export default async function MatchDetailPage({ params }: Props) {
   const multiKillMap = Object.fromEntries(multiKillsByRound(multiKills));
 
   const toolLinks = [
+    { href: `/report/${matchId}`, label: "Co poprawić", icon: ClipboardCheck, primary: true },
     { href: `/economy/${matchId}`, label: "Ekonomia", icon: DollarSign },
     { href: `/heatmaps/${matchId}`, label: "Heatmapa", icon: Flame },
     { href: `/replay/${matchId}`, label: "Replay 2D", icon: Play },
@@ -204,11 +205,11 @@ export default async function MatchDetailPage({ params }: Props) {
         {/* Tool links: one scrollable chip row on phones */}
         <nav aria-label="Narzędzia meczu" className="-mx-4 mt-5 md:mx-0">
           <div className="flex gap-2 overflow-x-auto px-4 pb-1 md:flex-wrap md:overflow-visible md:px-0 md:pb-0">
-            {toolLinks.map(({ href, label, icon: Icon }) => (
+            {toolLinks.map(({ href, label, icon: Icon, primary }) => (
               <Link
                 key={href}
                 href={href}
-                className={buttonVariants({ variant: "secondary", size: "sm", className: "shrink-0" })}
+                className={buttonVariants({ variant: primary ? "primary" : "secondary", size: "sm", className: "shrink-0" })}
               >
                 <Icon className="h-3.5 w-3.5" aria-hidden />
                 {label}

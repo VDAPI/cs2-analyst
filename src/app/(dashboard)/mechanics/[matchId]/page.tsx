@@ -12,23 +12,13 @@ import { getAimStats } from "@/lib/analysis/persist-aim";
 import type { AimMomentType } from "@/lib/analysis/aim";
 import { AimSection, type AimRow } from "./aim-section";
 import { cn } from "@/lib/utils/cn";
+import { weaponLabel } from "@/lib/utils/weapons";
 
 interface Props {
   params: Promise<{ matchId: string }>;
   searchParams: Promise<{ player?: string; aim?: string }>;
 }
 
-const WEAPON_LABEL: Record<string, string> = {
-  glock: "Glock-18", hkp2000: "P2000", usp_silencer: "USP-S", p250: "P250",
-  elite: "Dual Berettas", fiveseven: "Five-SeveN", tec9: "Tec-9", cz75a: "CZ75-Auto",
-  deagle: "Desert Eagle", revolver: "R8 Revolver", mac10: "MAC-10", mp9: "MP9",
-  mp7: "MP7", mp5sd: "MP5-SD", ump45: "UMP-45", p90: "P90", bizon: "PP-Bizon",
-  ak47: "AK-47", m4a1: "M4A4", m4a1_silencer: "M4A1-S", galilar: "Galil AR",
-  famas: "FAMAS", sg556: "SG 553", aug: "AUG", awp: "AWP", ssg08: "SSG 08",
-  scar20: "SCAR-20", g3sg1: "G3SG1", nova: "Nova", xm1014: "XM1014",
-  mag7: "MAG-7", sawedoff: "Sawed-Off", m249: "M249", negev: "Negev",
-};
-const weaponLabel = (w: string) => WEAPON_LABEL[w] ?? w;
 
 const AIM_FILTERS = new Set<AimMomentType>([
   "crosshair", "reaction", "spray", "overflick", "dry_peek", "noise", "jump", "air_shot", "reload",
@@ -114,7 +104,10 @@ export default async function MechanicsPage({ params, searchParams }: Props) {
         </h1>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
           {mapDisplayName(match.map)} <span className="font-mono">{match.scoreCT}:{match.scoreT}</span>
-          {" — "}ruch przy strzale, celowanie i pojedynki.
+          {" — "}ruch przy strzale, celowanie i pojedynki.{" "}
+          <Link href={`/report/${matchId}${player ? `?player=${player}` : ""}`} className="font-medium text-[var(--accent-hover)] hover:underline">
+            Raport: co poprawić
+          </Link>
         </p>
       </div>
 
@@ -230,6 +223,7 @@ function PlayerDetail({
 }: {
   matchId: string;
   p: {
+    steamId: string;
     name: string;
     team: "CT" | "T";
     shots: number;
@@ -359,7 +353,7 @@ function PlayerDetail({
             {p.momentRows.map((m) => (
               <Link
                 key={`${m.roundNumber}-${m.tick}`}
-                href={`/replay/${matchId}?round=${m.roundNumber}&tick=${m.tick}`}
+                href={`/replay/${matchId}?round=${m.roundNumber}&tick=${m.tick}&player=${p.steamId}`}
                 className="group flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3 transition-colors hover:border-[var(--border-hover)]"
               >
                 <div className="min-w-0 flex-1">

@@ -12,6 +12,7 @@ import {
   Shield,
   ListOrdered,
   Library,
+  ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -33,6 +34,7 @@ export const navGroups: NavGroup[] = [
     label: "Analiza",
     items: [
       { href: "/matches", label: "Mecze", icon: BarChart3 },
+      { href: "/report", label: "Raport", icon: ClipboardCheck },
       { href: "/upload", label: "Wgraj demo", icon: Upload },
       { href: "/queue", label: "Kolejka analiz", icon: ListOrdered },
       { href: "/library", label: "Biblioteka", icon: Library },
@@ -61,7 +63,7 @@ export const navGroups: NavGroup[] = [
 export const settingsItem: NavItem = { href: "/settings", label: "Ustawienia", icon: Settings };
 
 /** The four destinations pinned to the mobile bottom bar; the rest live under "Więcej". */
-export const mobilePrimaryHrefs = ["/matches", "/upload", "/replay", "/players"];
+export const mobilePrimaryHrefs = ["/matches", "/report", "/upload", "/replay"];
 
 export function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);

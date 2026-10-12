@@ -155,6 +155,7 @@ if (a && b && c && d) {
   check("A: visibility mixed (spotting in r1, FOV in r2)", a.visibility === "mixed");
   check("A: crosshair sampled in both r1 duels", a.crosshairSamples === 2);
   check("A: 30° off B at first sight → crosshair moment", a.moments.some((m) => m.type === "crosshair" && m.tick === 400 && near(m.value, 30, 1)));
+  check("A: crosshair moment names its enemy (B)", a.moments.find((m) => m.type === "crosshair" && m.tick === 400)?.enemy === B);
   check("A: reaction only where the first sight is known (B duel)", a.reactionSamples === 1);
   // Swing starts on the 420 frame: 20 ticks after first sight.
   check("A: reaction ≈ 313 ms", near(a.reactionMedianMs, 313, 2));
@@ -173,7 +174,7 @@ if (a && b && c && d) {
 
   check("B: crosshair on A at first sight (≈0°)", b.crosshairSamples === 1 && near(b.crosshairMedianDeg, 0, 0.5) && b.crosshairBad === 0);
   check("B: never reacted, no reaction sample", b.reactionSamples === 0);
-  check("B: one shot in the air", b.airShots === 1 && b.moments.some((m) => m.type === "air_shot"));
+  check("B: one shot in the air", b.airShots === 1 && b.moments.some((m) => m.type === "air_shot" && m.weapon === "deagle"));
   check("B: reload with nothing around is fine", b.reloads === 1 && b.badReloads === 0);
 
   check("C: FOV visibility, crosshair sampled, no reaction (onset unknown)", c.visibility === "fov" && c.crosshairSamples === 1 && c.reactionSamples === 0);

@@ -27,7 +27,10 @@ interface Props {
 }
 
 /**
- * GET /api/matches/[matchId]/ticks?round=1&interval=32
+ * GET /api/matches/[matchId]/ticks?round=1&interval=32[&from=T1&to=T2]
+ *
+ * `from`/`to` (ticks, inclusive) cut the round down to a window — the 2D clip
+ * on a finding card asks for a few seconds around the mistake at full rate.
  *
  * Player snapshots per tick for one round. Served from the sampled RoundTicks
  * stored at parse time, so it keeps working after the .dem is deleted. Matches
@@ -45,6 +48,8 @@ export async function GET(req: Request, { params }: Props) {
   const roundNum = parseInt(url.searchParams.get("round") ?? "1", 10);
   const requested = parseInt(url.searchParams.get("interval") ?? "32", 10);
   const interval = Number.isFinite(requested) && requested >= 1 ? requested : 32;
+  const fromTick = parseInt(url.searchParams.get("from") ?? "", 10);
+  const toTick = parseInt(url.searchParams.get("to") ?? "", 10);
 
   const match = await prisma.match.findUnique({
     where: { id: matchId },
@@ -103,7 +108,10 @@ export async function GET(req: Request, { params }: Props) {
   }
 
   const step = Math.max(1, Math.round(interval / storedInterval));
-  const ticks = subsampleFrames(frames, step).map((f) => ({
+  const windowed = frames.filter(
+    (f) => (!Number.isFinite(fromTick) || f.tick >= fromTick) && (!Number.isFinite(toTick) || f.tick <= toTick)
+  );
+  const ticks = subsampleFrames(windowed, step).map((f) => ({
     tick: f.tick,
     players: f.players.map((p) => ({
       steamId: p.steamId,

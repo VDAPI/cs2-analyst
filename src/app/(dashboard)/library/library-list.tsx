@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Archive, FileText, FileX, Library, Play, Trash2, Upload } from "lucide-react";
+import { AlertCircle, Archive, FileText, FileX, Library, Play, Trash2, Upload, ClipboardCheck } from "lucide-react";
 import { Badge, Button, Card, EmptyState, buttonVariants, type BadgeProps } from "@/components/ui";
 import { MapThumb, ResultBadge, SourceBadge } from "@/components/match";
 import { formatDate } from "@/lib/utils/formatters";
@@ -190,7 +190,13 @@ export function LibraryList({ entries }: { entries: LibraryEntry[] }) {
                   href={`/matches/${e.matchId}`}
                   className={buttonVariants({ variant: "secondary", size: "sm" })}
                 >
-                  <FileText className="h-3.5 w-3.5" aria-hidden /> Raport
+                  <FileText className="h-3.5 w-3.5" aria-hidden /> Mecz
+                </Link>
+                <Link
+                  href={`/report/${e.matchId}`}
+                  className={buttonVariants({ variant: "secondary", size: "sm" })}
+                >
+                  <ClipboardCheck className="h-3.5 w-3.5" aria-hidden /> Co poprawić
                 </Link>
                 <Link
                   href={`/replay/${e.matchId}`}

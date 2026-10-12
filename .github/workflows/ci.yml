@@ -65,3 +65,7 @@ jobs:
       - name: Aim and duels analysis regression tests
         if: ${{ !cancelled() }}
         run: npm run test:aim
+
+      - name: Findings and report regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:findings
