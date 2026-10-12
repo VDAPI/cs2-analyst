@@ -5,6 +5,7 @@
  */
 import type { PrismaClient } from "@prisma/client";
 import { access } from "fs/promises";
+import { parseDemoLocation } from "../storage/demo-store";
 import { formatReplayStats, parseAndPersistReplayData } from "./persist-replay";
 
 export interface BackfillResult {
@@ -24,7 +25,7 @@ export async function backfillReplayData(
     // COMPLETED only: an upload still PARSING gets its replay data from the
     // parse itself.
     where: {
-      upload: { is: { status: "COMPLETED" } },
+      upload: { is: { status: "COMPLETED", demoDeletedAt: null } },
       ...(opts.matchId ? { id: opts.matchId } : {}),
     },
     select: {
@@ -43,8 +44,10 @@ export async function backfillReplayData(
       result.skipped++;
       continue;
     }
-    const filePath = m.upload!.fileUrl.replace(/\\/g, "/");
-    if (!(await access(filePath).then(() => true, () => false))) {
+    // Only local files: an R2 demo was stored after replay data existed.
+    const loc = parseDemoLocation(m.upload!.fileUrl);
+    const filePath = loc.kind === "local" ? loc.path : "";
+    if (!filePath || !(await access(filePath).then(() => true, () => false))) {
       log(`  NO FILE ${m.id} (${m.map}): ${filePath}`);
       result.missingFile++;
       continue;

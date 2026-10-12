@@ -10,6 +10,8 @@ import {
   Flame,
   Trophy,
   Shield,
+  ListOrdered,
+  Library,
   type LucideIcon,
 } from "lucide-react";
 
@@ -32,6 +34,8 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: "/matches", label: "Mecze", icon: BarChart3 },
       { href: "/upload", label: "Wgraj demo", icon: Upload },
+      { href: "/queue", label: "Kolejka analiz", icon: ListOrdered },
+      { href: "/library", label: "Biblioteka", icon: Library },
       { href: "/players", label: "Gracze", icon: Users },
       { href: "/compare", label: "Porównanie", icon: GitCompare },
     ],

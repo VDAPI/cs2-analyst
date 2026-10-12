@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { access } from "fs/promises";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { parseDemoLocation } from "@/lib/storage/demo-store";
 import {
   REPLAY_TICK_PROPS,
   decodeRoundTicks,
@@ -79,9 +80,11 @@ export async function GET(req: Request, { params }: Props) {
     storedInterval = round.ticks.interval;
     source = "db";
   } else {
-    // demoparser2 (Rust) needs forward-slash paths to avoid "IllegalPathOp" on Windows.
-    const filePath = match.upload.fileUrl.replace(/\\/g, "/");
-    const onDisk = await access(filePath).then(() => true, () => false);
+    // Only a demo on local disk is worth parsing per request; everything
+    // analyzed since replay data existed has it in the DB anyway.
+    const loc = parseDemoLocation(match.upload.fileUrl);
+    const filePath = loc.kind === "local" ? loc.path : "";
+    const onDisk = filePath !== "" && (await access(filePath).then(() => true, () => false));
     if (!onDisk) {
       return NextResponse.json(
         { error: "Replay data not available: the demo was removed before replay data was stored" },

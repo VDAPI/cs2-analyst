@@ -82,16 +82,24 @@ model DemoUpload {
   fileUrl       String
   fileSize      Int
   status        ParseStatus  @default(QUEUED)
+  progress      Int          @default(0) // 0-100, shown in the analysis queue
   source        UploadSource @default(MANUAL)
   faceitMatchId String?      @unique
   error         String?
   matchId       String?      @unique
+  // fileUrl is a local path, or "r2://<key>" when the demo lives in R2
+  // (src/lib/storage/demo-store.ts). Empty while a FACEIT download is pending.
+  keepDemo      Boolean      @default(false) // "keep demo": skip deleting the .dem after analysis
+  demoDeletedAt DateTime? // set once the .dem is gone from disk/R2
+  deletedAt     DateTime? // analysis deleted by the user; row kept so the monthly limit still counts it
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
   user        User         @relation(fields: [userId], references: [id])
   match       Match?       @relation(fields: [matchId], references: [id])
   faceitMatch FaceitMatch?
+
+  @@index([userId, createdAt])
 }
 
 enum UploadSource {
@@ -101,6 +109,7 @@ enum UploadSource {
 
 enum ParseStatus {
   QUEUED
+  DOWNLOADING
   PARSING
   COMPLETED
   FAILED
@@ -501,6 +510,7 @@ model FaceitMatch {
   date            DateTime
   faceitUrl       String
   competition     String?
+  result          MatchResult? // the user's result; null for matches synced before it was stored
   demoResourceUrl String? // demo_url[0] from Data API — exchanged for a signed URL at download time
   demoStatus      DemoFetchStatus @default(UNKNOWN)
   uploadId        String?         @unique // linked when user uploads/downloads demo
@@ -508,6 +518,11 @@ model FaceitMatch {
 
   user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   upload DemoUpload? @relation(fields: [uploadId], references: [id])
+}
+
+enum MatchResult {
+  WIN
+  LOSS
 }
 
 enum DemoFetchStatus {
