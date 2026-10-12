@@ -7,6 +7,7 @@ import { Logo } from "./logo";
 import { NavGroups } from "./nav-groups";
 import { NavLink } from "./nav-link";
 import { settingsItem, isActivePath } from "./nav-items";
+import { useT } from "@/lib/i18n/client";
 
 interface MobileDrawerProps {
   open: boolean;
@@ -16,6 +17,7 @@ interface MobileDrawerProps {
 /** Full navigation for screens below 1024px (opened from the top bar or the "Więcej" tab). */
 export function MobileDrawer({ open, onOpenChange }: MobileDrawerProps) {
   const pathname = usePathname();
+  const t = useT();
   const close = () => onOpenChange(false);
 
   return (
@@ -28,15 +30,15 @@ export function MobileDrawer({ open, onOpenChange }: MobileDrawerProps) {
           <div className="flex h-[var(--topbar-height)] shrink-0 items-center justify-between border-b border-[var(--border)] pl-5 pr-2">
             <Logo onClick={close} />
             <Dialog.Close
-              aria-label="Zamknij menu"
+              aria-label={t("nav.closeMenu")}
               className="flex h-11 w-11 items-center justify-center rounded-md text-[var(--text-tertiary)] transition-colors hover:bg-[rgba(190,160,255,0.06)] hover:text-[var(--text-primary)]"
             >
               <X className="h-5 w-5" />
             </Dialog.Close>
           </div>
-          <Dialog.Title className="sr-only">Menu</Dialog.Title>
-          <Dialog.Description className="sr-only">Nawigacja po aplikacji</Dialog.Description>
-          <nav aria-label="Główna nawigacja" className="flex-1 overflow-y-auto p-3">
+          <Dialog.Title className="sr-only">{t("nav.menu")}</Dialog.Title>
+          <Dialog.Description className="sr-only">{t("nav.menuDescription")}</Dialog.Description>
+          <nav aria-label={t("nav.mainNav")} className="flex-1 overflow-y-auto p-3">
             <NavGroups onNavigate={close} />
           </nav>
           <div className="border-t border-[var(--border)] p-3 pb-[calc(12px+env(safe-area-inset-bottom))]">

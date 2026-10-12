@@ -15,7 +15,10 @@ import {
   buttonVariants,
   useToast,
 } from "@/components/ui";
-import { AlertCircle, Camera, Check, CheckCircle, Link2, Unlink } from "lucide-react";
+import { AlertCircle, Camera, Check, CheckCircle, Gamepad2, Link2, Unlink } from "lucide-react";
+import { useT } from "@/lib/i18n/client";
+import type { MessageKey } from "@/lib/i18n/translate";
+import { InstallCard, LanguageCard, PushCard } from "./platform-cards";
 
 interface SettingsContentProps {
   user: {
@@ -27,6 +30,8 @@ interface SettingsContentProps {
     faceitId: string | null;
     faceitNickname: string | null;
   };
+  /** Premier / Steam match history is switched on (opt-in, S18). */
+  premierHistory: boolean;
   /** Plan usage this month; null limits mean unlimited. */
   usage: {
     used: number;
@@ -44,10 +49,10 @@ const planBadgeVariant: Record<string, "default" | "success" | "warning"> = {
   TEAM: "warning",
 };
 
-const PLAN_LABEL: Record<string, string> = {
-  FREE: "Darmowy",
-  PRO: "Pro",
-  TEAM: "Drużyna",
+const PLAN_LABEL: Record<string, MessageKey> = {
+  FREE: "settings.planFree",
+  PRO: "settings.planPro",
+  TEAM: "settings.planTeam",
 };
 
 const fmtLimit = (n: number | null) => (n === null ? "∞" : String(n));
@@ -69,7 +74,8 @@ function Notice({ tone, children }: { tone: "good" | "mistake"; children: React.
   );
 }
 
-export function SettingsContent({ user, usage }: SettingsContentProps) {
+export function SettingsContent({ user, premierHistory, usage }: SettingsContentProps) {
+  const t = useT();
   const { update } = useSession();
   const toast = useToast();
   const searchParams = useSearchParams();
@@ -165,7 +171,7 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
         canvas.width = 128;
         canvas.height = 128;
         const ctx = canvas.getContext("2d");
-        if (!ctx) { reject(new Error("Canvas nie jest obsługiwany")); return; }
+        if (!ctx) { reject(new Error(t("settings.canvasUnsupported"))); return; }
 
         // Center-crop to square
         const min = Math.min(img.width, img.height);
@@ -175,7 +181,7 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
 
         resolve(canvas.toDataURL("image/webp", 0.85));
       };
-      img.onerror = () => reject(new Error("Nie udało się wczytać obrazu"));
+      img.onerror = () => reject(new Error(t("settings.imageLoadFailed")));
       img.src = URL.createObjectURL(file);
     });
   }
@@ -187,7 +193,7 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
     e.target.value = "";
 
     if (file.size > 2 * 1024 * 1024) {
-      toast({ title: "Obraz musi mieć mniej niż 2 MB", variant: "warning" });
+      toast({ title: t("settings.avatarTooBig"), variant: "warning" });
       return;
     }
 
@@ -244,14 +250,14 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
   return (
     <div className="max-w-3xl space-y-6">
       <PageHeader
-        eyebrow="Konto"
-        title="Ustawienia"
-        description="Zarządzaj profilem, połączonymi kontami i planem."
+        eyebrow={t("settings.eyebrow")}
+        title={t("settings.title")}
+        description={t("settings.description")}
       />
 
       {/* Profile */}
       <Card>
-        <CardHeader title="Profil" description="Tak widzą Cię inni w raportach i porównaniach." />
+        <CardHeader title={t("settings.profileTitle")} description={t("settings.profileDescription")} />
         <div className="flex min-w-0 items-center gap-4">
           <div className="relative shrink-0">
             <UserAvatar name={user.name ?? "?"} image={avatarImage} size="lg" />
@@ -260,8 +266,8 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadingAvatar}
               className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--surface-1)] bg-[var(--accent)] text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-hover)]"
-              title="Zmień awatar"
-              aria-label="Zmień awatar"
+              title={t("settings.changeAvatar")}
+              aria-label={t("settings.changeAvatar")}
             >
               <Camera className="h-3.5 w-3.5" aria-hidden />
             </button>
@@ -276,12 +282,12 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <p className="truncate font-medium text-[var(--text-primary)]">
-                {user.name ?? "Brak nazwy"}
+                {user.name ?? t("common.noName")}
               </p>
               <Badge variant={planBadgeVariant[user.plan] ?? "default"}>{user.plan}</Badge>
             </div>
             <p className="truncate text-sm text-[var(--text-secondary)]">
-              {user.email ?? "Brak e-maila"}
+              {user.email ?? t("common.noEmail")}
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-x-2">
               <button
@@ -290,7 +296,7 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
                 disabled={uploadingAvatar}
                 className="text-sm text-[var(--accent)] transition-colors hover:text-[var(--accent-hover)] max-md:min-h-11 md:text-xs"
               >
-                {uploadingAvatar ? "Wysyłanie…" : "Zmień awatar"}
+                {uploadingAvatar ? t("settings.uploadingAvatar") : t("settings.changeAvatar")}
               </button>
               {avatarImage && (
                 <>
@@ -303,7 +309,7 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
                     disabled={uploadingAvatar}
                     className="text-sm text-[var(--mistake)] transition-colors hover:text-[var(--text-primary)] max-md:min-h-11 md:text-xs"
                   >
-                    Usuń
+                    {t("common.remove")}
                   </button>
                 </>
               )}
@@ -314,7 +320,7 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
         {/* Display name edit */}
         <div className="mt-5 border-t border-[var(--border)] pt-5">
           <label htmlFor="display-name" className="label-overline text-[var(--text-tertiary)]">
-            Nazwa wyświetlana
+            {t("settings.displayName")}
           </label>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
             <Input
@@ -324,7 +330,7 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
               onChange={(e) => setDisplayName(e.target.value)}
               maxLength={50}
               className="min-w-0 flex-1"
-              placeholder="Wpisz nazwę"
+              placeholder={t("settings.displayNamePlaceholder")}
             />
             <Button
               disabled={!nameChanged || saving}
@@ -333,12 +339,12 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
             >
               {saved ? (
                 <>
-                  <Check className="h-4 w-4" aria-hidden /> Zapisano
+                  <Check className="h-4 w-4" aria-hidden /> {t("common.saved")}
                 </>
               ) : saving ? (
-                "Zapisywanie…"
+                t("common.saving")
               ) : (
-                "Zapisz"
+                t("common.save")
               )}
             </Button>
           </div>
@@ -348,21 +354,21 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
       {/* Linked Accounts */}
       <Card>
         <CardHeader
-          title="Połączone konta"
-          description="Steam rozpoznaje Cię w demach, FACEIT pobiera historię meczów."
+          title={t("settings.accountsTitle")}
+          description={t("settings.accountsDescription")}
         />
 
         <div className="space-y-2">
-          {linked === "steam" && <Notice tone="good">Konto Steam zostało połączone.</Notice>}
+          {linked === "steam" && <Notice tone="good">{t("settings.steamLinked")}</Notice>}
           {error === "steam-already-linked" && (
-            <Notice tone="mistake">To konto Steam jest już połączone z innym użytkownikiem.</Notice>
+            <Notice tone="mistake">{t("settings.steamTaken")}</Notice>
           )}
-          {linked === "faceit" && <Notice tone="good">Konto FACEIT zostało połączone.</Notice>}
+          {linked === "faceit" && <Notice tone="good">{t("settings.faceitLinked")}</Notice>}
           {error === "faceit-already-linked" && (
-            <Notice tone="mistake">To konto FACEIT jest już połączone z innym użytkownikiem.</Notice>
+            <Notice tone="mistake">{t("settings.faceitTaken")}</Notice>
           )}
           {(error === "faceit-link-failed" || error === "faceit-denied") && (
-            <Notice tone="mistake">Nie udało się połączyć FACEIT. Spróbuj ponownie.</Notice>
+            <Notice tone="mistake">{t("settings.faceitFailed")}</Notice>
           )}
         </div>
 
@@ -386,9 +392,9 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium text-[var(--text-primary)]">Steam</p>
                   {hasSteam ? (
-                    <Badge variant="success">Połączone</Badge>
+                    <Badge variant="success">{t("common.connected")}</Badge>
                   ) : (
-                    <Badge variant="neutral">Niepołączone</Badge>
+                    <Badge variant="neutral">{t("common.notConnected")}</Badge>
                   )}
                 </div>
                 <p className="truncate text-sm text-[var(--text-secondary)]">
@@ -397,7 +403,7 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
                       ID: <span className="font-mono tabular-nums">{user.steamId}</span>
                     </>
                   ) : (
-                    "Połącz, by rozpoznawać Twoje mecze"
+                    t("settings.steamHint")
                   )}
                 </p>
               </div>
@@ -412,13 +418,13 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
                 }}
               >
                 <Link2 className="h-3.5 w-3.5" aria-hidden />
-                Połącz
+                {t("common.connect")}
               </Button>
             )}
           </li>
 
           {/* FACEIT */}
-          <li className="flex flex-wrap items-center justify-between gap-3 py-4 last:pb-0">
+          <li className="flex flex-wrap items-center justify-between gap-3 py-4">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--faceit-muted)]">
                 <span className="font-display text-sm font-bold text-[var(--faceit)]" aria-hidden>
@@ -429,15 +435,15 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium text-[var(--text-primary)]">FACEIT</p>
                   {hasFaceit ? (
-                    <Badge variant="success">Połączone</Badge>
+                    <Badge variant="success">{t("common.connected")}</Badge>
                   ) : (
-                    <Badge variant="neutral">Niepołączone</Badge>
+                    <Badge variant="neutral">{t("common.notConnected")}</Badge>
                   )}
                 </div>
                 <p className="truncate text-sm text-[var(--text-secondary)]">
                   {hasFaceit
-                    ? `Połączono jako ${faceitState.nickname ?? faceitState.id}`
-                    : "Połącz, by wybierać mecze z historii FACEIT"}
+                    ? t("settings.faceitAs", { name: faceitState.nickname ?? faceitState.id ?? "" })
+                    : t("settings.faceitHint")}
                 </p>
               </div>
             </div>
@@ -445,31 +451,57 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
             {hasFaceit ? (
               <Button variant="secondary" size="sm" onClick={() => setShowUnlinkConfirm(true)}>
                 <Unlink className="h-3.5 w-3.5" aria-hidden />
-                Odłącz
+                {t("common.disconnect")}
               </Button>
             ) : (
               <Button variant="secondary" size="sm" onClick={openFaceitLinkPopup}>
                 <Link2 className="h-3.5 w-3.5" aria-hidden />
-                Połącz
+                {t("common.connect")}
               </Button>
             )}
+          </li>
+
+          {/* Premier / Steam (opt-in) */}
+          <li className="flex flex-wrap items-center justify-between gap-3 py-4 last:pb-0">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-muted)]">
+                <Gamepad2 className="h-5 w-5 text-[var(--accent)]" aria-hidden />
+              </div>
+              <div className="min-w-0">
+                <p className="font-medium text-[var(--text-primary)]">{t("settings.premierRow")}</p>
+                <p className="truncate text-sm text-[var(--text-secondary)]">
+                  {premierHistory ? t("settings.premierOn") : t("settings.premierOff")}
+                </p>
+              </div>
+            </div>
+            <Link href="/premier" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+              {t("settings.premierManage")}
+            </Link>
           </li>
         </ul>
       </Card>
 
+      <LanguageCard />
+      <PushCard />
+      <InstallCard />
+
       {/* Plan & limits */}
       <Card>
         <CardHeader
-          title="Plan i limity"
-          description="Darmowy plan ma miesięczny limit analiz. Płatne plany pojawią się później."
-          action={<Badge variant={planBadgeVariant[user.plan] ?? "default"}>{PLAN_LABEL[user.plan] ?? user.plan}</Badge>}
+          title={t("settings.planTitle")}
+          description={t("settings.planDescription")}
+          action={
+            <Badge variant={planBadgeVariant[user.plan] ?? "default"}>
+              {PLAN_LABEL[user.plan] ? t(PLAN_LABEL[user.plan]) : user.plan}
+            </Badge>
+          }
         />
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
-            { label: "Analizy w tym miesiącu", value: `${usage.used}/${fmtLimit(usage.monthlyLimit)}` },
-            { label: "Zachowane dema", value: `${usage.keptDemos}/${fmtLimit(usage.keptLimit)}` },
-            { label: "Mecze naraz (FACEIT)", value: String(usage.batchSize) },
-            { label: "Pliki naraz (upload)", value: String(usage.uploadFiles) },
+            { label: t("settings.usageMonth"), value: `${usage.used}/${fmtLimit(usage.monthlyLimit)}` },
+            { label: t("settings.usageKept"), value: `${usage.keptDemos}/${fmtLimit(usage.keptLimit)}` },
+            { label: t("settings.usageBatch"), value: String(usage.batchSize) },
+            { label: t("settings.usageFiles"), value: String(usage.uploadFiles) },
           ].map((row) => (
             <div
               key={row.label}
@@ -486,10 +518,10 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
         </dl>
         <div className="mt-4 flex flex-wrap gap-2">
           <Link href="/library" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-            Biblioteka analiz
+            {t("settings.library")}
           </Link>
           <Link href="/queue" className={buttonVariants({ variant: "ghost", size: "sm" })}>
-            Kolejka analiz
+            {t("settings.queue")}
           </Link>
         </div>
       </Card>
@@ -507,10 +539,10 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
               id="unlink-faceit-title"
               className="font-display text-lg font-semibold text-[var(--text-primary)]"
             >
-              Odłączyć konto FACEIT?
+              {t("settings.unlinkFaceitTitle")}
             </h3>
             <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              Zsynchronizowane mecze zostaną, ale automatyczna synchronizacja się zatrzyma.
+              {t("settings.unlinkFaceitBody")}
             </p>
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
               <Button
@@ -519,10 +551,10 @@ export function SettingsContent({ user, usage }: SettingsContentProps) {
                 onClick={() => setShowUnlinkConfirm(false)}
                 disabled={unlinking}
               >
-                Anuluj
+                {t("common.cancel")}
               </Button>
               <Button variant="danger" size="sm" onClick={handleUnlinkFaceit} disabled={unlinking}>
-                {unlinking ? "Odłączanie…" : "Odłącz"}
+                {unlinking ? t("common.disconnecting") : t("common.disconnect")}
               </Button>
             </div>
           </div>

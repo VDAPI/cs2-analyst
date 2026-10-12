@@ -4,6 +4,9 @@ import { GeistMono } from "geist/font/mono";
 import { Chakra_Petch } from "next/font/google";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { ToastProvider } from "@/components/ui/toast";
+import { PwaProvider } from "@/components/pwa/pwa-provider";
+import { I18nProvider } from "@/lib/i18n/client";
+import { getLocale } from "@/lib/i18n/server";
 import "@/styles/globals.css";
 
 const chakraPetch = Chakra_Petch({
@@ -22,6 +25,14 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "CS2 Analyst — Demo Analysis Platform",
+  applicationName: "CS2 Analyst",
+  // PWA (S18): app/manifest.ts + public/sw.js; iOS reads these tags instead.
+  appleWebApp: { capable: true, title: "CS2 Analyst", statusBarStyle: "black-translucent" },
+  icons: {
+    icon: [{ url: "/pwa/icon.svg", type: "image/svg+xml" }, { url: "/pwa/icon-192.png", sizes: "192x192" }],
+    apple: [{ url: "/pwa/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  formatDetection: { telephone: false },
   description:
     "Upload CS2 demos and get detailed analytics: player stats, heatmaps, 2D replay, economy tracking, grenade analysis and more.",
   keywords: [
@@ -34,21 +45,26 @@ export const metadata: Metadata = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const locale = await getLocale();
   return (
     <html
-      lang="en"
+      lang={locale}
       className={`${GeistSans.variable} ${GeistMono.variable} ${chakraPetch.variable}`}
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-[var(--canvas)] font-sans antialiased">
-        <SessionProvider>
-          <ToastProvider>{children}</ToastProvider>
-        </SessionProvider>
+        <I18nProvider locale={locale}>
+          <SessionProvider>
+            <PwaProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </PwaProvider>
+          </SessionProvider>
+        </I18nProvider>
       </body>
     </html>
   );

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Crosshair } from "lucide-react";
+import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 
 interface AuthShellProps {
   title: string;
@@ -47,16 +48,19 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
         </div>
 
         <p className="mt-6 text-center text-sm text-[var(--text-tertiary)]">{footer}</p>
+        <div className="mt-4 flex justify-center">
+          <LanguageSwitcher size="sm" />
+        </div>
       </div>
     </main>
   );
 }
 
-export function AuthDivider() {
+export function AuthDivider({ label }: { label: string }) {
   return (
     <div className="my-6 flex items-center gap-3">
       <div className="h-px flex-1 bg-[var(--border)]" />
-      <span className="label-overline text-[var(--text-tertiary)]">lub</span>
+      <span className="label-overline text-[var(--text-tertiary)]">{label}</span>
       <div className="h-px flex-1 bg-[var(--border)]" />
     </div>
   );

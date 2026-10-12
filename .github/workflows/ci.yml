@@ -65,3 +65,7 @@ jobs:
       - name: Aim and duels analysis regression tests
         if: ${{ !cancelled() }}
         run: npm run test:aim
+
+      - name: Platform regression tests (Premier, PL/EN, notifications)
+        if: ${{ !cancelled() }}
+        run: npm run test:platform

@@ -1,30 +1,33 @@
 import { CredentialsForm } from "@/components/auth/credentials-form";
 import { SteamLoginButton } from "@/components/auth/steam-login";
 import { AuthShell, AuthDivider } from "@/components/auth/auth-shell";
+import { getT } from "@/lib/i18n/server";
 import type { Metadata } from "next";
 import Link from "next/link";
 
-export const metadata: Metadata = {
-  title: "Rejestracja — CS2 Analyst",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT();
+  return { title: t("auth.registerMetaTitle") };
+}
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
+  const { t } = await getT();
   return (
     <AuthShell
-      title="Załóż konto"
-      subtitle="Wgraj demo i zobacz, co poprawić w swojej grze"
+      title={t("auth.registerTitle")}
+      subtitle={t("auth.registerSubtitle")}
       footer={
         <>
-          Masz już konto?{" "}
+          {t("auth.haveAccount")}{" "}
           <Link href="/login" className="font-semibold text-[var(--accent)] hover:text-[var(--accent-hover)]">
-            Zaloguj się
+            {t("auth.signIn")}
           </Link>
         </>
       }
     >
       <CredentialsForm mode="register" />
 
-      <AuthDivider />
+      <AuthDivider label={t("auth.or")} />
 
       <div className="flex justify-center">
         <SteamLoginButton />

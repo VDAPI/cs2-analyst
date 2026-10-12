@@ -6,7 +6,9 @@
  * uploaded .dem files, storing results in PostgreSQL.
  */
 
-import { Worker, type Job } from "bullmq";
+import { Worker, UnrecoverableError, type Job } from "bullmq";
+import { stat, mkdir, unlink } from "node:fs/promises";
+import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { parseAndPersistDemo } from "../src/lib/parsers/persist-demo";
 import { backfillReplayData } from "../src/lib/parsers/backfill-replay";
@@ -14,8 +16,13 @@ import {
   deleteStoredDemo,
   finalizeDemoAfterAnalysis,
   openDemoForParsing,
+  storeDemoFile,
+  LOCAL_DEMO_DIR,
 } from "../src/lib/storage/demo-store";
 import { deleteAnalysis } from "../src/lib/library";
+import { notifyUploadFinished } from "../src/lib/notifications/notify";
+import { downloadReplayDemo, ReplayGoneError } from "../src/lib/steam/demo-download";
+import { demoParseQueue, type SteamDemoDownloadJobData } from "../src/lib/queue";
 
 const prisma = new PrismaClient();
 
@@ -108,14 +115,88 @@ const worker = new Worker("demo-parse", processDemo, {
 
 worker.on("completed", (job) => {
   console.log(`Demo parsed: ${job.id} -> match ${job.returnvalue?.matchId}`);
+  void notifyUploadFinished(prisma, job.data.uploadId);
 });
 
 worker.on("failed", (job, err) => {
   console.error(`Demo parse failed: ${job?.id}`, err.message);
+  // Parse jobs run once; the upload is FAILED now (no-op if it isn't).
+  if (job) void notifyUploadFinished(prisma, job.data.uploadId);
 });
 
 worker.on("ready", () => {
   console.log("Demo parser worker ready, waiting for jobs...");
+});
+
+// ─── Premier / Steam replay downloads (S18) ──────────────
+//
+// Fetches the .dem.bz2 from a Valve replay link the player gave us, stores
+// the .dem like a manual upload and hands it to the parse queue above. Lives
+// in this process so nobody has to start another worker.
+
+async function processSteamDownload(job: Job<SteamDemoDownloadJobData>) {
+  const { uploadId, steamMatchId, userId } = job.data;
+  const destPath = join(LOCAL_DEMO_DIR, `${uploadId}.dem`);
+  console.log(`[steam-download] start uploadId=${uploadId}`);
+
+  try {
+    const upload = await prisma.demoUpload.findUnique({
+      where: { id: uploadId },
+      select: { deletedAt: true },
+    });
+    if (!upload || upload.deletedAt) return null;
+
+    const sm = await prisma.steamMatch.findUnique({ where: { id: steamMatchId } });
+    if (!sm || sm.userId !== userId || !sm.demoUrl) {
+      throw new UnrecoverableError("Premier match or its replay link is gone");
+    }
+
+    await prisma.demoUpload.update({
+      where: { id: uploadId },
+      data: { status: "DOWNLOADING", error: null },
+    });
+    await mkdir(LOCAL_DEMO_DIR, { recursive: true });
+    try {
+      await downloadReplayDemo(sm.demoUrl, destPath);
+    } catch (err) {
+      if (err instanceof ReplayGoneError) throw new UnrecoverableError(err.message);
+      throw err;
+    }
+    const { size } = await stat(destPath);
+    const fileUrl = await storeDemoFile(uploadId, destPath);
+    await prisma.demoUpload.update({
+      where: { id: uploadId },
+      data: { fileUrl, fileSize: size, status: "QUEUED" },
+    });
+    await demoParseQueue.add("parse", { uploadId, filePath: fileUrl, userId });
+    console.log(`[steam-download] queued parse uploadId=${uploadId} size=${size}`);
+    return { uploadId };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const last =
+      err instanceof UnrecoverableError || job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
+    await unlink(destPath).catch(() => {});
+    await prisma.demoUpload
+      .update({
+        where: { id: uploadId },
+        data: last
+          ? { status: "FAILED", error: message }
+          : { status: "QUEUED", error: `${message} (retrying)` },
+      })
+      .catch(() => {});
+    if (last) await notifyUploadFinished(prisma, uploadId);
+    throw err;
+  }
+}
+
+const steamWorker = new Worker("steam-demo-download", processSteamDownload, {
+  connection: { url: REDIS_URL },
+  concurrency: 1,
+  lockDuration: 10 * 60 * 1000,
+});
+
+steamWorker.on("failed", (job, err) => {
+  console.error(`Steam replay download failed: ${job?.id}`, err.message);
 });
 
 // Store replay data for older matches that still have their .dem, so nobody
