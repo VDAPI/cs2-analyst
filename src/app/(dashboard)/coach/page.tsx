@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { GraduationCap, Upload } from "lucide-react";
+import { Dumbbell, GraduationCap, Upload } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getT } from "@/lib/i18n/server";
@@ -37,7 +37,22 @@ export default async function CoachPage({ searchParams }: Props) {
   });
 
   const header = (description: React.ReactNode) => (
-    <PageHeader eyebrow={t("coach.eyebrow")} title={t("coach.title")} description={description} />
+    <PageHeader
+      eyebrow={t("coach.eyebrow")}
+      title={t("coach.title")}
+      description={description}
+      actions={
+        data.matches.length > 0 ? (
+          <Link
+            href={data.steamId ? `/training?player=${data.steamId}` : "/training"}
+            className={buttonVariants({ variant: "secondary", size: "sm" })}
+          >
+            <Dumbbell className="h-3.5 w-3.5" aria-hidden />
+            {t("training.title")}
+          </Link>
+        ) : null
+      }
+    />
   );
 
   if (data.totalMatches === 0) {

@@ -37,7 +37,8 @@
     "pro:import": "tsx --tsconfig tsconfig.json scripts/import-pro-demos.ts",
     "norms:refresh": "tsx --tsconfig tsconfig.json scripts/refresh-norms.ts",
     "test:progress": "tsx --tsconfig tsconfig.json scripts/test-progress.ts",
-    "test:coach": "tsx --tsconfig tsconfig.json scripts/test-coach.ts"
+    "test:coach": "tsx --tsconfig tsconfig.json scripts/test-coach.ts",
+    "test:training": "tsx --tsconfig tsconfig.json scripts/test-training.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",

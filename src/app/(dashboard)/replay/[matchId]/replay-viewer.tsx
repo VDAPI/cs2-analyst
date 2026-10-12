@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Bomb, ClipboardCheck, Skull } from "lucide-react";
+import { Bomb, ClipboardCheck, Skull, Target } from "lucide-react";
 import { useReplayStore, TICK_RATE } from "@/stores/replay-store";
 import type { PlayerSnapshot } from "@/stores/replay-store";
 import { PlaybackControls } from "./playback-controls";
@@ -31,6 +31,8 @@ import {
 } from "@/lib/canvas/replay-draw";
 import { FindingTag } from "@/components/ui";
 import { fmtRoundTime, type FindingView } from "@/lib/findings/view";
+import { useT } from "@/lib/i18n/client";
+import { hasLineupPractice } from "@/lib/training/lineup-trainer";
 import { cn } from "@/lib/utils/cn";
 import { MomentTools, useMapNotes, type MapNoteView, type NoteMode } from "./moment-tools";
 
@@ -723,8 +725,22 @@ function FindingsPanel({
             <span className="font-semibold text-[var(--accent-hover)]">Rada: </span>
             {active.advice}
           </p>
+          {hasLineupPractice(active.type) && <PracticeLink findingId={active.id} />}
         </div>
       )}
     </div>
+  );
+}
+
+function PracticeLink({ findingId }: { findingId: string }) {
+  const t = useT();
+  return (
+    <Link
+      href={`/lineups?finding=${encodeURIComponent(findingId)}`}
+      className="mt-2 inline-flex min-h-10 items-center gap-1.5 font-medium text-[var(--accent-hover)] hover:underline"
+    >
+      <Target className="h-3.5 w-3.5" aria-hidden />
+      {t("lineups.practiceButton")}
+    </Link>
   );
 }

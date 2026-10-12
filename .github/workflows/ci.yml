@@ -105,3 +105,7 @@ jobs:
       - name: AI coach (plan, ratings, grounding) regression tests
         if: ${{ !cancelled() }}
         run: npm run test:coach
+
+      - name: Training generator and lineup trainer regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:training
