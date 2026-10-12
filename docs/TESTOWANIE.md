@@ -220,6 +220,13 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 - [ ] Normy pro (`/pro`) z filtrami mapy, strony i rangi
 - [ ] Udostępnianie raportu linkiem i otwarcie linku w oknie prywatnym (bez logowania), profil publiczny
 
+**Klipy i znajomi**
+
+- [ ] Klipy (menu „Klipy”, adres `/clips`): highlighty (clutche, ace'y, 4K/3K) i błędy, strzałka pobierania → MP4 i GIF, plik otwiera się w odtwarzaczu (na telefonie też)
+- [ ] „Udostępnij klip” i otwarcie linku w oknie prywatnym: klip gra i da się go pobrać bez logowania
+- [ ] Znajomi: „Utwórz link zaproszenia”, otwarcie linku na drugim koncie, „Dodaj do znajomych”; obaj widzą się w rankingu i w wyzwaniach tygodnia
+- [ ] Ranking: zmiana metryki (ADR, rating, strzały w ruchu…), twoje miejsce
+
 **FACEIT, Steam, powiadomienia**
 
 - [ ] Połączenie FACEIT ([punkt 9](#9-połączenie-konta-faceit-https)), synchronizacja historii, zaznaczenie meczów i „Analizuj zaznaczone”

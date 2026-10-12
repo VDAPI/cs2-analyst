@@ -32,6 +32,7 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
       lastSteamSync: true,
       publicProfile: true,
       publicSlug: true,
+      friendCode: true,
       stripeCustomerId: true,
       createdAt: true,
       updatedAt: true,
@@ -59,6 +60,7 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     teams,
     tacticBoards,
     teamRivals,
+    friendships,
     subscriptions,
     invoices,
   ] = await Promise.all([
@@ -104,6 +106,19 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     prisma.teamMember.findMany({ where: { userId }, include: { team: { select: { id: true, name: true } } } }),
     prisma.tacticBoard.findMany({ where: { createdById: userId } }),
     prisma.teamRival.findMany({ where: { createdById: userId }, select: { id: true, teamId: true, name: true, steamIds: true, notes: true, createdAt: true } }),
+    // Friends (S25): who, since when; never the other player's data.
+    prisma.friendship.findMany({
+      where: { OR: [{ requesterId: userId }, { addresseeId: userId }] },
+      select: {
+        status: true,
+        source: true,
+        createdAt: true,
+        acceptedAt: true,
+        requesterId: true,
+        requester: { select: { name: true } },
+        addressee: { select: { name: true } },
+      },
+    }),
     prisma.billingSubscription.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
     prisma.billingInvoice.findMany({ where: { userId }, orderBy: { created: "asc" } }),
   ]);
@@ -166,6 +181,14 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     coachTexts,
     coachFeedback,
     lineupMastery,
+    friends: friendships.map((f) => ({
+      name: (f.requesterId === userId ? f.addressee.name : f.requester.name) ?? null,
+      status: f.status,
+      source: f.source,
+      sentByMe: f.requesterId === userId,
+      createdAt: f.createdAt,
+      acceptedAt: f.acceptedAt,
+    })),
     billing: { subscriptions, invoices },
   };
 }

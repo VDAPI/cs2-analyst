@@ -12,6 +12,8 @@ import { hasLineupPractice } from "@/lib/training/lineup-trainer";
 import { cn } from "@/lib/utils/cn";
 import { FindingImpact } from "@/components/winprob/finding-impact";
 import { ProAdvicePanel } from "@/components/winprob/pro-advice";
+import { ShareButton } from "@/components/share/share-button";
+import { findingClipShare } from "@/lib/clips/clip";
 
 export interface ClipContext {
   matchId: string;
@@ -81,6 +83,12 @@ export function FindingCard({
           share={ctx.share}
           autoLoad
           label={`${f.label}, runda ${f.roundNumber}, ${fmtRoundTime(f.roundTime)}`}
+          exportInfo={{
+            title: f.label,
+            subtitle: `${ctx.mapName} · R${f.roundNumber} · ${fmtRoundTime(f.roundTime)}`,
+            map: ctx.mapName,
+            round: f.roundNumber,
+          }}
         />
       )}
       {pro && <ProAdvicePanel matchId={ctx.matchId} findingId={f.id} mapName={ctx.mapName} mapConfig={ctx.mapConfig} />}
@@ -113,6 +121,14 @@ export function FindingCard({
             <Play className="h-3.5 w-3.5" aria-hidden />
             W replayu
           </Link>
+        )}
+        {!ctx.readOnly && open && (
+          <ShareButton
+            variant="ghost"
+            label={t("clips.shareClip")}
+            hint={t("clips.shareHint")}
+            request={{ kind: "clip", matchId: ctx.matchId, steamId: f.steamId, round: f.roundNumber, clip: findingClipShare(f, clip) }}
+          />
         )}
         {!ctx.readOnly && hasLineupPractice(f.type) && (
           <Link

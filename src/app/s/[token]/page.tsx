@@ -15,12 +15,25 @@ import { formatDate } from "@/lib/utils/formatters";
 import { loadReportNorms } from "@/lib/norms/report-norms";
 import { ReportBody } from "@/app/(dashboard)/report/[matchId]/report-body";
 import { loadReportWinProb } from "@/lib/winprob/report";
+import { highlightTitle, parseClipShare, type ClipShare } from "@/lib/clips/clip";
+import { findingDef, isFindingType } from "@/lib/findings/catalog";
+import { FINDING_TYPES_EN } from "@/lib/coach/catalog-en";
+import type { Locale } from "@/lib/i18n/config";
+import type { TFunction } from "@/lib/i18n/translate";
 
 interface Props {
   params: Promise<{ token: string }>;
 }
 
 const TICK_RATE = 64;
+
+/** Title of a shared clip: the highlight ("Clutch 1v3") or the mistake's name. */
+function clipTitle(t: TFunction, locale: Locale, clip: ClipShare): string {
+  if (clip.kind === "finding" && clip.findingType && isFindingType(clip.findingType)) {
+    return locale === "en" ? FINDING_TYPES_EN[clip.findingType].label : findingDef(clip.findingType).label;
+  }
+  return highlightTitle(t, clip);
+}
 
 async function loadShare(token: string) {
   if (!isShareToken(token)) return null;
@@ -50,16 +63,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { token } = await params;
   const share = await loadShare(token);
   if (!share) return { title: "CS2 Analyst", robots: { index: false } };
-  const { t } = await getT();
+  const { t, locale } = await getT();
   const map = mapDisplayName(share.match.map);
-  const title =
-    share.kind === "moment"
+  const clip = share.kind === "clip" ? parseClipShare(share.clip) : null;
+  const title = clip
+    ? `${clipTitle(t, locale, clip)} · ${t("shared.momentTitle", { map, round: share.roundNumber ?? 1 })} — CS2 Analyst`
+    : share.kind === "moment"
       ? `${t("shared.momentTitle", { map, round: share.roundNumber ?? 1 })} — CS2 Analyst`
       : `${t("shared.reportEyebrow")}: ${map} ${share.match.scoreCT}:${share.match.scoreT} — CS2 Analyst`;
   return { title, robots: { index: false, follow: false } };
 }
 
-/** A public link (S16): one player's report of a match, or one replay moment. Read-only, no login. */
+/** A public link (S16): one player's report of a match, one replay moment, or a 2D clip (S25). Read-only, no login. */
 export default async function SharedPage({ params }: Props) {
   const { token } = await params;
   const share = await loadShare(token);
@@ -77,6 +92,57 @@ export default async function SharedPage({ params }: Props) {
       {match.scoreCT}:{match.scoreT}
     </span>
   );
+
+  const clip = share.kind === "clip" ? parseClipShare(share.clip) : null;
+  if (share.kind === "clip") {
+    if (!clip || share.roundNumber == null) notFound();
+    const round = share.roundNumber;
+    const title = clipTitle(t, locale, clip);
+    const startTick = match.rounds.find((r) => r.number === round)?.startTick ?? 0;
+    const at = Math.max(0, (clip.focus - startTick) / TICK_RATE);
+    const where = t("shared.momentTitle", { map: ctx.mapName, round });
+    return (
+      <PublicShell>
+        <PageHeader
+          eyebrow={t("clips.sharedEyebrow")}
+          title={title}
+          description={
+            <>
+              {where} · {scoreline} · <span className="font-mono">{formatDate(match.date)}</span>
+              {player && <> · {t("shared.player", { name: player })}</>} · {sharedBy}
+            </>
+          }
+        />
+        <div className="mx-auto w-full max-w-[640px] space-y-2">
+          <FindingClip
+            matchId={match.id}
+            mapName={ctx.mapName}
+            mapConfig={ctx.mapConfig}
+            roundNumber={round}
+            tick={clip.focus}
+            steamId={share.steamId ?? ""}
+            targetSteamId={clip.target ?? null}
+            severity={clip.severity ?? "low"}
+            clip={{ before: 0, after: 0 }}
+            range={{ from: clip.from, to: clip.to }}
+            follow={clip.follow}
+            marks={clip.marks}
+            marker={clip.kind === "finding"}
+            share={share.token}
+            autoLoad
+            label={`${title}, ${where}, ${fmtRoundTime(at)}`}
+            exportInfo={{
+              title,
+              subtitle: [player, `${ctx.mapName} · R${round}`].filter(Boolean).join(" · "),
+              map: ctx.mapName,
+              round,
+            }}
+          />
+          <p className="text-xs text-[var(--text-tertiary)]">{t("clips.sharedHint")}</p>
+        </div>
+      </PublicShell>
+    );
+  }
 
   if (share.kind === "moment" && share.roundNumber != null && share.tick != null) {
     const round = share.roundNumber;
