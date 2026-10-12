@@ -6,6 +6,7 @@
     "npm": "^10"
   },
   "scripts": {
+    "predev": "prisma db push",
     "dev": "next dev --turbo --experimental-https",
     "build": "next build",
     "start": "next start",
@@ -14,6 +15,7 @@
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
+    "preworker:parse": "prisma db push --skip-generate",
     "worker:parse": "tsx workers/demo-parser.worker.ts",
     "worker:faceit": "tsx workers/faceit-demo-download.worker.ts",
     "test:clutches": "tsx --tsconfig tsconfig.json scripts/test-clutch-wins.ts",

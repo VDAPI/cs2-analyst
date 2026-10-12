@@ -9,6 +9,7 @@
 import { Worker, type Job } from "bullmq";
 import { PrismaClient } from "@prisma/client";
 import { parseAndPersistDemo } from "../src/lib/parsers/persist-demo";
+import { backfillReplayData } from "../src/lib/parsers/backfill-replay";
 import { unlink } from "fs/promises";
 
 const prisma = new PrismaClient();
@@ -68,3 +69,16 @@ worker.on("failed", (job, err) => {
 worker.on("ready", () => {
   console.log("Demo parser worker ready, waiting for jobs...");
 });
+
+// Store replay data for older matches that still have their .dem, so nobody
+// has to run `npm run backfill:replay` by hand. Runs once per start, in the
+// background; matches that already have it are skipped.
+backfillReplayData(prisma, {}, (line) => console.log(`[replay-backfill]${line}`))
+  .then((r) => {
+    if (r.done + r.failed + r.missingFile > 0) {
+      console.log(
+        `[replay-backfill] stored ${r.done}, no demo file ${r.missingFile}, failed ${r.failed}`
+      );
+    }
+  })
+  .catch((err) => console.error("[replay-backfill] failed:", err));

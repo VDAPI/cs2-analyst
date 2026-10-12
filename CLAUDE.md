@@ -19,7 +19,7 @@ CS2 demo analysis SaaS. Users upload .dem files and get analytics: player stats,
 ## Commands
 
 ```bash
-npm run dev          # Start dev server (Turbopack)
+npm run dev          # Start dev server (Turbopack); runs `prisma db push` first
 npm run build        # Production build
 npm run lint         # ESLint
 npm run db:push      # Push Prisma schema to DB
@@ -28,7 +28,7 @@ npm run db:generate  # Generate Prisma client
 npm run db:studio    # Open Prisma Studio
 npm run test:clutches # Parser regression test (no demo file needed)
 npm run test:replay   # Replay-data encoding regression test (no demo file needed)
-npm run backfill:replay # Store replay data for old matches whose .dem is still on disk
+npm run backfill:replay # Store replay data for old matches whose .dem is still on disk (the parse worker also does this on startup)
 ```
 
 The GitHub CLI (`gh`) is installed and authenticated — use it to inspect CI,
