@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/db/prisma";
+import { isReservedEmail } from "@/lib/norms/pro-pool";
 
 const registerSchema = z.object({
   name: z.string().min(1).max(50).optional(),
@@ -21,6 +22,10 @@ export async function POST(req: Request) {
   }
 
   const { name, email, password } = result.data;
+  // System addresses (dev login, the pro-pool owner) can never be registered.
+  if (isReservedEmail(email)) {
+    return NextResponse.json({ error: "This email address cannot be used" }, { status: 400 });
+  }
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {

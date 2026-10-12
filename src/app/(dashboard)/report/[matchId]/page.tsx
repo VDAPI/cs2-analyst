@@ -87,7 +87,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
     return null;
   });
   const cmpOf = new Map<string, MetricComparison>(
-    metrics.map((m) => [m.key, compareMetric(m, table, { map: match.map }, rank)])
+    metrics.map((m) => [m.key, compareMetric(m, table, { map: match.map }, rank, tactics?.rounds ?? 0)])
   );
   const norms: NormsCtx = { cmpOf, rankName: rank ? rankLabel(t, rank) : t("norms.rankAll"), t };
   const anyReference = [...cmpOf.values()].some((c) => c.pro?.source === "reference");
@@ -387,7 +387,7 @@ function VsProTable({ metrics, norms }: { metrics: ReportMetric[]; norms: NormsC
             const cmp = norms.cmpOf.get(m.key);
             return (
               <tr key={m.key}>
-                <td className="max-w-[180px] truncate">{m.label}</td>
+                <td className="min-w-[120px] max-w-[150px] whitespace-normal sm:max-w-[260px]">{m.label}</td>
                 <td className={cn("text-right font-mono font-semibold", STATUS_TONE[m.status])}>{formatMetric(m)}</td>
                 <td className="text-right font-mono text-[var(--accent-2)]">
                   {cmp?.pro ? `${cmp.pro.source === "reference" ? "≈" : ""}${formatNormValue(cmp.pro.p50, m.unit)}` : "–"}

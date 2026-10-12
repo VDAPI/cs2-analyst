@@ -7,9 +7,11 @@ import {
   betterThan,
   METRIC_DIRECTION,
   parseRankBucket,
+  perMatchCount,
   PREMIER_BUCKET,
   proNorm,
   SKILL_GROUPS,
+  usable,
   verdictVs,
   type NormContext,
   type NormRow,
@@ -80,22 +82,29 @@ export interface MetricComparison {
   verdict: "better" | "within" | "worse" | null;
 }
 
-/** A report metric against the pro norm and the rank pool. */
+/**
+ * A report metric against the pro norm and the rank pool. Counts are put on
+ * the norms' per-24-rounds scale first (`rounds` = rounds the player played);
+ * a rate over too few samples gets the norms but no standing or verdict.
+ */
 export function compareMetric(
-  metric: Pick<ReportMetric, "key" | "value">,
+  metric: Pick<ReportMetric, "key" | "value" | "unit" | "samples">,
   table: NormTable | null,
   ctx: NormContext,
-  rankPool: string | null
+  rankPool: string | null,
+  rounds = 0
 ): MetricComparison {
   const direction = METRIC_DIRECTION[metric.key];
   const pro = direction ? proNorm(table, metric.key, ctx) : null;
   const rank = direction && table ? table.get(rankPool ?? "all", metric.key, ctx) : null;
+  const value =
+    metric.unit === "" ? perMatchCount(metric.value, rounds) : usable(metric.unit, metric.value, metric.samples) ? metric.value : null;
   return {
     key: metric.key,
     pro,
     rank,
-    betterThanPro: pro && direction ? betterThan(metric.value, pro, direction) : null,
-    verdict: pro && direction ? verdictVs(metric.value, pro, direction) : null,
+    betterThanPro: pro && direction ? betterThan(value, pro, direction) : null,
+    verdict: pro && direction ? verdictVs(value, pro, direction) : null,
   };
 }
 

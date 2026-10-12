@@ -34,8 +34,16 @@ export const NORMS_STAMP = `n${NORMS_VERSION}.m${MECHANICS_VERSION}.a${AIM_VERSI
 export const NORMS_REFRESH_MS = 30 * 60 * 1000;
 const REFRESHED_KEY = "norms:refreshedAt";
 
-/** Store the match's norm samples (replacing older ones). Returns how many rows were stored. */
-export async function computeAndPersistNormSamples(prisma: PrismaClient, matchId: string): Promise<number> {
+/**
+ * Store the match's norm samples (replacing older ones). Returns how many rows
+ * were stored. `pro` must come from the caller during the parse: the upload is
+ * only linked to its match when the analysis completes.
+ */
+export async function computeAndPersistNormSamples(
+  prisma: PrismaClient,
+  matchId: string,
+  opts: { pro?: boolean } = {}
+): Promise<number> {
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     select: {
@@ -53,7 +61,7 @@ export async function computeAndPersistNormSamples(prisma: PrismaClient, matchId
   ]);
   const samples = buildNormSamples({
     map: match.map,
-    pro: match.upload?.pro ?? false,
+    pro: opts.pro ?? match.upload?.pro ?? false,
     players: match.players.map((p) => ({ steamId: p.steamId, team: p.team, rank: rankBucket(p.rankType, p.rankValue) })),
     mechanics,
     aim,
@@ -79,12 +87,20 @@ export async function computeAndPersistNormSamples(prisma: PrismaClient, matchId
 
 const PAGE = 2000;
 
-/** Every current sample, with the player's rank looked up from MatchPlayer (it can arrive after sampling). */
-async function loadSamples(prisma: PrismaClient): Promise<NormSampleInput[]> {
+type SampleReader = Pick<PrismaClient, "normSample" | "matchPlayer" | "match">;
+
+/**
+ * Every current sample, with the player's rank looked up from MatchPlayer (it
+ * can arrive after sampling). The same demo uploaded twice (two teammates, a
+ * retried pro upload) is one match: samples are kept once per demo
+ * fingerprint, player, side and pool.
+ */
+async function loadSamples(db: SampleReader): Promise<NormSampleInput[]> {
   const out: NormSampleInput[] = [];
+  const seen = new Set<string>();
   let cursor: string | undefined;
   for (;;) {
-    const rows = await prisma.normSample.findMany({
+    const rows = await db.normSample.findMany({
       where: { version: NORMS_STAMP },
       select: { id: true, matchId: true, steamId: true, side: true, map: true, pro: true, metrics: true },
       orderBy: { id: "asc" },
@@ -92,12 +108,23 @@ async function loadSamples(prisma: PrismaClient): Promise<NormSampleInput[]> {
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
     });
     if (rows.length === 0) break;
-    const ranks = await prisma.matchPlayer.findMany({
-      where: { matchId: { in: [...new Set(rows.map((r) => r.matchId))] }, rankType: { not: null } },
-      select: { matchId: true, steamId: true, rankType: true, rankValue: true },
-    });
+    const matchIds = [...new Set(rows.map((r) => r.matchId))];
+    const [ranks, matches] = await Promise.all([
+      db.matchPlayer.findMany({
+        where: { matchId: { in: matchIds }, rankType: { not: null } },
+        select: { matchId: true, steamId: true, rankType: true, rankValue: true },
+      }),
+      db.match.findMany({
+        where: { id: { in: matchIds } },
+        select: { id: true, map: true, totalTicks: true, scoreCT: true, scoreT: true },
+      }),
+    ]);
     const rankOf = new Map(ranks.map((r) => [`${r.matchId}:${r.steamId}`, rankBucket(r.rankType, r.rankValue)]));
+    const demoOf = new Map(matches.map((m) => [m.id, `${m.map}|${m.totalTicks}|${m.scoreCT}|${m.scoreT}`]));
     for (const r of rows) {
+      const key = `${demoOf.get(r.matchId) ?? r.matchId}|${r.steamId}|${r.side}|${r.pro}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
       out.push({
         map: r.map,
         side: r.side as NormSide,
@@ -112,12 +139,18 @@ async function loadSamples(prisma: PrismaClient): Promise<NormSampleInput[]> {
   return out;
 }
 
-/** Rebuild every MetricNorm from the samples. Returns the number of cells stored. */
+/**
+ * Rebuild every MetricNorm from the samples. Returns the number of cells
+ * stored. The samples are read under the lock, so a slower refresh can never
+ * replace newer norms with an older snapshot.
+ */
 export async function refreshNorms(prisma: PrismaClient): Promise<number> {
-  const rows = aggregateNorms(await loadSamples(prisma));
+  let cells = 0;
   await prisma.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('norms:refresh'))`;
+      const rows = aggregateNorms(await loadSamples(tx));
+      cells = rows.length;
       await tx.metricNorm.deleteMany({});
       for (let i = 0; i < rows.length; i += PAGE) {
         await tx.metricNorm.createMany({ data: rows.slice(i, i + PAGE) });
@@ -129,10 +162,10 @@ export async function refreshNorms(prisma: PrismaClient): Promise<number> {
         update: { value },
       });
     },
-    { timeout: 120_000 }
+    { timeout: 300_000, maxWait: 60_000 }
   );
   tableCache.clear();
-  return rows.length;
+  return cells;
 }
 
 export async function normsRefreshedAt(prisma: PrismaClient): Promise<Date | null> {

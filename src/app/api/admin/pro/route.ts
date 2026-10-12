@@ -27,11 +27,18 @@ export async function POST(req: Request) {
 
   const rawLabel = form.get("label");
   const proLabel = sanitizeLabel(typeof rawLabel === "string" ? rawLabel : null) ?? labelFromFileName(file.name);
+  const fileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 255);
+  // The same demo twice would count its players twice in the pro norms.
+  const duplicate = await prisma.demoUpload.findFirst({
+    where: { pro: true, deletedAt: null, fileName, fileSize: file.size, status: { not: "FAILED" } },
+    select: { id: true },
+  });
+  if (duplicate) return NextResponse.json({ error: "This demo is already in the pro pool" }, { status: 409 });
   const userId = await getProPoolUserId(prisma);
   const upload = await prisma.demoUpload.create({
     data: {
       userId,
-      fileName: file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 255),
+      fileName,
       fileSize: file.size,
       fileUrl: "",
       status: "QUEUED",

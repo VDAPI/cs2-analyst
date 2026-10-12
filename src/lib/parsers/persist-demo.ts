@@ -278,7 +278,7 @@ export async function parseAndPersistDemo(
     }
     if (replayStored) {
       try {
-        const samples = await computeAndPersistNormSamples(prisma, match.id);
+        const samples = await computeAndPersistNormSamples(prisma, match.id, { pro: upload?.pro ?? false });
         // A new pro demo changes the pro norms at once; rank pools catch up periodically.
         if (upload?.pro) await refreshNorms(prisma);
         else await refreshNormsIfStale(prisma);

@@ -116,7 +116,10 @@ function analyse(input: NormMatchInput, keep: Set<number> | null): Analysed {
   const cut = <T extends object>(x: T | null): T | null => (x && keep ? onlyRounds(x, keep) : x);
   const mech = cut(input.mechanics);
   const aim = cut(input.aim);
-  const tactics = cut(input.tactics);
+  // The side fallback for rounds without frames must still see the whole match's length.
+  const tactics = input.tactics && keep
+    ? { ...onlyRounds(input.tactics, keep), totalRounds: input.tactics.rounds.reduce((m, r) => Math.max(m, r.number), 0) }
+    : input.tactics;
   const utility = cut(input.utility);
   return {
     mech: bySteamId(mech && mech.rounds.length ? analyzeMovement(mech) : []),
@@ -128,13 +131,10 @@ function analyse(input: NormMatchInput, keep: Set<number> | null): Analysed {
 
 function sampleOf(a: Analysed, steamId: string): SampleMetrics {
   const mech = a.mech.get(steamId) ?? null;
-  const metrics = playerMetrics(
-    mech,
-    a.aim.get(steamId) ?? null,
-    a.tactics.get(steamId) ?? null,
-    a.utility.get(steamId) ?? null
-  );
-  return metricsToSample(metrics, mech?.weapons ?? []);
+  const tactics = a.tactics.get(steamId) ?? null;
+  const metrics = playerMetrics(mech, a.aim.get(steamId) ?? null, tactics, a.utility.get(steamId) ?? null);
+  // Counts are scaled to 24 rounds by the rounds the player played in this sample.
+  return metricsToSample(metrics, mech?.weapons ?? [], tactics?.rounds ?? 0);
 }
 
 /** Frames of whichever input has them (they all come from the same RoundTicks). */

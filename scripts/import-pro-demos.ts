@@ -57,14 +57,16 @@ async function main() {
     const { size } = await stat(path);
     const label = [prefix, labelFromFileName(file)].filter(Boolean).join(" · ");
     const upload = await prisma.demoUpload.create({
-      data: { userId, fileName, fileSize: size, fileUrl: path, status: "QUEUED", pro: true, proLabel: label, keepDemo: true },
+      // demoDeletedAt from the start: the .dem is the admin's file, so deleting
+      // the analysis (even after a failed parse) must never remove it.
+      data: {
+        userId, fileName, fileSize: size, fileUrl: path, status: "QUEUED", pro: true, proLabel: label, keepDemo: true,
+        demoDeletedAt: new Date(),
+      },
     });
     const started = Date.now();
     try {
       const r = await parseAndPersistDemo(prisma, { uploadId: upload.id, filePath: path });
-      // The .dem is the admin's file: mark it as not ours so deleting the
-      // analysis later never removes it from their folder.
-      await prisma.demoUpload.update({ where: { id: upload.id }, data: { demoDeletedAt: new Date() } });
       console.log(`ok   ${file} → match ${r.matchId} (${((Date.now() - started) / 1000).toFixed(1)} s)`);
       done++;
     } catch (err) {

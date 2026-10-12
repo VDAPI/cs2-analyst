@@ -20,6 +20,7 @@ import {
   medianByMetric,
   METRIC_DIRECTION,
   metricsToSample,
+  MIN_COUNT_ROUNDS,
   MIN_NORM_N,
   MIN_STORED_N,
   NormTable,
@@ -33,7 +34,7 @@ import {
   type NormSampleInput,
 } from "@/lib/norms/norms";
 import { REFERENCE_NORMS } from "@/lib/norms/reference";
-import { METRIC_GROUPS, METRIC_UNIT, formatNormValue } from "@/lib/norms/view";
+import { METRIC_GROUPS, METRIC_UNIT, compareMetric, formatNormValue } from "@/lib/norms/view";
 import { buildNormSamples, onlyRounds, splitRoundsBySide } from "@/lib/norms/build";
 import { ranksFromTicks } from "@/lib/parsers/ranks";
 import { pl } from "@/lib/i18n/messages/pl";
@@ -107,11 +108,16 @@ const sample = metricsToSample(
     { weapon: "m4a1_silencer", shots: 20, movingShots: 2, firstShots: 10, firstShotsMoving: 3, firstShotHits: 3, hits: 10, headHits: 2 },
     { weapon: "awp", shots: 5, movingShots: 0, firstShots: 4, firstShotsMoving: 0, firstShotHits: 3, hits: 3, headHits: 0 },
     { weapon: "nova", shots: 9, movingShots: 0, firstShots: 9, firstShotsMoving: 0, firstShotHits: 9, hits: 9, headHits: 9 },
-  ]
+  ],
+  24
 );
 check("rate metric kept with enough samples", sample[sampleKey("hs")]?.[0] === 30);
 check("rate metric over too few samples dropped", !(sampleKey("strafe") in sample));
 check("count metric kept at zero samples", sample[sampleKey("noise")]?.[0] === 0);
+const counts = (rounds: number) =>
+  metricsToSample([{ key: "jump", type: "jump", label: "", value: 3, unit: "", threshold: "", status: "good", samples: 9, hint: "" }], [], rounds);
+check("counts are scaled to 24 rounds", counts(12)[sampleKey("jump")]?.[0] === 6 && counts(30)[sampleKey("jump")]?.[0] === 2.4);
+check("counts over too few rounds are dropped", !(sampleKey("jump") in counts(MIN_COUNT_ROUNDS - 1)) && !(sampleKey("jump") in counts(0)));
 check("null value dropped", !(sampleKey("reload") in sample));
 check("rifles pooled per class (AK + M4)", sample[sampleKey("first_bullet", "rifle")]?.[0] === 40 && sample[sampleKey("moving_first", "rifle")]?.[0] === 20);
 check("rifle HS per class", sample[sampleKey("hs", "rifle")]?.[0] === 27 && sample[sampleKey("hs", "rifle")]?.[1] === 30);
@@ -149,8 +155,14 @@ check("no reference per weapon class", proNorm(null, "hs", { situation: "rifle" 
 const norm = { p10: 10, p25: 20, p50: 30, p75: 40, p90: 50 };
 check("betterThan, higher is better", betterThan(30, norm, "higher") === 50 && betterThan(45, norm, "higher") === 83);
 check("betterThan, lower is better", betterThan(20, norm, "lower") === 75 && betterThan(60, norm, "lower") === 5);
+check("ties take the middle of the tied range", betterThan(0, { p10: 0, p25: 0, p50: 0, p75: 1, p90: 2 }, "lower") === 70);
 check("betterThan needs measured tails", betterThan(30, { ...norm, p10: null, p90: null }, "higher") === null);
 check("verdict vs the middle half", verdictVs(45, norm, "higher") === "better" && verdictVs(45, norm, "lower") === "worse" && verdictVs(25, norm, "lower") === "within");
+const cmpTable = new NormTable(aggregateNorms(Array.from({ length: 10 }, (_, i) => ({ map: "de_mirage", side: "all" as const, pro: true, rank: null, metrics: { "hs@all": [20 + i, 50] as [number, number], "jump@all": [i % 3, 24] as [number, number] } }))));
+const tiny = compareMetric({ key: "hs", value: 100, unit: "%", samples: 2 }, cmpTable, {}, null);
+check("rate over too few samples: norms shown, no standing", tiny.pro?.source === "pro" && tiny.betterThanPro === null && tiny.verdict === null);
+const jumps = compareMetric({ key: "jump", value: 1, unit: "", samples: 5 }, cmpTable, {}, null, 12);
+check("count compared per 24 rounds (1 in 12 rounds = 2)", jumps.betterThanPro === betterThan(2, jumps.pro!, "lower"));
 check("median per metric over matches", medianByMetric([{ "hs@all": [10, 9] }, { "hs@all": [30, 9] }, { "hs@all": [20, 9] }])["hs@all"]?.value === 20);
 check("formatNormValue rounds by unit", formatNormValue(1.46, "s") === "1.5 s" && formatNormValue(24.6, "%") === "25%" && formatNormValue(2.25, "") === "2.3");
 
@@ -238,6 +250,7 @@ check("per-side samples for both halves", of("a1", "CT")?.metrics["opening@all"]
 check("victim's side samples present", of("b1", "CT")?.metrics["opening@all"]?.[0] === 0 && of("b1", "T") !== undefined);
 check("samples carry map and pro flag", built.every((s) => s.map === "de_mirage" && s.pro));
 check("a player with no duels keeps only per-match counts", of("a2", "all") !== undefined && !("opening@all" in of("a2", "all")!.metrics) && of("a2", "all")!.metrics["bad_force@all"]?.[0] === 0);
+check("per-side counts carry the side's rounds", of("a2", "T")?.metrics["bad_force@all"]?.[1] === 12);
 
 // ─── Report ──────────────────────────────────────────────
 

@@ -95,19 +95,42 @@ export function parseSampleKey(key: string): { metric: string; situation: Situat
 }
 
 /** A rate or median over fewer samples than the report judges says nothing; counts always count. */
-const usable = (unit: string, value: number | null, samples: number): value is number =>
+export const usable = (unit: string, value: number | null, samples: number): value is number =>
   value != null && Number.isFinite(value) && (unit === "" || samples >= MIN_METRIC_SAMPLES);
+
+/**
+ * Count metrics (unit "": noise, jumps, reloads, bad forces) are compared
+ * per COUNT_ROUNDS rounds, so a 13:2 stomp, an overtime match and a single
+ * side (about 12 rounds) share one scale. Fewer rounds than
+ * MIN_COUNT_ROUNDS say nothing.
+ */
+export const COUNT_ROUNDS = 24;
+export const MIN_COUNT_ROUNDS = 8;
+
+/** A count scaled to COUNT_ROUNDS rounds, or null when the rounds are unknown or too few. */
+export function perMatchCount(count: number | null, rounds: number): number | null {
+  if (count == null || !Number.isFinite(count) || rounds < MIN_COUNT_ROUNDS) return null;
+  return Math.round(((count * COUNT_ROUNDS) / rounds) * 10) / 10;
+}
 
 /**
  * One player's metrics for one match (or side) as stored in a NormSample:
  * every report metric with enough samples, plus the shooting metrics per
  * weapon class.
  */
-export function metricsToSample(metrics: ReportMetric[], weapons: WeaponMechanics[] = []): SampleMetrics {
+export function metricsToSample(
+  metrics: ReportMetric[],
+  weapons: WeaponMechanics[] = [],
+  /** Rounds the player played in this match or side; scales count metrics (perMatchCount). */
+  rounds = 0
+): SampleMetrics {
   const out: SampleMetrics = {};
   for (const m of metrics) {
     if (!(m.key in METRIC_DIRECTION)) continue;
-    if (usable(m.unit, m.value, m.samples)) out[sampleKey(m.key)] = [m.value, m.samples];
+    if (m.unit === "") {
+      const scaled = perMatchCount(m.value, rounds);
+      if (scaled != null) out[sampleKey(m.key)] = [scaled, rounds];
+    } else if (usable(m.unit, m.value, m.samples)) out[sampleKey(m.key)] = [m.value, m.samples];
   }
   const byClass = new Map<Situation, { first: number; moving: number; firstHits: number; hits: number; head: number }>();
   for (const w of weapons) {
@@ -338,8 +361,11 @@ export function betterThan(
     [norm.p10, 10], [norm.p25, 25], [norm.p50, 50], [norm.p75, 75], [norm.p90, 90],
   ];
   let below: number;
-  if (value <= pts[0][0]) below = value < pts[0][0] ? 5 : 10;
-  else if (value >= pts[4][0]) below = value > pts[4][0] ? 95 : 90;
+  const tied = pts.filter(([x]) => x === value).map(([, q]) => q);
+  // Several percentiles equal to the value (e.g. most pros at 0): the middle of the tied range.
+  if (tied.length > 0) below = (Math.min(...tied) + Math.max(...tied)) / 2;
+  else if (value < pts[0][0]) below = 5;
+  else if (value > pts[4][0]) below = 95;
   else {
     below = 50;
     for (let i = 0; i < 4; i++) {

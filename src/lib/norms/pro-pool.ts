@@ -12,14 +12,21 @@ import type { PrismaClient } from "@prisma/client";
 
 export const PRO_POOL_EMAIL = "pro-pool@cs2analyst.local";
 
-/** The system user that owns pro uploads (created on first use). */
+/** Addresses on the app's own domain belong to system accounts and cannot be registered. */
+export const isReservedEmail = (email: string) => email.trim().toLowerCase().endsWith("@cs2analyst.local");
+
+/**
+ * The system user that owns pro uploads (created on first use). Refuses an
+ * account with a password: someone could log in as it and see the pool.
+ */
 export async function getProPoolUserId(prisma: PrismaClient): Promise<string> {
   const user = await prisma.user.upsert({
     where: { email: PRO_POOL_EMAIL },
     create: { email: PRO_POOL_EMAIL, name: "Pula pro" },
     update: {},
-    select: { id: true },
+    select: { id: true, password: true },
   });
+  if (user.password) throw new Error(`${PRO_POOL_EMAIL} has a password; it must stay a system account`);
   return user.id;
 }
 

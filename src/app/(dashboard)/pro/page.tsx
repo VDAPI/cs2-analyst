@@ -205,7 +205,7 @@ function NormTableView({
             const mine = you[r.key];
             return (
               <tr key={r.key}>
-                <td className="max-w-[220px] truncate">{r.label}</td>
+                <td className="min-w-[120px] max-w-[150px] whitespace-normal sm:max-w-[260px]">{r.label}</td>
                 <td className="text-right font-mono text-[var(--text-primary)]">
                   {mine ? formatNormValue(mine.value, r.unit) : "–"}
                 </td>

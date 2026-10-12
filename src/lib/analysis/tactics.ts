@@ -155,6 +155,12 @@ export interface TacticsInput {
   bombs: TacticsBomb[];
   economy: TacticsEcon[];
   players: TacticsPlayer[];
+  /**
+   * Rounds in the whole match, when `rounds` is only part of it (the norms'
+   * per-side runs); the regulation-half fallback for rounds without frames
+   * needs it. Defaults to the last round's number.
+   */
+  totalRounds?: number;
 }
 
 // ─── Outputs ─────────────────────────────────────────────
@@ -311,7 +317,7 @@ export function analyzeTactics(input: TacticsInput): PlayerTactics[] {
   const nameOf = new Map(input.players.map((p) => [p.steamId, p.name]));
   const finalSide = new Map(input.players.map((p) => [p.steamId, p.team]));
   const rounds = [...input.rounds].sort((a, b) => a.number - b.number);
-  const totalRounds = rounds.at(-1)?.number ?? 0;
+  const totalRounds = input.totalRounds ?? rounds.at(-1)?.number ?? 0;
   const push = (steamId: string, m: TacticsMoment) => out.get(steamId)?.moments.push(m);
   const roundTime = (r: TacticsRound, tick: number) => r1((tick - r.startTick) / tickRate);
   const seconds = (ticks: number) => r1(ticks / tickRate);
