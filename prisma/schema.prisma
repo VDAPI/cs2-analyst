@@ -84,6 +84,9 @@ model User {
   goals             Goal[]
   shares            Share[]
   mapNotes          MapNote[]
+  trainingPlans     TrainingPlan[]
+  coachTexts        CoachText[]
+  coachFeedback     CoachFeedback[]
 }
 
 enum UserRole {
@@ -173,6 +176,7 @@ model Match {
   findings    Finding[]
   normSamples NormSample[]
   shares      Share[]
+  coachTexts  CoachText[]
   mapNotes    MapNote[]
 
   // FINDINGS_STAMP the stored findings were built with (null = never); a
@@ -921,4 +925,66 @@ model MapNote {
 
   @@index([matchId, roundNumber])
   @@index([userId])
+}
+
+// ─── AI coach (S15) ──────────────────────────────────────
+
+// The weekly training plan of one user (one row per week), rebuilt from the
+// player's latest matches after every analysis (src/lib/coach/plan.ts).
+model TrainingPlan {
+  id        String   @id @default(cuid())
+  userId    String
+  steamId   String // player the plan is for
+  weekStart String // Monday, YYYY-MM-DD (Europe/Warsaw)
+  factsHash String // hash of the plan content; a change rewrites the AI text
+  content   Json // TrainingPlanContent
+  doneDays  Int[]    @default([]) // days (0 = Monday) the player ticked off
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  texts CoachText[]
+
+  @@unique([userId, weekStart])
+}
+
+// Text written by the AI coach for a match report or a plan, per language,
+// valid while factsHash matches the facts it was written from.
+model CoachText {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String // "match:<matchId>:<steamId>" | "plan:<planId>"
+  locale    String
+  factsHash String
+  model     String
+  rejected  Int      @default(0) // items replaced by standard text (ungrounded numbers)
+  content   Json // CoachMatchText | CoachPlanText (partial)
+  matchId   String?
+  planId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match?        @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  plan  TrainingPlan? @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key, locale])
+  @@index([userId, createdAt])
+}
+
+// "Helpful / not helpful" on one piece of advice (a finding type) in one
+// place: "match:<matchId>" or "plan:<weekStart>". Sets the order of advice.
+model CoachFeedback {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String // FindingType
+  context   String
+  helpful   Boolean
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, context, type])
+  @@index([type])
 }

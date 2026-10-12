@@ -11,7 +11,11 @@ import { cn } from "@/lib/utils/cn";
 import { getFindings } from "@/lib/findings/persist";
 import { loadPlayerReport, reportClipContext } from "@/lib/findings/player-report";
 import { toFindingView } from "@/lib/findings/view";
-import { getT } from "@/lib/i18n/server";
+import { getLocale, getT } from "@/lib/i18n/server";
+import { MatchCoach } from "@/components/coach/match-coach";
+import { coachAiEnabled } from "@/lib/coach/ai";
+import { matchCoachInput } from "@/lib/coach/match";
+import { loadFeedbackWeights, loadRatings, matchCoachText } from "@/lib/coach/persist";
 import { loadReportNorms } from "@/lib/norms/report-norms";
 import { ReportBody } from "./report-body";
 
@@ -33,6 +37,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
       map: true,
       scoreCT: true,
       scoreT: true,
+      _count: { select: { rounds: true } },
       players: { select: { steamId: true, name: true, team: true } },
     },
   });
@@ -67,6 +72,36 @@ export default async function ReportPage({ params, searchParams }: Props) {
         })
       : null;
   const ctx = reportClipContext(matchId, match.map);
+
+  // AI coach (S15): cached notes or the standard text now; the client asks
+  // the API for the AI's notes when they aren't written yet.
+  const userId = session.user.id;
+  const coach =
+    selected && report && hasData
+      ? await (async () => {
+          const [locale, weights, ratings] = await Promise.all([
+            getLocale(),
+            loadFeedbackWeights(prisma, userId),
+            loadRatings(prisma, userId, `match:${matchId}`),
+          ]);
+          const facts = matchCoachInput({
+            locale,
+            report,
+            weights,
+            match: { map: match.map, scoreCT: match.scoreCT, scoreT: match.scoreT, rounds: match._count.rounds },
+            player: selected,
+          });
+          const initial = await matchCoachText(prisma, {
+            userId,
+            matchId,
+            steamId: selected.steamId,
+            locale,
+            facts,
+            cacheOnly: true,
+          });
+          return { initial, ratings };
+        })()
+      : null;
 
   return (
     <div className="min-w-0 space-y-8">
@@ -148,6 +183,16 @@ export default async function ReportPage({ params, searchParams }: Props) {
         />
       ) : (
         <>
+          {coach && selected && (
+            <MatchCoach
+              key={selected.steamId}
+              matchId={matchId}
+              steamId={selected.steamId}
+              initial={coach.initial}
+              ratings={coach.ratings}
+              aiEnabled={coachAiEnabled()}
+            />
+          )}
           <ReportBody report={report} ctx={ctx} nameOf={nameOf} norms={norms} normsHref={`/pro?map=${match.map}`} />
         </>
       )}

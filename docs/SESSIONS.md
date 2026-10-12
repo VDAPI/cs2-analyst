@@ -68,8 +68,8 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Pro | Porównanie każdej metryki z pro i z rangą | ✅ | S13 |
 | Pro | Model szansy wygranej rundy, wpływ każdej decyzji | 🆕 | S14 |
 | Pro | „Co zrobiłby pro” w podobnej sytuacji | 🆕 | S14 |
-| Trener AI | Rady w ludzkim języku (Claude API), plan treningu, ćwiczenia | 🆕 | S15 |
-| Trener AI | Ocena rad (przydatne / nie) i uczenie kolejności rad | 🆕 | S15 |
+| Trener AI | Rady w ludzkim języku (Claude API), plan treningu, ćwiczenia | ✅ | S15 |
+| Trener AI | Ocena rad (przydatne / nie) i uczenie kolejności rad | ✅ | S15 |
 | Postęp | Trendy metryk w czasie, cele, odznaki | ✅ | S16 |
 | Społeczność | Publiczny profil, udostępnianie raportu | ✅ | S16 |
 | Drużyna | Dashboard drużyny, anti-strat przeciwnika, tablica taktyczna | 🆕 | S17 |
@@ -174,6 +174,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S10 (lepiej po S13).
 - **Zakres:** rady pisane przez Claude API wyłącznie na podstawie Findingów i liczb (bez wymyślania faktów), po polsku i angielsku. Plan treningu na tydzień (mapy Workshop, ćwiczenia, cele liczbowe). Ocena rad „przydatne / nie” i sortowanie rad według ocen.
 - **Gotowe, gdy:** po analizie gracz dostaje plan treningu z celami.
+- **Status:** ✅ zrobione. Ekran `/coach` (w menu „Trener”): plan na bieżący tydzień z 10 ostatnich meczów gracza — do 3 celów (najwyżej 2 z jednej kategorii), przy każdym liczba teraz → cel na tydzień (cel z Postępu albo krok w jego stronę, gdy jest daleko), liczba momentów na mecz z celem, porównanie z pro, 1–2 ćwiczenia z biblioteki (mapy Workshop jako link do wyszukiwarki Workshop, serwery, ekrany aplikacji: Lineupy, Replay 2D, Heatmapy, Ekonomia), przykłady z replayu 2D i rozpiska dzień po dniu (rozgrzewka, ćwiczenie celu, 3 mecze z jednym celem, niedziela przegląd) z odhaczaniem dni. „Ustaw cele z planu” zapisuje cele w Postępie. Plan przebudowuje się po każdej analizie (worker) i przy wejściu, gdy zmieniły się mecze lub oceny. Raport meczu ma sekcję „Trener AI”: podsumowanie i rada do każdego z 3 najważniejszych problemów. Teksty pisze Claude API (`ANTHROPIC_API_KEY`, model `COACH_MODEL`, domyślnie `claude-opus-5-5`, structured output, fallback przy odmowie) wyłącznie z faktów: błędów, liczb i standardowych rad; każda liczba w tekście AI musi występować w faktach, inaczej ten fragment zastępuje rada standardowa. Cele, ćwiczenia i dni wybiera kod, nie AI. Bez klucza wszystko działa na radach standardowych (PL/EN, katalog błędów przetłumaczony w `src/lib/coach/catalog-en.ts`). Limit 40 tekstów AI na użytkownika na dobę, cache per mecz/plan i język. Oceny „przydatne / nieprzydatne” (kciuki) przy każdej radzie w raporcie i planie: własne oceny gracza mocno, oceny wszystkich lekko zmieniają kolejność rad (wygładzanie Beta, `src/lib/coach/ranking.ts`). Test: `npm run test:coach`.
 
 ### S16. Postęp i udostępnianie
 - **Wymaga:** S10.
