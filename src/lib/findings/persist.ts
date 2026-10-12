@@ -1,6 +1,6 @@
 /**
  * Build and store a match's Findings from the stored analysis (MechanicsStats,
- * AimStats), and read them back. Called by the parse pipeline after the
+ * AimStats, UtilityStats), and read them back. Called by the parse pipeline after the
  * mechanics/aim stats, and lazily by the report, the replay and the findings
  * API for matches analysed before S10 or with older analysis versions.
  */
@@ -9,20 +9,43 @@ import { getMechanicsStats } from "@/lib/analysis/persist-mechanics";
 import { getAimStats } from "@/lib/analysis/persist-aim";
 import { MECHANICS_VERSION, type MovementMoment } from "@/lib/analysis/movement";
 import { AIM_VERSION, type AimMoment } from "@/lib/analysis/aim";
+import { getMapLineups, getPlaceLookup, getUtilityStats } from "@/lib/analysis/persist-utility";
+import { UTILITY_VERSION, type UtilityMoment, type UtilityThrow } from "@/lib/analysis/utility";
 import { detectFindings, FINDINGS_VERSION } from "./detect";
 
 /**
  * Stored findings are valid while detectors and the analyses they read are
  * unchanged; any version bump rebuilds them on next view.
  */
-export const FINDINGS_STAMP = `f${FINDINGS_VERSION}.m${MECHANICS_VERSION}.a${AIM_VERSION}`;
+export const FINDINGS_STAMP = `f${FINDINGS_VERSION}.m${MECHANICS_VERSION}.a${AIM_VERSION}.u${UTILITY_VERSION}`;
 
 /** Rebuild the match's findings. Returns how many were stored. */
 export async function computeAndPersistFindings(prisma: PrismaClient, matchId: string): Promise<number> {
-  const [mechanics, aim] = await Promise.all([getMechanicsStats(prisma, matchId), getAimStats(prisma, matchId)]);
+  const [mechanics, aim, utility, match] = await Promise.all([
+    getMechanicsStats(prisma, matchId),
+    getAimStats(prisma, matchId),
+    getUtilityStats(prisma, matchId),
+    prisma.match.findUnique({ where: { id: matchId }, select: { map: true } }),
+  ]);
+  // Callouts and the lineup base are map-wide; a failure only loses names/hints.
+  let utilityContext = {};
+  if (match && utility.length > 0) {
+    try {
+      const placeOf = await getPlaceLookup(prisma, match.map);
+      utilityContext = { placeOf, lineups: await getMapLineups(prisma, match.map, placeOf) };
+    } catch (error) {
+      console.error(`[findings] lineups/callouts unavailable match=${matchId}:`, error);
+    }
+  }
   const drafts = detectFindings({
     mechanics: mechanics.map((m) => ({ steamId: m.steamId, moments: m.moments as unknown as MovementMoment[] })),
     aim: aim.map((a) => ({ steamId: a.steamId, moments: a.moments as unknown as AimMoment[] })),
+    utility: utility.map((u) => ({
+      steamId: u.steamId,
+      moments: u.moments as unknown as UtilityMoment[],
+      throws: u.throws as unknown as UtilityThrow[],
+    })),
+    utilityContext,
   });
 
   // Serialised per match: the report and the replay can both trigger a
@@ -38,7 +61,7 @@ export async function computeAndPersistFindings(prisma: PrismaClient, matchId: s
     // gets its findings built on the next view.
     await tx.match.update({
       where: { id: matchId },
-      data: { findingsVersion: mechanics.length + aim.length > 0 ? FINDINGS_STAMP : null },
+      data: { findingsVersion: mechanics.length + aim.length + utility.length > 0 ? FINDINGS_STAMP : null },
     });
   });
   return drafts.length;

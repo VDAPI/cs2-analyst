@@ -342,6 +342,23 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
   const kills: ParsedKill[] = [];
   const firstKillTicks = new Map<number, number>();
 
+  // Victim's inventory at death ("died with unused utility", S11). Separate
+  // pass so a parser that can't read the prop still gets every kill.
+  const inventoryAtDeath = new Map<string, string[]>();
+  try {
+    const withInventory = parser.parseEvent(filePath, "player_death", ["inventory"]) as
+      | Record<string, unknown>[]
+      | null;
+    for (const k of withInventory ?? []) {
+      const inv = k.user_inventory;
+      if (Array.isArray(inv)) {
+        inventoryAtDeath.set(`${num(k.tick)}|${str(k.user_steamid)}`, inv.map((x) => String(x)));
+      }
+    }
+  } catch (err) {
+    console.warn("[demo-parser] inventory at death unavailable:", err);
+  }
+
   for (const k of killEvents ?? []) {
     const tick = num(k.tick);
     const attackerId = str(k.attacker_steamid);
@@ -385,6 +402,7 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
         z: num(k.user_Z),
       },
       isFirstKill: false,
+      victimInventory: inventoryAtDeath.get(`${tick}|${victimId}`) ?? null,
     });
   }
 

@@ -15,6 +15,7 @@ import {
   Gamepad2,
   Binoculars,
   ClipboardCheck,
+  Target,
   type LucideIcon,
 } from "lucide-react";
 import type { MessageKey } from "@/lib/i18n/translate";
@@ -57,6 +58,7 @@ export const navGroups: NavGroup[] = [
       { href: "/replay", labelKey: "nav.replay", icon: Play },
       { href: "/heatmaps", labelKey: "nav.heatmaps", icon: Flame },
       { href: "/grenades", labelKey: "nav.grenades", icon: Crosshair },
+      { href: "/lineups", labelKey: "nav.lineups", icon: Target },
       { href: "/economy", labelKey: "nav.economy", icon: DollarSign },
       { href: "/scouting", labelKey: "nav.scouting", icon: Binoculars },
     ],

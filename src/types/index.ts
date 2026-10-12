@@ -81,6 +81,8 @@ export interface ParsedKill {
   attackerPos: Position3D;
   victimPos: Position3D;
   isFirstKill: boolean;
+  /** Item names the victim held at death; null when the parser couldn't read them. */
+  victimInventory?: string[] | null;
 }
 
 export interface ParsedGrenade {

@@ -43,9 +43,10 @@ check(
     );
   })
 );
-check("S11/S12 categories are announced", ["utility", "teamplay", "economy", "positioning"].every(
+check("S12 categories are announced", ["teamplay", "economy", "positioning"].every(
   (k) => CATEGORIES.find((c) => c.key === k)?.plannedIn
 ));
+check("utility (S11) is live", !CATEGORIES.find((c) => c.key === "utility")?.plannedIn);
 check("unknown type gets a fallback definition", findingDef("smoke_too_early").label === "smoke_too_early");
 
 // ─── 2. Mechanics ────────────────────────────────────────

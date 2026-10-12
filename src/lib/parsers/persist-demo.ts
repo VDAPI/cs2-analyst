@@ -12,6 +12,9 @@ import { formatReplayStats, parseAndPersistReplayData } from "./persist-replay";
 import { computeAndPersistMechanics } from "../analysis/persist-mechanics";
 import { computeAndPersistAim } from "../analysis/persist-aim";
 import { computeAndPersistFindings } from "../findings/persist";
+import { computeAndPersistUtility, persistPlaceCells } from "../analysis/persist-utility";
+import { aggregatePlaces } from "../analysis/places";
+import { parsePlaceSamples } from "./replay-data";
 
 interface PersistArgs {
   uploadId: string;
@@ -134,6 +137,7 @@ export async function parseAndPersistDemo(
             victimPosY: k.victimPos.y,
             victimPosZ: k.victimPos.z,
             isFirstKill: k.isFirstKill,
+            victimInventory: k.victimInventory ?? Prisma.DbNull,
           })),
       });
     }
@@ -220,6 +224,20 @@ export async function parseAndPersistDemo(
         console.log(`[persist-demo] aim match=${match.id}: ${players} players`);
       } catch (error) {
         console.error(`[persist-demo] aim FAILED match=${match.id}:`, error);
+      }
+      try {
+        const roundWindows = parsed.rounds.map((r) => ({ number: r.number, startTick: r.startTick, endTick: r.endTick }));
+        const samples = await parsePlaceSamples(filePath, roundWindows, match.tickRate);
+        await persistPlaceCells(prisma, match.map, aggregatePlaces(samples));
+        console.log(`[persist-demo] callouts match=${match.id}: ${samples.length} samples`);
+      } catch (error) {
+        console.error(`[persist-demo] callouts FAILED match=${match.id}:`, error);
+      }
+      try {
+        const players = await computeAndPersistUtility(prisma, match.id);
+        console.log(`[persist-demo] utility match=${match.id}: ${players} players`);
+      } catch (error) {
+        console.error(`[persist-demo] utility FAILED match=${match.id}:`, error);
       }
       try {
         const findings = await computeAndPersistFindings(prisma, match.id);
