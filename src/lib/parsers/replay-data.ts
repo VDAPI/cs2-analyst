@@ -278,3 +278,35 @@ function str(val: unknown): string {
   if (val != null) return String(val);
   return "";
 }
+
+/** Seconds between callout samples (one row per player per sample). */
+const PLACE_SAMPLE_INTERVAL_S = 1;
+
+/**
+ * Every player's position and callout name (`last_place_name`) once per
+ * second of every round, for the map's callout grid (S11, places.ts).
+ * Best-effort: returns [] when the parser can't read the prop.
+ */
+export async function parsePlaceSamples(
+  rawPath: string,
+  rounds: ReplayRoundWindow[],
+  tickRate: number
+): Promise<Array<{ x: number; y: number; z: number; place: string }>> {
+  const parser = await getParser();
+  const filePath = rawPath.replace(/\\/g, "/");
+  const step = Math.max(1, Math.round(tickRate * PLACE_SAMPLE_INTERVAL_S));
+  const wanted = rounds.flatMap((r) => sampleTickList(r.startTick, r.endTick, step));
+  if (wanted.length === 0) return [];
+  try {
+    const rows = (parser.parseTicks(filePath, ["X", "Y", "Z", "last_place_name"], wanted) ?? []) as Record<
+      string,
+      unknown
+    >[];
+    return rows
+      .map((r) => ({ x: num(r.X), y: num(r.Y), z: num(r.Z), place: str(r.last_place_name) }))
+      .filter((s) => s.place !== "");
+  } catch (err) {
+    console.warn("[replay-data] last_place_name unavailable, no callouts from this demo:", err);
+    return [];
+  }
+}

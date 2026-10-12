@@ -15,11 +15,13 @@
  *
  * No demo file or database required — everything here is pure.
  */
-import { playerMetrics, type AimSummary, type MechanicsSummary } from "@/lib/findings/report";
+import { playerMetrics, type AimSummary, type MechanicsSummary, type TacticsSummary, type UtilitySummary } from "@/lib/findings/report";
 import {
   MIN_TREND_POINTS,
   PROGRESS_METRICS,
   aggregateAim,
+  aggregateTactics,
+  aggregateUtility,
   aggregateWindow,
   buildHistory,
   computeTrend,
@@ -69,6 +71,17 @@ const aim = (over: Partial<AimSummary> = {}): AimSummary => ({
   reloads: 6, badReloads: 1, reloadData: true, ...over,
 });
 
+const tactics = (over: Partial<TacticsSummary> = {}): TacticsSummary => ({
+  rounds: 22, deaths: 15, tradedDeaths: 4, isolatedDeaths: 3, tradeChances: 6, tradesMade: 3,
+  openingDuels: 6, openingWins: 3, anchorRounds: 10, sameSpotRounds: 6, forceRounds: 2, badForces: 1, ...over,
+});
+
+const utility = (over: Partial<UtilitySummary> = {}): UtilitySummary => ({
+  smokes: 8, smokesVoid: 2, smokesEarly: 1, flashes: 10, flashesBlinding: 6, flashesFollowed: 3,
+  flashEnemySec: 12, flashTeamSec: 3, teamFlashes: 1, hes: 4, heDamage: 60, molotovs: 3, molotovDamage: 30,
+  nadeTeamDamage: 0, nadesNoEffect: 3, deaths: 15, deathsWithUtility: 5, unusedUtilityValue: 1500, inventoryData: true, ...over,
+});
+
 let seq = 0;
 const match = (over: Partial<MatchInput> & { day: number; p?: Partial<MatchInput["player"]> }): MatchInput => {
   const { day, p, ...rest } = over;
@@ -86,6 +99,8 @@ const match = (over: Partial<MatchInput> & { day: number; p?: Partial<MatchInput
     },
     mech: mech(),
     aim: aim(),
+    tactics: tactics(),
+    utility: utility(),
     findings: { high: 2, medium: 3, low: 4 },
     ...rest,
   };
@@ -93,7 +108,7 @@ const match = (over: Partial<MatchInput> & { day: number; p?: Partial<MatchInput
 
 // ─── 1. Metric table ───────────────────────────────────────
 
-const reportKeys = playerMetrics(mech(), aim()).map((m) => m.key);
+const reportKeys = playerMetrics(mech(), aim(), tactics(), utility()).map((m) => m.key);
 check(
   "every report metric is tracked over time",
   reportKeys.every((k) => PROGRESS_METRICS.some((d) => d.key === k && d.source === "report"))
@@ -113,7 +128,7 @@ check(
 // ─── 2. Per-match values and history ───────────────────────
 
 const a = match({ day: 3, p: { team: "T" }, scoreCT: 13, scoreT: 9 });
-const b = match({ day: 1, mech: null, aim: null, findings: null });
+const b = match({ day: 1, mech: null, aim: null, tactics: null, utility: null, findings: null });
 const hist = buildHistory([a, b]);
 check("history oldest first", hist[0].matchId === b.matchId && hist[1].matchId === a.matchId);
 check("result from the player's final side (T lost 9:13)", matchResult(a).result === "L" && matchResult(a).own === 9);
@@ -136,6 +151,11 @@ check("noise is averaged per match, not summed", noisy?.noiseEpisodes === 4);
 const med = aggregateAim([aim({ reactionMedianMs: 300, reactionSamples: 30 }), aim({ reactionMedianMs: 600, reactionSamples: 10 })]);
 check("medians become a sample-weighted mean (375 ms)", near(med?.reactionMedianMs ?? null, 375));
 check("reload counts only from matches with reload data", aggregateAim([aim({ badReloads: 4 }), aim({ reloadData: false, badReloads: 0 })])?.badReloads === 4);
+const tw = aggregateTactics([tactics({ openingDuels: 2, openingWins: 2, badForces: 0 }), tactics({ openingDuels: 4, openingWins: 0, badForces: 2 })]);
+check("tactics: opening duels summed (2/6), bad forces averaged per match", tw?.openingDuels === 6 && tw.openingWins === 2 && tw.badForces === 1);
+const uw = aggregateUtility([utility({ flashes: 4, flashEnemySec: 8 }), utility({ flashes: 6, flashEnemySec: 2, inventoryData: false, unusedUtilityValue: 9999 })]);
+check("utility: blind seconds per flash over the window, inventory only where known", uw?.flashes === 10 && uw.flashEnemySec === 10 && uw.unusedUtilityValue === 1500 && uw.inventoryData);
+check("window judges utility per flash (1.0 s)", near(aggregateWindow([match({ day: 1, utility: utility({ flashes: 4, flashEnemySec: 8 }) }), match({ day: 2, utility: utility({ flashes: 6, flashEnemySec: 2 }) })]).flash_blind.value, 1));
 check("strafe ms weighted by stops", near(aggregateWindow([match({ day: 1, mech: mech({ counterStrafes: 30, counterStrafeAvgMs: 100 }) }), match({ day: 2, mech: mech({ counterStrafes: 10, counterStrafeAvgMs: 200 }) })]).strafe.value, 125));
 check("core window value is the mean", near(aggregateWindow([match({ day: 1, p: { adr: 70 } }), match({ day: 2, p: { adr: 90 } })]).adr.value, 80));
 check("serious window: all highs over all rounds", near(aggregateWindow([match({ day: 1, rounds: 20, findings: { high: 4, medium: 0, low: 0 } }), match({ day: 2, rounds: 30, findings: { high: 1, medium: 0, low: 0 } })]).serious.value, 1));

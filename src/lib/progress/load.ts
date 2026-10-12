@@ -5,8 +5,8 @@
  * latest matches. Stored stats are read as they are (no recompute), so the
  * page stays fast; the report rebuilds stale rows when a match is opened.
  */
-import type { AimStats, MechanicsStats, PrismaClient } from "@prisma/client";
-import type { AimSummary, MechanicsSummary } from "@/lib/findings/report";
+import type { AimStats, MechanicsStats, PrismaClient, TacticsStats, UtilityStats } from "@prisma/client";
+import type { AimSummary, MechanicsSummary, TacticsSummary, UtilitySummary } from "@/lib/findings/report";
 import { resolvePlayer, type Candidate, type ResolvedHow } from "./identity";
 import type { MatchInput } from "./metrics";
 
@@ -51,6 +51,26 @@ export function toAimSummary(a: AimStats): AimSummary {
     noiseEpisodes: a.noiseEpisodes, noiseCostly: a.noiseCostly,
     jumps: a.jumps, jumpsNearEnemy: a.jumpsNearEnemy, airShots: a.airShots,
     reloads: a.reloads, badReloads: a.badReloads, reloadData: a.reloadData,
+  };
+}
+
+export function toTacticsSummary(t: TacticsStats): TacticsSummary {
+  return {
+    rounds: t.rounds, deaths: t.deaths, tradedDeaths: t.tradedDeaths, isolatedDeaths: t.isolatedDeaths,
+    tradeChances: t.tradeChances, tradesMade: t.tradesMade, openingDuels: t.openingDuels, openingWins: t.openingWins,
+    anchorRounds: t.anchorRounds, sameSpotRounds: t.sameSpotRounds, forceRounds: t.forceRounds, badForces: t.badForces,
+  };
+}
+
+export function toUtilitySummary(u: UtilityStats): UtilitySummary {
+  return {
+    smokes: u.smokes, smokesVoid: u.smokesVoid, smokesEarly: u.smokesEarly,
+    flashes: u.flashes, flashesBlinding: u.flashesBlinding, flashesFollowed: u.flashesFollowed,
+    flashEnemySec: u.flashEnemySec, flashTeamSec: u.flashTeamSec, teamFlashes: u.teamFlashes,
+    hes: u.hes, heDamage: u.heDamage, molotovs: u.molotovs, molotovDamage: u.molotovDamage,
+    nadeTeamDamage: u.nadeTeamDamage, nadesNoEffect: u.nadesNoEffect,
+    deaths: u.deaths, deathsWithUtility: u.deathsWithUtility, unusedUtilityValue: u.unusedUtilityValue,
+    inventoryData: u.inventoryData,
   };
 }
 
@@ -104,6 +124,8 @@ export async function loadProgress(
         players: { where: { steamId } },
         mechanics: { where: { steamId } },
         aim: { where: { steamId } },
+        tactics: { where: { steamId } },
+        utility: { where: { steamId } },
       },
     }),
   ]);
@@ -139,6 +161,8 @@ export async function loadProgress(
         },
         mech: r.mechanics[0] ? toMechanicsSummary(r.mechanics[0]) : null,
         aim: r.aim[0] ? toAimSummary(r.aim[0]) : null,
+        tactics: r.tactics[0] ? toTacticsSummary(r.tactics[0]) : null,
+        utility: r.utility[0] ? toUtilitySummary(r.utility[0]) : null,
         findings: r.findingsVersion ? { high: of("high"), medium: of("medium"), low: of("low") } : null,
       };
     })

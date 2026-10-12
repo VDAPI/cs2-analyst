@@ -13,7 +13,13 @@
  *   and the findings (serious mistakes per 10 rounds), with thresholds here.
  */
 import type { MetricStatus } from "@/lib/analysis/aim";
-import { playerMetrics, type AimSummary, type MechanicsSummary } from "@/lib/findings/report";
+import {
+  playerMetrics,
+  type AimSummary,
+  type MechanicsSummary,
+  type TacticsSummary,
+  type UtilitySummary,
+} from "@/lib/findings/report";
 export { formatProgressValue } from "./format";
 
 export type Direction = "lower" | "higher";
@@ -37,13 +43,25 @@ export type ProgressMetricKey =
   | "dry_peek"
   | "noise"
   | "jump"
-  | "reload";
+  | "reload"
+  | "flash_blind"
+  | "team_flash"
+  | "flash_follow"
+  | "smoke_wasted"
+  | "he_damage"
+  | "molotov_damage"
+  | "unused_utility"
+  | "traded_deaths"
+  | "trades"
+  | "opening"
+  | "same_spot"
+  | "bad_force";
 
 export interface ProgressMetricDef {
   key: ProgressMetricKey;
   source: "core" | "report";
   direction: Direction;
-  unit: "" | "%" | "ms" | "°";
+  unit: "" | "%" | "ms" | "°" | "s" | "HP" | "$";
   decimals: number;
   /** Core metrics only: judged good at/past `good`, warn at/past `warn`. */
   good?: number;
@@ -74,6 +92,20 @@ export const PROGRESS_METRICS: ProgressMetricDef[] = [
   { key: "noise", source: "report", direction: "lower", unit: "", decimals: 1, goal: 2 },
   { key: "jump", source: "report", direction: "lower", unit: "", decimals: 1 },
   { key: "reload", source: "report", direction: "lower", unit: "", decimals: 1 },
+  // Utility (S11)
+  { key: "flash_blind", source: "report", direction: "higher", unit: "s", decimals: 1, goal: 1.2 },
+  { key: "team_flash", source: "report", direction: "lower", unit: "s", decimals: 1, goal: 0.3 },
+  { key: "flash_follow", source: "report", direction: "higher", unit: "%", decimals: 0, goal: 60 },
+  { key: "smoke_wasted", source: "report", direction: "lower", unit: "%", decimals: 0, goal: 15 },
+  { key: "he_damage", source: "report", direction: "higher", unit: "HP", decimals: 0 },
+  { key: "molotov_damage", source: "report", direction: "higher", unit: "HP", decimals: 0 },
+  { key: "unused_utility", source: "report", direction: "lower", unit: "$", decimals: 0, goal: 150 },
+  // Teamplay, economy, positions (S12)
+  { key: "traded_deaths", source: "report", direction: "higher", unit: "%", decimals: 0, goal: 30 },
+  { key: "trades", source: "report", direction: "higher", unit: "%", decimals: 0, goal: 50 },
+  { key: "opening", source: "report", direction: "higher", unit: "%", decimals: 0, goal: 50 },
+  { key: "same_spot", source: "report", direction: "lower", unit: "%", decimals: 0 },
+  { key: "bad_force", source: "report", direction: "lower", unit: "", decimals: 1 },
 ];
 
 export const PROGRESS_METRIC_KEYS = PROGRESS_METRICS.map((m) => m.key);
@@ -110,6 +142,8 @@ export interface MatchInput {
   };
   mech: MechanicsSummary | null;
   aim: AimSummary | null;
+  tactics: TacticsSummary | null;
+  utility: UtilitySummary | null;
   /** Counts by severity; null while the match's findings were never built. */
   findings: { high: number; medium: number; low: number } | null;
 }
@@ -163,14 +197,19 @@ function coreValues(m: Pick<MatchInput, "player" | "rounds" | "findings">): Reco
   };
 }
 
-function reportValues(mech: MechanicsSummary | null, aim: AimSummary | null): Map<string, MetricValue> {
-  return new Map(playerMetrics(mech, aim).map((r) => [r.key, { value: r.value, status: r.status, samples: r.samples }]));
+function reportValues(
+  mech: MechanicsSummary | null,
+  aim: AimSummary | null,
+  tactics: TacticsSummary | null,
+  utility: UtilitySummary | null
+): Map<string, MetricValue> {
+  return new Map(playerMetrics(mech, aim, tactics, utility).map((r) => [r.key, { value: r.value, status: r.status, samples: r.samples }]));
 }
 
 /** Every metric of one match. */
 export function matchValues(m: MatchInput): Record<ProgressMetricKey, MetricValue> {
   const core = coreValues(m);
-  const report = reportValues(m.mech, m.aim);
+  const report = reportValues(m.mech, m.aim, m.tactics, m.utility);
   const out = {} as Record<ProgressMetricKey, MetricValue>;
   for (const def of PROGRESS_METRICS) {
     if (def.source === "core") {
@@ -248,11 +287,61 @@ export function aggregateAim(list: AimSummary[]): AimSummary | null {
   return out;
 }
 
+/** Tactics: counts summed; bad forces (a per-match count) averaged. */
+export function aggregateTactics(list: TacticsSummary[]): TacticsSummary | null {
+  if (list.length === 0) return null;
+  const sum = (k: keyof TacticsSummary) => list.reduce((s, t) => s + t[k], 0);
+  return {
+    rounds: sum("rounds"),
+    deaths: sum("deaths"),
+    tradedDeaths: sum("tradedDeaths"),
+    isolatedDeaths: sum("isolatedDeaths"),
+    tradeChances: sum("tradeChances"),
+    tradesMade: sum("tradesMade"),
+    openingDuels: sum("openingDuels"),
+    openingWins: sum("openingWins"),
+    anchorRounds: sum("anchorRounds"),
+    sameSpotRounds: sum("sameSpotRounds"),
+    forceRounds: round(sum("forceRounds") / list.length, 1),
+    badForces: round(sum("badForces") / list.length, 1),
+  };
+}
+
+/** Utility: every count summed (its metrics are per grenade or per death); inventory from matches that have it. */
+export function aggregateUtility(list: UtilitySummary[]): UtilitySummary | null {
+  if (list.length === 0) return null;
+  const sum = (src: UtilitySummary[], k: keyof Omit<UtilitySummary, "inventoryData">) => src.reduce((s, u) => s + u[k], 0);
+  const inv = list.filter((u) => u.inventoryData);
+  return {
+    smokes: sum(list, "smokes"),
+    smokesVoid: sum(list, "smokesVoid"),
+    smokesEarly: sum(list, "smokesEarly"),
+    flashes: sum(list, "flashes"),
+    flashesBlinding: sum(list, "flashesBlinding"),
+    flashesFollowed: sum(list, "flashesFollowed"),
+    flashEnemySec: sum(list, "flashEnemySec"),
+    flashTeamSec: sum(list, "flashTeamSec"),
+    teamFlashes: sum(list, "teamFlashes"),
+    hes: sum(list, "hes"),
+    heDamage: sum(list, "heDamage"),
+    molotovs: sum(list, "molotovs"),
+    molotovDamage: sum(list, "molotovDamage"),
+    nadeTeamDamage: sum(list, "nadeTeamDamage"),
+    nadesNoEffect: sum(list, "nadesNoEffect"),
+    deaths: sum(inv, "deaths"),
+    deathsWithUtility: sum(inv, "deathsWithUtility"),
+    unusedUtilityValue: sum(inv, "unusedUtilityValue"),
+    inventoryData: inv.length > 0,
+  };
+}
+
 /** The window judged as a whole: report metrics on summed counts, core metrics averaged. */
 export function aggregateWindow(matches: MatchInput[]): Record<ProgressMetricKey, MetricValue> {
   const report = reportValues(
     aggregateMechanics(matches.flatMap((m) => (m.mech ? [m.mech] : []))),
-    aggregateAim(matches.flatMap((m) => (m.aim ? [m.aim] : [])))
+    aggregateAim(matches.flatMap((m) => (m.aim ? [m.aim] : []))),
+    aggregateTactics(matches.flatMap((m) => (m.tactics ? [m.tactics] : []))),
+    aggregateUtility(matches.flatMap((m) => (m.utility ? [m.utility] : [])))
   );
   const withFindings = matches.filter((m) => m.findings && m.rounds > 0);
   const highs = withFindings.reduce((s, m) => s + m.findings!.high, 0);

@@ -16,13 +16,16 @@ export async function loadPlayerReport(
   steamId: string,
   allFindings: FindingView[]
 ): Promise<{ report: PlayerReport<FindingView>; hasData: boolean }> {
-  const [mech, aim] = await Promise.all([
-    prisma.mechanicsStats.findUnique({ where: { matchId_steamId: { matchId, steamId } } }),
-    prisma.aimStats.findUnique({ where: { matchId_steamId: { matchId, steamId } } }),
+  const where = { matchId_steamId: { matchId, steamId } };
+  const [mech, aim, tactics, util] = await Promise.all([
+    prisma.mechanicsStats.findUnique({ where }),
+    prisma.aimStats.findUnique({ where }),
+    prisma.tacticsStats.findUnique({ where }),
+    prisma.utilityStats.findUnique({ where }),
   ]);
   const mine = allFindings.filter((f) => f.steamId === steamId);
-  const report = buildReport<FindingView>(mine, playerMetrics(mech, aim as AimSummary | null));
-  return { report, hasData: mech != null || aim != null };
+  const report = buildReport<FindingView>(mine, playerMetrics(mech, aim as AimSummary | null, tactics, util));
+  return { report, hasData: mech != null || aim != null || tactics != null || util != null };
 }
 
 /** What the 2D clips on a report need about the match's map. */

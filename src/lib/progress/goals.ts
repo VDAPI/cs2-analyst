@@ -87,6 +87,8 @@ export function validTarget(metric: string, target: unknown): target is number {
   if (def.unit === "%") return target <= 100;
   if (def.unit === "°") return target <= 90;
   if (def.unit === "ms") return target <= 5000;
+  if (def.unit === "s") return target <= 60;
+  if (def.unit === "$") return target <= 20000;
   return target <= 1000;
 }
 
