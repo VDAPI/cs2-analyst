@@ -11,7 +11,8 @@ import { detectTradeKills } from "@/lib/utils/tradeKills";
 import { detectClutchesBySide } from "@/lib/utils/clutches";
 import { createSideResolver } from "@/lib/utils/sideSplit";
 import { BUY_TYPE_COLORS, type BuyTypeKey } from "@/lib/utils/buyType";
-import { WeaponBarChart, type WeaponStat } from "@/components/charts/weapon-bar-chart";
+import type { WeaponStat } from "@/components/charts/weapon-bar-chart";
+import { WeaponBarChart } from "@/components/charts/lazy-charts";
 import {
   BuyTypeCard,
   FormStrip,

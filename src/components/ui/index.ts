@@ -13,3 +13,4 @@ export { ToastProvider, useToast } from "./toast";
 export { PageHeader } from "./page-header";
 export { EmptyState } from "./empty-state";
 export { SectionTitle } from "./section-title";
+export { LazyDetails } from "./lazy-details";

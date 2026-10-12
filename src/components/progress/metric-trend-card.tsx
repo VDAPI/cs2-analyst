@@ -8,8 +8,9 @@ import type { MetricSeries, SeriesPoint } from "@/lib/progress/view";
 import { formatDate } from "@/lib/utils/formatters";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { useT } from "@/lib/i18n/client";
-import type { MessageKey, TFunction } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/translate";
 import { cn } from "@/lib/utils/cn";
+import { metricLabel } from "@/lib/progress/labels";
 
 /** Dot fill per verdict; SVG attributes can't read CSS vars (see palette.ts). */
 const STATUS_FILL: Record<string, string> = {
@@ -33,7 +34,7 @@ const STATUS_KEY: Record<string, MessageKey> = {
   none: "progress.statusNone",
 };
 
-export const metricLabel = (t: TFunction, key: string) => t(`progressMetrics.${key}` as MessageKey);
+export { metricLabel };
 
 function PointTooltip({
   active,

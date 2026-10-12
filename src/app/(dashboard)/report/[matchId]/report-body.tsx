@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CheckCircle2, Dumbbell, Lightbulb, Play, Sparkles, Trophy } from "lucide-react";
-import { Card, FindingTag, SectionTitle, buttonVariants } from "@/components/ui";
-import { FindingClip } from "@/components/replay/finding-clip";
+import { Card, FindingTag, LazyDetails, SectionTitle, buttonVariants } from "@/components/ui";
+import { LazyFindingClip } from "@/components/replay/finding-clip-lazy";
 import { cn } from "@/lib/utils/cn";
 import { formatMetric, type PlayerReport, type ReportIssue, type ReportMetric } from "@/lib/findings/report";
 import { fmtRoundTime, replayHref, type FindingView } from "@/lib/findings/view";
@@ -400,7 +400,7 @@ function TopIssue({
       {worst ? (
         <div className="min-w-0 space-y-1.5">
           {/* Keyed by the moment: switching player keeps TopIssue (same type) but must reload the clip. */}
-          <FindingClip
+          <LazyFindingClip
             key={worst.id}
             matchId={ctx.matchId}
             mapName={ctx.mapName}
@@ -447,29 +447,31 @@ function IssueDetails({
 }) {
   const cost = winprob ? totalCostPp(issue.findings) : null;
   return (
-    <details
+    <LazyDetails
       id={`issue-${issue.type}`}
       className="group scroll-mt-20 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] open:border-[var(--border-hover)]"
+      summary={
+        <summary className="flex min-h-12 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 sm:px-4 [&::-webkit-details-marker]:hidden">
+          <span className="min-w-0 flex-1 text-sm font-semibold text-[var(--text-primary)]">{issue.def.title}</span>
+          {issue.metric && issue.metric.value != null && (
+            <span className={cn("font-mono text-sm font-semibold", STATUS_TONE[issue.metric.status])}>
+              {formatMetric(issue.metric)}
+            </span>
+          )}
+          {cost != null && winprob && (
+            <span className="font-mono text-xs font-semibold text-[var(--mistake)]" title={winprob?.t("winprob.summaryCostHint")}>
+              {winprob.fmt(cost)} pp
+            </span>
+          )}
+          <span className="font-mono text-xs text-[var(--text-tertiary)]">{issue.findings.length}×</span>
+          {issue.metric?.status === "good" ? (
+            <FindingTag severity="good">Dobrze</FindingTag>
+          ) : (
+            <FindingTag severity={issue.severity} />
+          )}
+        </summary>
+      }
     >
-      <summary className="flex min-h-12 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 sm:px-4 [&::-webkit-details-marker]:hidden">
-        <span className="min-w-0 flex-1 text-sm font-semibold text-[var(--text-primary)]">{issue.def.title}</span>
-        {issue.metric && issue.metric.value != null && (
-          <span className={cn("font-mono text-sm font-semibold", STATUS_TONE[issue.metric.status])}>
-            {formatMetric(issue.metric)}
-          </span>
-        )}
-        {cost != null && winprob && (
-          <span className="font-mono text-xs font-semibold text-[var(--mistake)]" title={winprob?.t("winprob.summaryCostHint")}>
-            {winprob.fmt(cost)} pp
-          </span>
-        )}
-        <span className="font-mono text-xs text-[var(--text-tertiary)]">{issue.findings.length}×</span>
-        {issue.metric?.status === "good" ? (
-          <FindingTag severity="good">Dobrze</FindingTag>
-        ) : (
-          <FindingTag severity={issue.severity} />
-        )}
-      </summary>
       <div className="space-y-3 border-t border-[var(--border)] px-3 py-3 sm:px-4">
         {issue.metric && <MetricLine metric={issue.metric} norms={norms} />}
         <p className="text-sm text-[var(--text-secondary)]">{issue.def.why}</p>
@@ -496,6 +498,6 @@ function IssueDetails({
           </div>
         )}
       </div>
-    </details>
+    </LazyDetails>
   );
 }

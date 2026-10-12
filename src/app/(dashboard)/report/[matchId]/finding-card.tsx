@@ -1,17 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import Link from "next/link";
 import { Eye, Play, Sparkles, Target } from "lucide-react";
 import { FindingTag, buttonVariants } from "@/components/ui";
-import { FindingClip } from "@/components/replay/finding-clip";
+import { LazyFindingClip } from "@/components/replay/finding-clip-lazy";
 import type { RadarConfig } from "@/lib/canvas/radar";
 import { fmtFindingValue, fmtRoundTime, replayHref, type FindingView } from "@/lib/findings/view";
 import { useT } from "@/lib/i18n/client";
 import { hasLineupPractice } from "@/lib/training/lineup-trainer";
 import { cn } from "@/lib/utils/cn";
 import { FindingImpact } from "@/components/winprob/finding-impact";
-import { ProAdvicePanel } from "@/components/winprob/pro-advice";
+
+// Opened on demand, so its code loads on demand too (S28).
+const ProAdvicePanel = lazy(() =>
+  import("@/components/winprob/pro-advice").then((m) => ({ default: m.ProAdvicePanel }))
+);
 
 export interface ClipContext {
   matchId: string;
@@ -66,7 +70,7 @@ export function FindingCard({
         </p>
       )}
       {open && (
-        <FindingClip
+        <LazyFindingClip
           matchId={ctx.matchId}
           mapName={ctx.mapName}
           mapConfig={ctx.mapConfig}
@@ -81,7 +85,11 @@ export function FindingCard({
           label={`${f.label}, runda ${f.roundNumber}, ${fmtRoundTime(f.roundTime)}`}
         />
       )}
-      {pro && <ProAdvicePanel matchId={ctx.matchId} findingId={f.id} mapName={ctx.mapName} mapConfig={ctx.mapConfig} />}
+      {pro && (
+        <Suspense fallback={null}>
+          <ProAdvicePanel matchId={ctx.matchId} findingId={f.id} mapName={ctx.mapName} mapConfig={ctx.mapConfig} />
+        </Suspense>
+      )}
       <div className="mt-auto flex flex-wrap gap-2 pt-1">
         <button
           type="button"

@@ -21,6 +21,17 @@ import { persistMatchRanks } from "../norms/ranks";
 import { computeAndPersistNormSamples, refreshNorms, refreshNormsIfStale } from "../norms/persist";
 import { backfillWinProb, computeAndPersistWinProb } from "../winprob/persist";
 import { requestTraining } from "../winprob/train-trigger";
+import { withDemoFile } from "./load-parser";
+import { withDecodeCache } from "../replay/decode-cache";
+
+/** Milliseconds per pipeline step, in the order they ran. */
+export type StepTimings = Record<string, number>;
+
+export function formatStepTimings(timings: StepTimings): string {
+  const total = Object.values(timings).reduce((a, b) => a + b, 0);
+  const parts = Object.entries(timings).map(([k, ms]) => `${k} ${(ms / 1000).toFixed(2)}s`);
+  return `${parts.join(", ")} | total ${(total / 1000).toFixed(2)}s`;
+}
 
 interface PersistArgs {
   uploadId: string;
@@ -36,9 +47,21 @@ interface PersistArgs {
  */
 export async function parseAndPersistDemo(
   prisma: PrismaClient,
+  args: PersistArgs,
+  reportProgress?: (pct: number) => void | Promise<void>
+): Promise<{ matchId: string; replayStored: boolean; timings: StepTimings }> {
+  // Every parser call below reads the demo's events from one shared pass, and
+  // the analysis steps decode each round's replay blob once between them.
+  return withDemoFile(args.filePath, () =>
+    withDecodeCache(() => persistDemo(prisma, args, reportProgress))
+  );
+}
+
+async function persistDemo(
+  prisma: PrismaClient,
   { uploadId, filePath }: PersistArgs,
   reportProgress?: (pct: number) => void | Promise<void>
-): Promise<{ matchId: string; replayStored: boolean }> {
+): Promise<{ matchId: string; replayStored: boolean; timings: StepTimings }> {
   // Progress also goes on the upload row, for the analysis queue screen.
   const onProgress = async (pct: number) => {
     await reportProgress?.(pct);
@@ -47,6 +70,15 @@ export async function parseAndPersistDemo(
       .catch(() => {});
   };
   const startedAt = Date.now();
+  // Wall time per pipeline step (S28): logged once per analysis, and what
+  // `npm run bench:parse` prints.
+  const timings: StepTimings = {};
+  let lastMark = performance.now();
+  const mark = (step: string) => {
+    const now = performance.now();
+    timings[step] = (timings[step] ?? 0) + (now - lastMark);
+    lastMark = now;
+  };
   // The Match this run created. Deleted again if the run fails, so a failed
   // or retried parse never leaves an unreachable Match behind.
   let createdMatchId: string | null = null;
@@ -58,6 +90,7 @@ export async function parseAndPersistDemo(
     await onProgress?.(10);
 
     const parsed = await parseDemoFile(filePath);
+    mark("parse");
     await onProgress?.(50);
 
     const playerUserLinks = await Promise.all(
@@ -211,6 +244,7 @@ export async function parseAndPersistDemo(
           })),
       });
     }
+    mark("persistMatch");
     await onProgress?.(90);
 
     // Replay data must be in the DB before anyone deletes the .dem.
@@ -222,6 +256,7 @@ export async function parseAndPersistDemo(
     } catch (error) {
       console.error(`[persist-demo] replay data FAILED match=${match.id}:`, error);
     }
+    mark("replay");
     // Mechanics read the replay data just stored; a failure here is not fatal
     // (the mechanics page recomputes missing stats on first view).
     if (replayStored) {
@@ -231,12 +266,14 @@ export async function parseAndPersistDemo(
       } catch (error) {
         console.error(`[persist-demo] mechanics FAILED match=${match.id}:`, error);
       }
+      mark("mechanics");
       try {
         const players = await computeAndPersistAim(prisma, match.id);
         console.log(`[persist-demo] aim match=${match.id}: ${players} players`);
       } catch (error) {
         console.error(`[persist-demo] aim FAILED match=${match.id}:`, error);
       }
+      mark("aim");
       try {
         const roundWindows = parsed.rounds.map((r) => ({ number: r.number, startTick: r.startTick, endTick: r.endTick }));
         const samples = await parsePlaceSamples(filePath, roundWindows, match.tickRate);
@@ -245,24 +282,28 @@ export async function parseAndPersistDemo(
       } catch (error) {
         console.error(`[persist-demo] callouts FAILED match=${match.id}:`, error);
       }
+      mark("callouts");
       try {
         const players = await computeAndPersistUtility(prisma, match.id);
         console.log(`[persist-demo] utility match=${match.id}: ${players} players`);
       } catch (error) {
         console.error(`[persist-demo] utility FAILED match=${match.id}:`, error);
       }
+      mark("utility");
       try {
         const players = await computeAndPersistTactics(prisma, match.id);
         console.log(`[persist-demo] tactics match=${match.id}: ${players} players`);
       } catch (error) {
         console.error(`[persist-demo] tactics FAILED match=${match.id}:`, error);
       }
+      mark("tactics");
       try {
         const findings = await computeAndPersistFindings(prisma, match.id);
         console.log(`[persist-demo] findings match=${match.id}: ${findings}`);
       } catch (error) {
         console.error(`[persist-demo] findings FAILED match=${match.id}:`, error);
       }
+      mark("findings");
     }
     // Ranks and norm samples (S13). Neither may fail the analysis.
     const upload = await prisma.demoUpload.findUnique({
@@ -283,6 +324,7 @@ export async function parseAndPersistDemo(
         console.error(`[persist-demo] ranks FAILED match=${match.id}:`, error);
       }
     }
+    mark("ranks");
     if (replayStored) {
       try {
         const samples = await computeAndPersistNormSamples(prisma, match.id, { pro: upload?.pro ?? false });
@@ -293,6 +335,7 @@ export async function parseAndPersistDemo(
       } catch (error) {
         console.error(`[persist-demo] norms FAILED match=${match.id}:`, error);
       }
+      mark("norms");
       // Win-probability training data (and pro situations) (S14); then ask for a
       // retrain in the background. Neither may fail the analysis.
       try {
@@ -305,6 +348,7 @@ export async function parseAndPersistDemo(
       } catch (error) {
         console.error(`[persist-demo] win-prob FAILED match=${match.id}:`, error);
       }
+      mark("winprob");
     }
     await onProgress?.(98);
 
@@ -328,8 +372,10 @@ export async function parseAndPersistDemo(
       await prisma.match.delete({ where: { id: previous.matchId } }).catch(() => {});
     }
     await onProgress?.(100);
+    mark("finish");
+    console.log(`[persist-demo] timings match=${match.id}: ${formatStepTimings(timings)}`);
 
-    return { matchId: match.id, replayStored };
+    return { matchId: match.id, replayStored, timings };
   } catch (error) {
     console.error(
       `[persist-demo] FAILED uploadId=${uploadId} filePath="${filePath}":`,

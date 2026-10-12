@@ -11,7 +11,7 @@ import {
   subsampleFrames,
   type ReplayFrame,
 } from "@/lib/replay/round-ticks";
-import { loadDemoParser } from "@/lib/parsers/load-parser";
+import { loadDemoParser, parseTickRows } from "@/lib/parsers/load-parser";
 
 // demoparser2 (native bindings), or the E2E fixture parser.
 const getParser = loadDemoParser;
@@ -93,12 +93,13 @@ export async function GET(req: Request, { params }: Props) {
     // native parse per request is too easy to trigger through a share link.
     const demoInterval = Math.max(4, interval);
     const parser = await getParser();
-    const rows = parser.parseTicks(
+    const rows = parseTickRows(
+      parser,
       filePath,
       REPLAY_TICK_PROPS,
       sampleTickList(round.startTick, round.endTick, demoInterval)
-    ) as Record<string, unknown>[];
-    frames = decodeRoundTicks(encodeRoundTicks(rows ?? [], round.startTick, round.endTick, demoInterval));
+    );
+    frames = decodeRoundTicks(encodeRoundTicks(rows, round.startTick, round.endTick, demoInterval));
     storedInterval = demoInterval;
     source = "demo";
   }

@@ -118,6 +118,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: npm run test:winprob
 
+      - name: Performance plumbing (event prefetch, tick columns, parse processes, decode cache) regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:perf
+
       - name: Parser checks on the E2E fixture demo
         if: ${{ !cancelled() }}
         run: npm run test:e2e-demo -- --fixture

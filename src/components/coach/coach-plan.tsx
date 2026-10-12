@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Dumbbell, ExternalLink, Gamepad2, Lightbulb, Play, Sparkles, Target, TrendingUp, Eye } from "lucide-react";
 import { Button, Card, Checkbox, SectionTitle, buttonVariants, useToast } from "@/components/ui";
-import { metricLabel } from "@/components/progress/metric-trend-card";
+import { metricLabel } from "@/lib/progress/labels";
 import { findingCopy } from "@/lib/coach/copy";
 import { DRILLS, drillText, workshopUrl, type DrillId } from "@/lib/coach/drills";
 import type { PlanDay, PlanFocus, TrainingPlanContent } from "@/lib/coach/plan";

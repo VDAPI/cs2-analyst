@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getT } from "@/lib/i18n/server";
 import { Card, EmptyState, PageHeader, SectionTitle, buttonVariants } from "@/components/ui";
 import { MapThumb, ResultBadge } from "@/components/match";
-import { MetricTrendCard } from "@/components/progress/metric-trend-card";
+import { MetricTrendCard } from "@/components/charts/lazy-charts";
 import { BadgeGrid } from "@/components/progress/badge-grid";
 import { GoalsPanel, type GoalMetricOption } from "@/components/progress/goals-panel";
 import { loadProgress } from "@/lib/progress/load";
