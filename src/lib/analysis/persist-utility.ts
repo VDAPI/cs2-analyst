@@ -93,9 +93,12 @@ export async function computeAndPersistUtility(prisma: PrismaClient, matchId: st
 
   const results = analyzeUtility(input);
 
-  await prisma.$transaction([
-    prisma.utilityStats.deleteMany({ where: { matchId } }),
-    prisma.utilityStats.createMany({
+  // Serialised per match (like findings): two first views after a version
+  // bump would otherwise interleave delete+insert and hit @@unique([matchId, steamId]).
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`utility:${matchId}`}))`;
+    await tx.utilityStats.deleteMany({ where: { matchId } });
+    await tx.utilityStats.createMany({
       data: results.map(({ throws, moments, ...rest }) => ({
         ...rest,
         matchId,
@@ -103,8 +106,8 @@ export async function computeAndPersistUtility(prisma: PrismaClient, matchId: st
         throws: throws as unknown as Prisma.InputJsonValue,
         moments: moments as unknown as Prisma.InputJsonValue,
       })),
-    }),
-  ]);
+    });
+  });
   return results.length;
 }
 

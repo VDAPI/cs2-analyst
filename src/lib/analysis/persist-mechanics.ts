@@ -60,9 +60,12 @@ export async function computeAndPersistMechanics(
 
   const results = analyzeMovement(input);
 
-  await prisma.$transaction([
-    prisma.mechanicsStats.deleteMany({ where: { matchId } }),
-    prisma.mechanicsStats.createMany({
+  // Serialised per match (like findings): two first views after a version
+  // bump would otherwise interleave delete+insert and hit @@unique([matchId, steamId]).
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`mechanics:${matchId}`}))`;
+    await tx.mechanicsStats.deleteMany({ where: { matchId } });
+    await tx.mechanicsStats.createMany({
       data: results.map(({ weapons, moments, ...rest }) => ({
         ...rest,
         matchId,
@@ -70,8 +73,8 @@ export async function computeAndPersistMechanics(
         weapons: weapons as unknown as object,
         moments: moments as unknown as object,
       })),
-    }),
-  ]);
+    });
+  });
   return results.length;
 }
 

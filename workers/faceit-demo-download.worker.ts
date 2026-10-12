@@ -21,7 +21,7 @@ import {
   DemoNotReadyError,
 } from "../src/lib/faceit/downloads";
 import { refreshDemoResource } from "../src/lib/faceit/sync";
-import { parseAndPersistDemo } from "../src/lib/parsers/persist-demo";
+import { failUploadIfInFlight, parseAndPersistDemo } from "../src/lib/parsers/persist-demo";
 import {
   demoRetention,
   shouldDeleteDemo,
@@ -219,7 +219,14 @@ worker.on("failed", (job, err) => {
   console.error(`FACEIT demo download failed: ${job?.id}`, err.message);
   reportJobFailure("faceit-demo-download", job, err);
   // Only the last attempt leaves the upload FAILED; earlier ones are a no-op.
-  if (job) void notifyUploadFinished(prisma, job.data.uploadId);
+  // finishedOn is set only when the job won't be retried: a job failed for
+  // stalling too often (the process died mid-download or mid-parse) never ran
+  // our catch, so settle its upload here (no-op if it is FAILED already).
+  if (job) {
+    const { uploadId } = job.data;
+    const settle = job.finishedOn ? failUploadIfInFlight(prisma, uploadId, err.message) : Promise.resolve();
+    void settle.then(() => notifyUploadFinished(prisma, uploadId));
+  }
 });
 
 worker.on("ready", () => {

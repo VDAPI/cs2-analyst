@@ -77,17 +77,20 @@ export async function computeAndPersistTactics(prisma: PrismaClient, matchId: st
 
   const results = analyzeTactics(input);
 
-  await prisma.$transaction([
-    prisma.tacticsStats.deleteMany({ where: { matchId } }),
-    prisma.tacticsStats.createMany({
+  // Serialised per match (like findings): two first views after a version
+  // bump would otherwise interleave delete+insert and hit @@unique([matchId, steamId]).
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`tactics:${matchId}`}))`;
+    await tx.tacticsStats.deleteMany({ where: { matchId } });
+    await tx.tacticsStats.createMany({
       data: results.map(({ moments, ...rest }) => ({
         ...rest,
         matchId,
         version: TACTICS_VERSION,
         moments: moments as unknown as object,
       })),
-    }),
-  ]);
+    });
+  });
   return results.length;
 }
 

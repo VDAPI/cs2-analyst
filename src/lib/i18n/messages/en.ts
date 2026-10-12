@@ -207,6 +207,7 @@ export const en: Messages = {
     maxFiles: "You can add up to {n} at once.",
     addedOnly: "Only {n} added (limit {max}).",
     keepDemo: "Keep the demo files. By default the demo is deleted after analysis; the report and 2D replay stay.",
+    keepDemoCapped: "Your plan's kept-demo limit is reached: the analysis runs, but the demo file is deleted afterwards.",
     start: "Upload and analyze",
     startCount: "Upload and analyze ({n})",
     queue: "Analysis queue",

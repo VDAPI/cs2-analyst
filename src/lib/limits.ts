@@ -4,8 +4,11 @@
  * Shared by the manual upload route, the FACEIT download routes and the
  * "keep demo" toggle so every entry point enforces the same numbers.
  */
-import type { Plan } from "@prisma/client";
+import type { Plan, Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+
+/** The app client, or the transaction of withUploadSlots(). */
+type Db = PrismaClient | Prisma.TransactionClient;
 
 export interface PlanLimits {
   /** Demos a user may analyze per calendar month. */
@@ -64,15 +67,15 @@ export interface PlanUsage extends DemoLimitStatus {
  * and compare against their plan limit. Both MANUAL and FACEIT uploads count,
  * and so do analyses the user deleted since.
  */
-export async function checkMonthlyDemoLimit(userId: string): Promise<DemoLimitStatus> {
-  const user = await prisma.user.findUnique({
+export async function checkMonthlyDemoLimit(userId: string, db: Db = prisma): Promise<DemoLimitStatus> {
+  const user = await db.user.findUnique({
     where: { id: userId },
     select: { plan: true, monthlyDemoLimit: true },
   });
   const plan: Plan = user?.plan ?? "FREE";
   const limit = effectiveMonthlyLimit(plan, user?.monthlyDemoLimit ?? null);
 
-  const used = await prisma.demoUpload.count({
+  const used = await db.demoUpload.count({
     where: {
       userId,
       createdAt: { gte: startOfMonthUTC() },
@@ -84,12 +87,41 @@ export async function checkMonthlyDemoLimit(userId: string): Promise<DemoLimitSt
 }
 
 /** Everything the UI shows about the plan: monthly usage and kept demos. */
-export async function getPlanUsage(userId: string): Promise<PlanUsage> {
-  const status = await checkMonthlyDemoLimit(userId);
-  const keptDemos = await prisma.demoUpload.count({
+export async function getPlanUsage(userId: string, db: Db = prisma): Promise<PlanUsage> {
+  const status = await checkMonthlyDemoLimit(userId, db);
+  const keptDemos = await db.demoUpload.count({
     where: { userId, keepDemo: true, deletedAt: null, demoDeletedAt: null },
   });
   return { ...status, limits: { ...PLAN_LIMITS[status.plan], monthlyDemos: status.limit }, keptDemos };
+}
+
+/**
+ * How many more analyses may keep their .dem. Rows still in flight with
+ * "keep demo" count already (getPlanUsage counts every non-deleted one).
+ */
+export function keepDemoSlotsLeft(usage: PlanUsage): number {
+  return Math.max(0, usage.limits.keptDemos - usage.keptDemos);
+}
+
+/**
+ * Check the plan and create the upload row(s) as one step per user. Counting
+ * and creating separately let parallel requests all see the same free slot
+ * and go past the monthly (or "keep demo") limit. `fn` gets the usage counted
+ * under a per-user advisory lock and must create its DemoUpload rows through
+ * `tx`; the lock is held until they are committed. Keep slow work (file
+ * writes, queueing jobs) outside `fn`.
+ */
+export async function withUploadSlots<T>(
+  userId: string,
+  fn: (tx: Prisma.TransactionClient, usage: PlanUsage) => Promise<T>
+): Promise<T> {
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`uploads:${userId}`}))`;
+      return fn(tx, await getPlanUsage(userId, tx));
+    },
+    { timeout: 15_000 }
+  );
 }
 
 export function formatLimit(n: number): string {

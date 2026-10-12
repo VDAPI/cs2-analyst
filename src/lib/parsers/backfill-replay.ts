@@ -1,12 +1,19 @@
 /**
- * Store replay data for matches parsed before it existed, while their .dem is
- * still on disk. Used by scripts/backfill-replay-ticks.ts and automatically by
- * the parse worker on startup.
+ * Store replay data for matches parsed before it existed, or whose replay step
+ * failed, while their .dem is still kept (local disk or R2). Used by
+ * scripts/backfill-replay-ticks.ts and automatically by the parse worker on
+ * startup.
  */
 import type { PrismaClient } from "@prisma/client";
 import { access } from "fs/promises";
-import { parseDemoLocation } from "../storage/demo-store";
+import { finalizeDemoAfterAnalysis, openDemoForParsing, parseDemoLocation } from "../storage/demo-store";
 import { formatReplayStats, parseAndPersistReplayData } from "./persist-replay";
+import { computeAndPersistMechanics } from "../analysis/persist-mechanics";
+import { computeAndPersistAim } from "../analysis/persist-aim";
+import { computeAndPersistUtility } from "../analysis/persist-utility";
+import { computeAndPersistTactics } from "../analysis/persist-tactics";
+import { computeAndPersistFindings } from "../findings/persist";
+import { computeAndPersistNormSamples } from "../norms/persist";
 
 export interface BackfillResult {
   done: number;
@@ -31,7 +38,7 @@ export async function backfillReplayData(
     select: {
       id: true,
       map: true,
-      upload: { select: { fileUrl: true } },
+      upload: { select: { id: true, fileUrl: true, pro: true } },
       rounds: { select: { ticks: { select: { id: true } } } },
     },
   });
@@ -44,22 +51,39 @@ export async function backfillReplayData(
       result.skipped++;
       continue;
     }
-    // Only local files: an R2 demo was stored after replay data existed.
-    const loc = parseDemoLocation(m.upload!.fileUrl);
-    const filePath = loc.kind === "local" ? loc.path : "";
-    if (!filePath || !(await access(filePath).then(() => true, () => false))) {
-      log(`  NO FILE ${m.id} (${m.map}): ${filePath}`);
+    // Local files, and R2 demos too: a demo is kept in R2 exactly when its
+    // replay step failed, so it is the one that needs this.
+    const upload = m.upload!;
+    const loc = parseDemoLocation(upload.fileUrl);
+    const missing =
+      loc.kind === "none" ||
+      (loc.kind === "local" && !(await access(loc.path).then(() => true, () => false)));
+    if (missing) {
+      log(`  NO FILE ${m.id} (${m.map}): ${upload.fileUrl}`);
       result.missingFile++;
       continue;
     }
     try {
       const started = Date.now();
-      const stats = await parseAndPersistReplayData(prisma, m.id, filePath);
+      const demo = await openDemoForParsing(upload.id, upload.fileUrl);
+      let stats;
+      try {
+        stats = await parseAndPersistReplayData(prisma, m.id, demo.path);
+      } finally {
+        await demo.cleanup();
+      }
       result.totalBytes += stats.tickBytes;
       result.done++;
       log(
         `  OK ${m.id} (${m.map}): ${formatReplayStats(stats)} in ${((Date.now() - started) / 1000).toFixed(1)}s`
       );
+      // The stored analyses came from the old (or missing) replay data and keep
+      // their version numbers, so nothing would rebuild them: do it now.
+      await rebuildDerivedAnalysis(prisma, m.id, upload.pro, log);
+      // Replay data is in the DB now: the usual rule decides whether the .dem goes.
+      await finalizeDemoAfterAnalysis(prisma, upload.id, true).catch((err) => {
+        log(`  demo cleanup failed ${m.id}: ${err instanceof Error ? err.message : String(err)}`);
+      });
     } catch (err) {
       result.failed++;
       log(`  FAIL ${m.id}: ${err instanceof Error ? err.message : String(err)}`);
@@ -67,4 +91,28 @@ export async function backfillReplayData(
   }
 
   return result;
+}
+
+/** What parseAndPersistDemo derives from replay data; each step may fail alone. */
+async function rebuildDerivedAnalysis(
+  prisma: PrismaClient,
+  matchId: string,
+  pro: boolean,
+  log: (line: string) => void
+): Promise<void> {
+  const steps: [string, () => Promise<unknown>][] = [
+    ["mechanics", () => computeAndPersistMechanics(prisma, matchId)],
+    ["aim", () => computeAndPersistAim(prisma, matchId)],
+    ["utility", () => computeAndPersistUtility(prisma, matchId)],
+    ["tactics", () => computeAndPersistTactics(prisma, matchId)],
+    ["findings", () => computeAndPersistFindings(prisma, matchId)],
+    ["norm samples", () => computeAndPersistNormSamples(prisma, matchId, { pro })],
+  ];
+  for (const [name, run] of steps) {
+    try {
+      await run();
+    } catch (err) {
+      log(`  ${name} FAILED ${matchId}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
 }

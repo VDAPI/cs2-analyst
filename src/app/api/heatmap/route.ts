@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { playerSideAtRound } from "@/lib/utils/sideSplit";
 
 /**
  * GET /api/heatmap?map=de_mirage&type=kills|deaths&side=CT|T&player=steamId&matches=id1,id2
@@ -57,40 +58,41 @@ export async function GET(req: Request) {
       victimPosY: true,
       weapon: true,
       headshot: true,
-      round: { select: { number: true } },
+      round: { select: { number: true, matchId: true } },
     },
   });
 
   // Get player roster across all matches (deduplicated)
   const allPlayers = await prisma.matchPlayer.findMany({
     where: { matchId: { in: matchIdList } },
-    select: { steamId: true, name: true, team: true },
+    select: { matchId: true, steamId: true, name: true, team: true },
   });
 
-  // Build team lookup — matchPlayer.team is the END-OF-MATCH team (second-half side).
-  // In first half (rounds 1-12), sides are SWAPPED relative to the DB value.
-  const dbTeamBySteamId = new Map<string, string>();
+  // Team lookup per (match, player) — matchPlayer.team is the END-OF-MATCH
+  // side of that match, and the same player can finish on CT in one match and
+  // on T in another, so a per-steamId map would put whole matches on the
+  // wrong side.
+  const dbTeamByMatchPlayer = new Map<string, "CT" | "T">();
   const playerNames = new Map<string, string>();
+  // Display team: the side the player finished on most often (ties → CT).
+  const finishedCT = new Map<string, number>();
   for (const p of allPlayers) {
-    dbTeamBySteamId.set(p.steamId, p.team);
+    dbTeamByMatchPlayer.set(`${p.matchId}:${p.steamId}`, p.team);
     playerNames.set(p.steamId, p.name);
+    finishedCT.set(p.steamId, (finishedCT.get(p.steamId) ?? 0) + (p.team === "CT" ? 1 : -1));
   }
 
-  /** Get a player's in-game team for a specific round, accounting for side swap at halftime. */
-  function getInGameTeam(steamId: string, roundNumber: number): string | undefined {
-    const dbTeam = dbTeamBySteamId.get(steamId);
-    if (!dbTeam) return undefined;
-    // First half (rounds 1-12): sides are opposite to DB value
-    if (roundNumber <= 12) return dbTeam === "CT" ? "T" : "CT";
-    // Second half (round 13+): sides match DB value
-    return dbTeam;
+  /** A player's in-game side in one round of one match (halftime swap included). */
+  function getInGameTeam(matchId: string, steamId: string, roundNumber: number): "CT" | "T" | undefined {
+    const dbTeam = dbTeamByMatchPlayer.get(`${matchId}:${steamId}`);
+    return dbTeam ? playerSideAtRound(dbTeam, roundNumber) : undefined;
   }
 
-  // Deduplicated player list (use DB team for display — represents "home" side)
+  // Deduplicated player list
   const uniquePlayers = Array.from(playerNames.entries()).map(([steamId, name]) => ({
     steamId,
     name,
-    team: dbTeamBySteamId.get(steamId) ?? "CT",
+    team: (finishedCT.get(steamId) ?? 0) >= 0 ? "CT" : "T",
   }));
 
   // Build points
@@ -102,7 +104,7 @@ export async function GET(req: Request) {
     if (type === "kills" && k.attackerSteamId === k.victimSteamId) continue;
     if (type === "kills") {
       if (side) {
-        const team = getInGameTeam(k.attackerSteamId, roundNum);
+        const team = getInGameTeam(k.round.matchId, k.attackerSteamId, roundNum);
         if (team !== side) continue;
       }
       if (playerSteamId && k.attackerSteamId !== playerSteamId) continue;
@@ -115,7 +117,7 @@ export async function GET(req: Request) {
       });
     } else {
       if (side) {
-        const team = getInGameTeam(k.victimSteamId, roundNum);
+        const team = getInGameTeam(k.round.matchId, k.victimSteamId, roundNum);
         if (team !== side) continue;
       }
       if (playerSteamId && k.victimSteamId !== playerSteamId) continue;
