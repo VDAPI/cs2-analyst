@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { Upload } from "lucide-react";
-import { Card, buttonVariants } from "@/components/ui";
+import { Card, EmptyState, buttonVariants } from "@/components/ui";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { getMapConfig } from "@/lib/utils/maps";
 import { cn } from "@/lib/utils/cn";
@@ -75,25 +75,18 @@ export function ToolMatchGrid({
 }
 
 /** Empty state shared by the tool pickers: one lime CTA to upload a demo. */
-export function ToolEmptyState({ title, text }: { title: string; text: string }) {
+export function ToolEmptyState({ icon, title, text }: { icon?: LucideIcon; title: string; text: string }) {
   return (
-    <Card className="flex flex-col items-center justify-center px-6 py-14 text-center">
-      <p className="font-display text-lg font-semibold text-[var(--text-primary)]">{title}</p>
-      <p className="mt-2 max-w-sm text-sm text-[var(--text-tertiary)]">{text}</p>
-      <Link href="/upload" className={cn(buttonVariants({ variant: "cta" }), "mt-5")}>
-        <Upload className="h-4 w-4" />
-        Wgraj pierwsze demo
-      </Link>
-    </Card>
-  );
-}
-
-export function ToolPageIntro({ overline, title, text }: { overline: string; title: string; text: string }) {
-  return (
-    <div>
-      <p className="label-overline text-[var(--accent)]">{overline}</p>
-      <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">{title}</h1>
-      <p className="mt-1 max-w-2xl text-sm text-[var(--text-secondary)]">{text}</p>
-    </div>
+    <EmptyState
+      icon={icon}
+      title={title}
+      description={text}
+      action={
+        <Link href="/upload" className={cn(buttonVariants({ variant: "cta" }))}>
+          <Upload className="h-4 w-4" />
+          Wgraj pierwsze demo
+        </Link>
+      }
+    />
   );
 }

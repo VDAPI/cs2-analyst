@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/db/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { PageHeader } from "@/components/ui";
 import { Play } from "lucide-react";
-import { ToolEmptyState, ToolMatchGrid, ToolPageIntro } from "@/components/tools/tool-match-grid";
+import { ToolEmptyState, ToolMatchGrid } from "@/components/tools/tool-match-grid";
 
 export default async function ReplayListPage() {
   const session = await getServerSession(authOptions);
@@ -18,13 +19,13 @@ export default async function ReplayListPage() {
 
   return (
     <div className="space-y-6">
-      <ToolPageIntro
-        overline="Narzędzia"
+      <PageHeader
+        eyebrow="Narzędzia"
         title="Replay 2D"
-        text="Odtwórz każdą rundę z góry: ruch graczy, utility, bomba i killfeed. Na telefonie przybliżasz mapę dwoma palcami."
+        description="Odtwórz każdą rundę z góry: ruch graczy, utility, bomba i killfeed. Na telefonie przybliżasz mapę dwoma palcami."
       />
       {matches.length === 0 ? (
-        <ToolEmptyState title="Brak meczów do odtworzenia" text="Wgraj demo, a każda runda trafi do replaya 2D." />
+        <ToolEmptyState icon={Play} title="Brak meczów do odtworzenia" text="Wgraj demo, a każda runda trafi do replaya 2D." />
       ) : (
         <ToolMatchGrid matches={matches} hrefBase="/replay" icon={Play} actionLabel="Otwórz replay" />
       )}

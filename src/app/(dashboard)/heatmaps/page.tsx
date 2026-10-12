@@ -3,12 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import Link from "next/link";
 import { Flame } from "lucide-react";
-import { Card } from "@/components/ui";
+import { Card, PageHeader } from "@/components/ui";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import {
   ToolEmptyState,
   ToolMatchGrid,
-  ToolPageIntro,
   formatMatchDate,
   radarUrl,
 } from "@/components/tools/tool-match-grid";
@@ -47,14 +46,14 @@ export default async function HeatmapsListPage() {
 
   return (
     <div className="space-y-6">
-      <ToolPageIntro
-        overline="Narzędzia"
+      <PageHeader
+        eyebrow="Narzędzia"
         title="Heatmapy"
-        text="Gdzie zabijasz i gdzie giniesz: zbiorczo dla każdej mapy albo dla jednego meczu."
+        description="Gdzie zabijasz i gdzie giniesz: zbiorczo dla każdej mapy albo dla jednego meczu."
       />
 
       {sortedMaps.length === 0 ? (
-        <ToolEmptyState title="Brak meczów do analizy" text="Wgraj demo, aby zobaczyć heatmapy zabójstw i śmierci." />
+        <ToolEmptyState icon={Flame} title="Brak meczów do analizy" text="Wgraj demo, aby zobaczyć heatmapy zabójstw i śmierci." />
       ) : (
         <>
           <section className="space-y-3">

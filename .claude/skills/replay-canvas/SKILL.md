@@ -18,7 +18,7 @@ description: Canvas rendering patterns for the 2D replay viewer and heatmap visu
 | `MapViewport`: square canvas with pinch / Ctrl+wheel zoom, drag pan, double-tap reset, +/− buttons, `onTap` in canvas coords, overlays as children | `src/components/maps/map-viewport.tsx` |
 | `useRadarImage(src)`, `useCanvasUiScale(canvasRef, zoom)` | `src/components/maps/use-canvas.ts` |
 | One heatmap screen for a match or a whole map (`source.kind`) | `src/components/maps/heatmap-explorer.tsx` |
-| `ToolHeader`, `Segmented`, `ControlGroup`, `ToggleRow`, `ToolSelect`, tool match pickers | `src/components/tools/` |
+| `ToolHeader` (PageHeader + score), `Segmented`, `ControlGroup`, `ToggleRow`, `ToolSelect`, `ToolMatchGrid` / `ToolEmptyState` pickers | `src/components/tools/` |
 
 Rules:
 - Canvas 2D and SVG attributes can't read CSS vars: use `CANVAS_COLORS` / `GRENADE_STYLE.line`; DOM uses `var(--token)` (`GRENADE_STYLE.token`).
