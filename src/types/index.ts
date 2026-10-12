@@ -60,6 +60,8 @@ export interface ParsedPlayer {
   utilityDamage: number;
   flashAssists: number;
   clutchWins: number;
+  /** Every 1vX the player was left in (won or lost). */
+  clutchAttempts: number;
   firstKills: number;
   firstDeaths: number;
 }

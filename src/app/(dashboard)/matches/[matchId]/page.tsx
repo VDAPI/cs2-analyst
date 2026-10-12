@@ -10,7 +10,8 @@ import { formatDate } from "@/lib/utils/formatters";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { detectMultiKills, multiKillsByRound } from "@/lib/utils/multiKills";
 import { detectTradeKills } from "@/lib/utils/tradeKills";
-import { detectClutches } from "@/lib/utils/clutches";
+import { detectClutchesBySide } from "@/lib/utils/clutches";
+import { createSideResolver } from "@/lib/utils/sideSplit";
 
 interface Props {
   params: Promise<{ matchId: string }>;
@@ -86,14 +87,19 @@ export default async function MatchDetailPage({ params }: Props) {
     tickRate: match.tickRate,
   });
 
-  const clutches = detectClutches({
+  // MatchPlayer.team is the side a player finished on; resolve the side
+  // actually played in each round before comparing with round.winner.
+  const sideAt = createSideResolver(match.rounds);
+
+  const clutches = detectClutchesBySide({
     rounds: match.rounds.map((r) => ({
       id: r.id,
       number: r.number,
       winner: r.winner as "CT" | "T",
       kills: r.kills,
     })),
-    teamBySteamId,
+    finalTeamBySteamId: teamBySteamId,
+    sideAt,
   });
 
   const clutchByRoundNumber: Record<
@@ -131,7 +137,15 @@ export default async function MatchDetailPage({ params }: Props) {
       isFirstKill: k.isFirstKill,
       traded: trade.tradedKillIds.has(k.id),
       tradeKill: trade.tradeKillIds.has(k.id),
-      attackerTeam: teamBySteamId.get(k.attackerSteamId) ?? null,
+      attackerTeam: (() => {
+        const team = teamBySteamId.get(k.attackerSteamId);
+        return team ? sideAt(team, r.number) : null;
+      })(),
+      // Suicides / world deaths and team kills are not frags (multi-kills).
+      teamKill:
+        k.attackerSteamId === k.victimSteamId ||
+        (teamBySteamId.get(k.attackerSteamId) !== undefined &&
+          teamBySteamId.get(k.attackerSteamId) === teamBySteamId.get(k.victimSteamId)),
     })),
   }));
 

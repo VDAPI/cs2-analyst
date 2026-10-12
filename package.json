@@ -19,6 +19,8 @@
     "worker:parse": "tsx workers/demo-parser.worker.ts",
     "worker:faceit": "tsx workers/faceit-demo-download.worker.ts",
     "test:clutches": "tsx --tsconfig tsconfig.json scripts/test-clutch-wins.ts",
+    "test:sides": "tsx --tsconfig tsconfig.json scripts/test-sides.ts",
+    "test:e2e-demo": "tsx --tsconfig tsconfig.json scripts/e2e-parse.ts",
     "test:replay": "tsx --tsconfig tsconfig.json scripts/test-replay-ticks.ts",
     "backfill:replay": "tsx --tsconfig tsconfig.json scripts/backfill-replay-ticks.ts",
     "test:library": "tsx --tsconfig tsconfig.json scripts/test-library.ts",

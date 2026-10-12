@@ -100,6 +100,7 @@ export async function parseAndPersistDemo(
             utilityDamage: p.utilityDamage,
             flashAssists: p.flashAssists,
             clutchWins: p.clutchWins,
+            clutchAttempts: p.clutchAttempts,
             firstKills: p.firstKills,
             firstDeaths: p.firstDeaths,
             ...playerUserLinks[i],
