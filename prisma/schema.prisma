@@ -65,6 +65,10 @@ model User {
   steamAuthCode      String?
   steamLastShareCode String?
   lastSteamSync      DateTime?
+  // Public profile (S16): off until the player switches it on in Settings;
+  // the slug is the /u/<slug> address.
+  publicProfile      Boolean   @default(false)
+  publicSlug         String?   @unique
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -77,6 +81,9 @@ model User {
   steamMatches      SteamMatch[]
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
+  goals             Goal[]
+  shares            Share[]
+  mapNotes          MapNote[]
 }
 
 enum UserRole {
@@ -160,6 +167,8 @@ model Match {
   utility   UtilityStats[]
   tactics   TacticsStats[]
   findings  Finding[]
+  shares    Share[]
+  mapNotes  MapNote[]
 
   // FINDINGS_STAMP the stored findings were built with (null = never); a
   // different stamp makes the report rebuild them (src/lib/findings/persist.ts).
@@ -794,4 +803,63 @@ model FaceitApiCache {
   updatedAt DateTime @updatedAt
 
   @@index([expiresAt])
+}
+
+// ─── Progress and sharing (S16) ───
+
+// A target for one progress metric (src/lib/progress/metrics.ts); whether
+// lower or higher is better comes from the metric, not the row.
+model Goal {
+  id         String    @id @default(cuid())
+  userId     String
+  metric     String // ProgressMetricKey
+  target     Float
+  achievedAt DateTime? // first time the last-5-match average met the target
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, metric])
+}
+
+// A public link (/s/<token>) to one player's report of a match, or to one
+// moment of its replay. Revoking keeps the row so the link stays dead.
+model Share {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  userId      String
+  matchId     String
+  kind        String // "report" | "moment"
+  steamId     String? // player the report / moment is about
+  roundNumber Int? // moment only
+  tick        Int? // moment only
+  views       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([matchId])
+}
+
+// A note pinned to a spot on the map at a moment of a round (2D replay).
+// x/y are game-world coordinates.
+model MapNote {
+  id          String   @id @default(cuid())
+  userId      String
+  matchId     String
+  roundNumber Int
+  tick        Int
+  x           Float
+  y           Float
+  text        String
+  createdAt   DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, roundNumber])
+  @@index([userId])
 }

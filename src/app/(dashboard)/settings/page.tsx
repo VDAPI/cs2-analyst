@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { redirect } from "next/navigation";
 import { getPlanUsage } from "@/lib/limits";
+import { suggestSlug } from "@/lib/sharing/share";
+import { slugSuffix } from "@/lib/sharing/token";
 import { SettingsContent } from "./settings-content";
 
 export default async function SettingsPage() {
@@ -24,6 +26,8 @@ export default async function SettingsPage() {
       faceitId: true,
       faceitNickname: true,
       steamAuthCode: true,
+      publicProfile: true,
+      publicSlug: true,
     },
   });
 
@@ -31,7 +35,15 @@ export default async function SettingsPage() {
     redirect("/login");
   }
 
-  const usage = await getPlanUsage(session.user.id);
+  const [usage, shares] = await Promise.all([
+    getPlanUsage(session.user.id),
+    prisma.share.findMany({
+      where: { userId: session.user.id, revokedAt: null },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: { id: true, token: true, kind: true, roundNumber: true, views: true, createdAt: true, match: { select: { map: true } } },
+    }),
+  ]);
 
   return (
     <Suspense>
@@ -46,6 +58,19 @@ export default async function SettingsPage() {
           faceitNickname: dbUser.faceitNickname,
         }}
         premierHistory={Boolean(dbUser.steamAuthCode)}
+        publicProfile={{
+          enabled: dbUser.publicProfile,
+          slug: dbUser.publicSlug ?? suggestSlug(dbUser.name ?? dbUser.faceitNickname, slugSuffix()),
+        }}
+        shares={shares.map((s) => ({
+          id: s.id,
+          token: s.token,
+          kind: s.kind,
+          map: s.match.map,
+          round: s.roundNumber,
+          views: s.views,
+          createdAt: s.createdAt.toISOString(),
+        }))}
         usage={{
           used: usage.used,
           monthlyLimit: Number.isFinite(usage.limit) ? usage.limit : null,

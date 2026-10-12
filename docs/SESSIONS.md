@@ -39,7 +39,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Replay 2D | Dane replaya z bazy zamiast z pliku .dem | 🆕 | S6 |
 | Replay 2D | Stożek widzenia (FOV), timery utility, HP, broń | ✅ | S10 |
 | Replay 2D | Znaczniki błędów na osi czasu, skok do błędu, klip 2D błędu | ✅ | S10 |
-| Replay 2D | Notatki na mapie, udostępnianie linku do momentu | 🆕 | S16 |
+| Replay 2D | Notatki na mapie, udostępnianie linku do momentu | ✅ | S16 |
 | Heatmapy | Heatmapy meczu i zbiorcze per mapa | ✅ | S5 |
 | Granaty | Trajektorie granatów, utility damage | ✅ | S5 |
 | Ekonomia | Wykres ekonomii, koordynacja zakupów | ✅ | S5 |
@@ -70,8 +70,8 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Pro | „Co zrobiłby pro” w podobnej sytuacji | 🆕 | S14 |
 | Trener AI | Rady w ludzkim języku (Claude API), plan treningu, ćwiczenia | 🆕 | S15 |
 | Trener AI | Ocena rad (przydatne / nie) i uczenie kolejności rad | 🆕 | S15 |
-| Postęp | Trendy metryk w czasie, cele, odznaki | 🆕 | S16 |
-| Społeczność | Publiczny profil, udostępnianie raportu | 🆕 | S16 |
+| Postęp | Trendy metryk w czasie, cele, odznaki | ✅ | S16 |
+| Społeczność | Publiczny profil, udostępnianie raportu | ✅ | S16 |
 | Drużyna | Dashboard drużyny, anti-strat przeciwnika, tablica taktyczna | 🆕 | S17 |
 | Inne źródła | Premier/Steam (share code lub upload) dla chętnych | ✅ | S18 |
 | Platforma | PWA, powiadomienia „analiza gotowa”, PL/EN | ✅ | S18 |
@@ -178,6 +178,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S10.
 - **Zakres:** trendy metryk w czasie, cele (np. strzały w ruchu < 15%), odznaki, publiczny profil, udostępnianie raportu i momentu replaya linkiem, notatki na mapie.
 - **Gotowe, gdy:** gracz widzi swój postęp w 10 ostatnich meczach.
+- **Status:** ✅ zrobione. Ekran `/progress` (w menu „Postęp”): 10/20/50 ostatnich meczów, kafelki (wygrane, średni rating, poważne błędy na 10 rund), wykres każdej metryki z oceną meczu na kropce i strzałką trendu (ostatnie 3 mecze vs wcześniejsze; wyżej na wykresie = lepiej), cele (średnia z 5 ostatnich meczów, podpowiedzi z najsłabszych metryk, do 6 celów) i 12 odznak liczonych z historii. Gracz rozpoznawany po Steam, nicku FACEIT albo najczęstszym graczu w demach; inaczej wybiera siebie. Udostępnianie: przycisk „Udostępnij” w raporcie i „Publiczny link do momentu” w replayu tworzą link `/s/<token>` (bez logowania, noindex, licznik wyświetleń, wyłączanie w Ustawieniach); dane replaya czytane przez `?share=`, link do momentu otwiera tylko swoją rundę. Notatki na mapie w replayu (pinezka w miejscu i chwili, widoczne też w udostępnionym momencie). Publiczny profil `/u/<adres>` włączany w Ustawieniach: forma, odznaki, ostatnie mecze z linkami do udostępnionych raportów, bez e-maila i szczegółów błędów. Przy okazji trasy `kills` i `bombs` sprawdzają teraz właściciela meczu (wcześniej nie sprawdzały).
 
 ### S17. Drużyna
 - **Wymaga:** S12.

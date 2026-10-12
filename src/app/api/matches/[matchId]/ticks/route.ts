@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { access } from "fs/promises";
-import { authOptions } from "@/lib/auth";
+import { access as fileAccess } from "fs/promises";
+import { getMatchAccess, roundAllowed } from "@/lib/sharing/access";
 import { prisma } from "@/lib/db/prisma";
 import { parseDemoLocation } from "@/lib/storage/demo-store";
 import {
@@ -38,12 +37,12 @@ interface Props {
  * file is still on disk (run `npm run backfill:replay` to store them).
  */
 export async function GET(req: Request, { params }: Props) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { matchId } = await params;
+  // The uploader, or a share link of this match (S16).
+  const access = await getMatchAccess(req, matchId);
+  if (!access) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   const url = new URL(req.url);
   const roundNum = parseInt(url.searchParams.get("round") ?? "1", 10);
   const requested = parseInt(url.searchParams.get("interval") ?? "32", 10);
@@ -66,9 +65,8 @@ export async function GET(req: Request, { params }: Props) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
-  // Auth check: only the uploader can access tick data
-  if (match.upload.userId !== session.user.id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!roundAllowed(access, roundNum)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const round = match.rounds[0];
@@ -89,7 +87,7 @@ export async function GET(req: Request, { params }: Props) {
     // analyzed since replay data existed has it in the DB anyway.
     const loc = parseDemoLocation(match.upload.fileUrl);
     const filePath = loc.kind === "local" ? loc.path : "";
-    const onDisk = filePath !== "" && (await access(filePath).then(() => true, () => false));
+    const onDisk = filePath !== "" && (await fileAccess(filePath).then(() => true, () => false));
     if (!onDisk) {
       return NextResponse.json(
         { error: "Replay data not available: the demo was removed before replay data was stored" },

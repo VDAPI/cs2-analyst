@@ -29,7 +29,8 @@
     "test:platform": "tsx --tsconfig tsconfig.json scripts/test-platform.ts",
     "test:scouting": "tsx --tsconfig tsconfig.json scripts/test-scouting.ts",
     "test:tactics": "tsx --tsconfig tsconfig.json scripts/test-tactics.ts",
-    "test:admin": "tsx --tsconfig tsconfig.json scripts/test-admin.ts"
+    "test:admin": "tsx --tsconfig tsconfig.json scripts/test-admin.ts",
+    "test:progress": "tsx --tsconfig tsconfig.json scripts/test-progress.ts"
   },
   "dependencies": {
     "@laihoe/demoparser2": "^0.41.3",

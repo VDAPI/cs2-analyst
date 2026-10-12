@@ -29,5 +29,6 @@ export const config = {
     "/settings/:path*",
     "/premier/:path*",
     "/admin/:path*",
+    "/progress/:path*",
   ],
 };

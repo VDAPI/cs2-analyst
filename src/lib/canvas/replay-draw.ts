@@ -649,3 +649,42 @@ export function drawFindingMarker(
   ctx.fillText("!", bx, by + 0.5);
   ctx.restore();
 }
+
+/**
+ * Map note pin (S16): a lime map pin whose tip sits on the noted spot, with
+ * its number. `active` (the note's moment is near) draws it full strength
+ * with a glow; other notes of the round stay dimmed.
+ */
+export function drawNotePin(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  label: string,
+  active: boolean,
+  ui = 1
+) {
+  const r = 11 * ui;
+  const cy = y - r * 1.9;
+  ctx.save();
+  ctx.globalAlpha = active ? 1 : 0.6;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.arc(x, cy, r, Math.PI * 0.75, Math.PI * 0.25);
+  ctx.closePath();
+  ctx.fillStyle = CANVAS_COLORS.accent2;
+  if (active) {
+    ctx.shadowColor = CANVAS_COLORS.accent2;
+    ctx.shadowBlur = 16;
+  }
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.lineWidth = 2 * ui;
+  ctx.strokeStyle = CANVAS_COLORS.canvas;
+  ctx.stroke();
+  ctx.fillStyle = CANVAS_COLORS.canvas;
+  ctx.font = `bold ${Math.round(12 * ui)}px "Geist Mono", monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, x, cy + 0.5);
+  ctx.restore();
+}

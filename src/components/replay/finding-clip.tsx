@@ -13,6 +13,7 @@ import {
   drawFlashOverlay,
   drawHEExplosions,
   drawKillMarker,
+  drawNotePin,
   drawPlayer,
   drawPlayerLoadout,
   drawSightLine,
@@ -49,6 +50,12 @@ export interface FindingClipProps {
   /** Accessible description of the moment. */
   label: string;
   className?: string;
+  /** Public link token, when the viewer doesn't own the match (S16). */
+  share?: string | null;
+  /** Draw the mistake marker at `tick` (off for a shared replay moment). */
+  marker?: boolean;
+  /** Map notes to pin on the clip (world coordinates). */
+  notes?: Array<{ x: number; y: number; tick: number; label: string }>;
 }
 
 type Status = "idle" | "loading" | "ready" | "error";
@@ -107,6 +114,9 @@ export function FindingClip({
   autoLoad = false,
   label,
   className,
+  share = null,
+  marker = true,
+  notes,
 }: FindingClipProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -128,7 +138,7 @@ export function FindingClip({
   const load = useCallback(() => {
     if (status === "loading" || status === "ready") return;
     setStatus("loading");
-    fetchRoundData(matchId, roundNumber, { interval: CLIP_INTERVAL, from: startTick - CLIP_INTERVAL, to: endTick + CLIP_INTERVAL })
+    fetchRoundData(matchId, roundNumber, { interval: CLIP_INTERVAL, from: startTick - CLIP_INTERVAL, to: endTick + CLIP_INTERVAL, share })
       .then((d) => {
         if (d.frames.length === 0) throw new Error("no frames");
         setData(d);
@@ -136,7 +146,7 @@ export function FindingClip({
         if (!reducedMotion) setPlaying(true);
       })
       .catch(() => setStatus("error"));
-  }, [status, matchId, roundNumber, startTick, endTick, reducedMotion]);
+  }, [status, matchId, roundNumber, startTick, endTick, reducedMotion, share]);
 
   // Visibility: auto-load when scrolled into view, pause while off screen.
   useEffect(() => {
@@ -249,13 +259,17 @@ export function FindingClip({
         // Full strength within ±0.4 s of the mistake, fading out by ±1.5 s.
         const dt = Math.abs(at - tick) / TICK_RATE;
         const strength = dt <= 0.4 ? 1 : Math.max(0, 1 - (dt - 0.4) / 1.1);
-        drawFindingMarker(ctx, pos.x, pos.y, severity, at, strength, ui);
+        if (marker) drawFindingMarker(ctx, pos.x, pos.y, severity, at, strength, ui);
+      }
+      for (const n of notes ?? []) {
+        const pos = worldToCanvas(n.x, n.y);
+        drawNotePin(ctx, pos.x, pos.y, n.label, Math.abs(at - n.tick) <= 3 * TICK_RATE, ui);
       }
 
       drawFlashOverlay(ctx, data.grenadeEvents, at, CLIP_SIZE, CLIP_SIZE, worldToCanvas, false);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
     },
-    [data, camera, cssWidth, radar, worldToCanvas, startTick, steamId, targetSteamId, tick, severity]
+    [data, camera, cssWidth, radar, worldToCanvas, startTick, steamId, targetSteamId, tick, severity, marker, notes]
   );
 
   // Playback: advance the playhead in game time, loop with a short hold.
@@ -358,7 +372,7 @@ export function FindingClip({
           <div className="relative h-1.5 min-w-0 flex-1 rounded-full bg-[var(--surface-3)]" aria-hidden>
             <span className="absolute inset-y-0 left-0 rounded-full bg-[var(--accent)]" style={{ width: `${progress * 100}%` }} />
             <span
-              className="absolute -top-1 h-3.5 w-1 -translate-x-1/2 rounded-full bg-[var(--mistake)]"
+              className={cn("absolute -top-1 h-3.5 w-1 -translate-x-1/2 rounded-full", marker ? "bg-[var(--mistake)]" : "bg-[var(--accent-2)]")}
               style={{ left: `${markAt * 100}%` }}
             />
           </div>
