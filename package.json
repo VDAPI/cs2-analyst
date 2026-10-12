@@ -18,6 +18,7 @@
     "preworker:parse": "prisma db execute --schema prisma/schema.prisma --file prisma/pre-push.sql && prisma db push --skip-generate",
     "worker:parse": "tsx workers/demo-parser.worker.ts",
     "worker:faceit": "tsx workers/faceit-demo-download.worker.ts",
+    "setup:local": "npm run db:push && tsx --tsconfig tsconfig.json scripts/local-seed.ts",
     "test:clutches": "tsx --tsconfig tsconfig.json scripts/test-clutch-wins.ts",
     "test:sides": "tsx --tsconfig tsconfig.json scripts/test-sides.ts",
     "test:e2e-demo": "tsx --tsconfig tsconfig.json scripts/e2e-parse.ts",

@@ -15,7 +15,7 @@
 import { mkdtemp, writeFile, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { signS3Request } from "@/lib/storage/r2";
+import { getR2Config, objectTarget, signS3Request } from "@/lib/storage/r2";
 import { deleteStoredDemo, parseDemoLocation, shouldDeleteDemo } from "@/lib/storage/demo-store";
 import { allowedBatch, PLAN_LIMITS } from "@/lib/limits";
 import { filterHistory, historyMaps } from "@/lib/faceit/filters";
@@ -46,6 +46,26 @@ async function main() {
   );
   check("SigV4 sets x-amz-date", headers["x-amz-date"] === "20130524T000000Z");
   check("SigV4 leaves Host to fetch", !("host" in headers));
+
+  // S20: the same client talks to MinIO (or any S3-compatible store) via R2_ENDPOINT.
+  const creds = { R2_ACCESS_KEY_ID: "k", R2_SECRET_ACCESS_KEY: "s", R2_BUCKET: "demos-bucket" };
+  const r2Cfg = getR2Config({ ...creds, R2_ACCOUNT_ID: "acc" });
+  check(
+    "R2 account id → Cloudflare endpoint, region auto",
+    r2Cfg?.endpoint === "https://acc.r2.cloudflarestorage.com" && r2Cfg.region === "auto"
+  );
+  const minio = getR2Config({ ...creds, R2_ENDPOINT: "http://minio:9000/", R2_REGION: "us-east-1" });
+  check("R2_ENDPOINT works without an account id", minio?.endpoint === "http://minio:9000" && minio.region === "us-east-1");
+  const minioTarget = minio && objectTarget(minio, "demos/a b.dem");
+  check(
+    "custom endpoint: path-style URL, port kept in the signed host",
+    minioTarget?.url === "http://minio:9000/demos-bucket/demos/a%20b.dem" && minioTarget.host === "minio:9000"
+  );
+  check(
+    "R2 target unchanged",
+    r2Cfg !== null && objectTarget(r2Cfg, "demos/x.dem").url === "https://acc.r2.cloudflarestorage.com/demos-bucket/demos/x.dem"
+  );
+  check("no store without credentials", getR2Config({ R2_ENDPOINT: "http://minio:9000" }) === null);
 
   // ─── 2. Deletion rule ──────────────────────────────────
   check(

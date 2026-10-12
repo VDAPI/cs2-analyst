@@ -1,0 +1,20 @@
+# Keep the Docker build context small and free of secrets (S20).
+.git
+node_modules
+.next
+data
+certificates
+e2e/.state
+e2e/.results
+e2e/.report
+coverage
+dump.rdb
+*.dem
+*.dem.zst
+*.dem.bz2
+*.pem
+# Never bake keys into the image: compose passes .env at runtime.
+.env
+.env.*
+!.env.example
+.claude/settings.local.json

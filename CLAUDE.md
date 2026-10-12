@@ -60,6 +60,7 @@ npm run test:progress # Progress trends, goals, badges, player identity, share t
 npm run test:coach   # AI coach: weekly plan, drills, rating-based order, "no invented numbers" check, PL/EN (no DB or API key needed)
 npm run test:e2e     # Playwright E2E (S19): needs Postgres + Redis and a DB named cs2analyst_e2e; builds and starts the app on :3100
 npm run test:e2e:update-snapshots # Regenerate the visual baselines in the Playwright Docker image (same as CI)
+npm run setup:local  # Schema + test account test@cs2analyst.local / test1234 with 3 sample analyses + sample demo (idempotent; run by Docker's `setup`)
 npm run backfill:replay # Store replay data for old matches whose .dem is still on disk (the parse worker also does this on startup)
 ```
 
@@ -79,7 +80,8 @@ that writes (`gh pr create`, `gh issue create`, …) prompts for approval.
 ## Infrastructure
 
 ```bash
-docker compose up -d   # Start PostgreSQL + Redis
+docker compose up -d postgres redis   # Only PostgreSQL + Redis, for `npm run dev`
+docker compose up -d --build          # The whole app (S20 local test environment), see below
 ```
 
 DB credentials: `cs2analyst:cs2analyst@localhost:5432/cs2analyst`
@@ -170,5 +172,6 @@ Revisit once demoparser2 ships correct `optionalDependencies` (0.41.3 is the lat
 - **Notifications (S18)**: workers call `notifyUploadFinished()` (`src/lib/notifications/notify.ts`) when an upload ends COMPLETED/FAILED → `Notification` row (top-bar bell) + Web Push via `web-push` to every `PushSubscription`. Text is rendered from type + data in the reader's language, never stored. VAPID keys: `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`, otherwise generated once into `AppSetting`.
 - **PWA (S18)**: `src/app/manifest.ts`, icons in `public/pwa/`, service worker `public/sw.js` (registered by `PwaProvider` in the root layout; `?dev=1` in dev disables asset caching). Pages are never cached (per-user); offline falls back to `/offline`.
 - **Premier / Steam (S18, opt-in)**: `/premier`. Share codes decode in `src/lib/steam/share-code.ts`; `SteamMatch` rows. Only Valve replay links (`replayN.valve.net/730/…dem.bz2`, checked by `parseReplayUrl`) are ever downloaded, by the `steam-demo-download` queue that lives inside the parse worker, and only after the player clicks "Analyze". History sync uses the player's own Steam auth code + `STEAM_API_KEY` and only runs on "Sync". `UploadSource.STEAM`.
+- **Local test environment (S20)**: `docker compose up -d --build` runs everything from one image (`Dockerfile`, Debian `node:22-bookworm`, npm 10): `setup` (one-off: `npm run setup:local` = db push + `scripts/local-seed.ts`), `app` (`next start`, http://localhost:3000 and http://<LAN IP>:3000 for phones), `worker`, `worker-faceit`, Postgres, Redis, MinIO (`pgsty/minio`, the official image is gone from Docker Hub) and `https` (Caddy, https://localhost:3443, self-signed, for FACEIT OAuth which needs a registered https redirect: `FACEIT_OAUTH_BASE_URL`, `src/lib/faceit/oauth.ts`). Demos go to MinIO through the R2 client (`R2_ENDPOINT` + `R2_REGION` instead of `R2_ACCOUNT_ID`; `r2EnsureBucket` creates the bucket). One app on several origins works because `AUTH_TRUST_HOST=true` (NextAuth takes the origin from the request) and `src/middleware.ts` reads whichever session cookie name the request carries (`__Secure-` on https, plain on http). `.env` is optional and passed at runtime (never baked: `.dockerignore`); the compose `environment` block overrides its addresses. The seed's sample matches are the E2E fixture demo run through the real pipeline (fixture parser switched on for the seed process only). Smoke test: `bash scripts/local-smoke.sh` (CI: `.github/workflows/local-env.yml`, only when Docker-related paths change). Guide for the owner: `docs/TESTOWANIE.md` (Polish).
 - Settings page is a server component (queries DB directly for linked account status, not session JWT)
 - FACEIT OAuth uses popup window + `postMessage` for cross-window communication
