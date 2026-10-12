@@ -18,7 +18,7 @@ export const BUY_TYPE_LABELS: Record<BuyTypeKey, string> = {
 export const BUY_TYPE_COLORS: Record<BuyTypeKey, string> = {
   FULL_BUY: "var(--good)",
   FORCE_BUY: "var(--warning)",
-  HALF_BUY: "var(--warning)",
+  HALF_BUY: "var(--info)",
   ECO: "var(--mistake)",
   PISTOL: "var(--accent)",
   UNKNOWN: "var(--text-disabled)",

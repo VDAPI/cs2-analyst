@@ -47,6 +47,9 @@ export interface ReplayBombEvent {
   site: string | null;
 }
 
+/** CS2 server tick rate. */
+export const TICK_RATE = 64;
+
 interface ReplayStore {
   // Data
   frames: TickFrame[];
@@ -63,6 +66,8 @@ interface ReplayStore {
   playbackSpeed: number;
   showPlayerNames: boolean;
   showGrenades: boolean;
+  /** Player highlighted on the canvas and in the side list (tap to select). */
+  selectedSteamId: string | null;
 
   // Loading
   isLoading: boolean;
@@ -76,6 +81,9 @@ interface ReplayStore {
   togglePlayerNames: () => void;
   toggleGrenades: () => void;
   nextFrame: () => void;
+  /** Jump by game seconds (negative = back), clamped to the round. */
+  seekSeconds: (seconds: number) => void;
+  selectPlayer: (steamId: string | null) => void;
   reset: () => void;
 }
 
@@ -92,6 +100,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   playbackSpeed: 1,
   showPlayerNames: true,
   showGrenades: true,
+  selectedSteamId: null,
   isLoading: false,
 
   loadRound: async (matchId, round) => {
@@ -160,7 +169,13 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
 
   setRound: (round) => set({ currentRound: round }),
 
-  togglePlay: () => set((s) => ({ isPlaying: !s.isPlaying })),
+  togglePlay: () =>
+    set((s) => {
+      if (s.isPlaying || s.frames.length === 0) return { isPlaying: false };
+      // Pressing play at the end of the round starts it over.
+      const atEnd = s.currentFrameIndex >= s.frames.length - 1;
+      return { isPlaying: true, currentFrameIndex: atEnd ? 0 : s.currentFrameIndex };
+    }),
 
   setSpeed: (speed) => set({ playbackSpeed: speed }),
 
@@ -177,6 +192,18 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
     }
   },
 
+  seekSeconds: (seconds) => {
+    const { frames, currentFrameIndex } = get();
+    if (frames.length < 2) return;
+    const ticksPerFrame = Math.max(1, frames[1].tick - frames[0].tick);
+    const step = Math.round((seconds * TICK_RATE) / ticksPerFrame);
+    const index = Math.min(frames.length - 1, Math.max(0, currentFrameIndex + step));
+    set({ currentFrameIndex: index });
+  },
+
+  selectPlayer: (steamId) =>
+    set((s) => ({ selectedSteamId: s.selectedSteamId === steamId ? null : steamId })),
+
   reset: () =>
     set({
       frames: [],
@@ -191,6 +218,7 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
       playbackSpeed: 1,
       showPlayerNames: true,
       showGrenades: true,
+      selectedSteamId: null,
       isLoading: false,
     }),
 }));

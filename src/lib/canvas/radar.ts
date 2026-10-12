@@ -1,0 +1,82 @@
+import { CANVAS_COLORS } from "./palette";
+
+/** Radar transform subset of `MapConfig` that server pages pass to client viewers. */
+export interface RadarConfig {
+  posX: number;
+  posY: number;
+  scale: number;
+  width: number;
+  height: number;
+  radarImage: string;
+}
+
+/** Every tool canvas is drawn at this internal resolution and scaled by CSS. */
+export const TOOL_CANVAS_SIZE = 1024;
+
+export type WorldToCanvas = (gameX: number, gameY: number) => { x: number; y: number };
+
+/**
+ * Game-world → canvas pixel transform. Without a map config it falls back to
+ * Mirage's numbers so unknown maps still render something.
+ */
+export function makeWorldToCanvas(config: RadarConfig | null, size = TOOL_CANVAS_SIZE): WorldToCanvas {
+  if (!config) {
+    return (gameX, gameY) => ({
+      x: ((gameX + 3230) / 5120) * size,
+      y: ((1713 - gameY) / 5120) * size,
+    });
+  }
+  return (gameX, gameY) => ({
+    x: ((gameX - config.posX) / config.scale) * (size / config.width),
+    y: ((config.posY - gameY) / config.scale) * (size / config.height),
+  });
+}
+
+/** Clears to `--canvas` and draws the radar desaturated, or a grid + map name when it's missing. */
+export function drawRadarBackground(
+  ctx: CanvasRenderingContext2D,
+  radar: HTMLImageElement | null,
+  opacity: number,
+  mapName: string
+) {
+  const { width, height } = ctx.canvas;
+  ctx.save();
+  ctx.fillStyle = CANVAS_COLORS.canvas;
+  ctx.fillRect(0, 0, width, height);
+
+  if (radar) {
+    ctx.globalAlpha = opacity;
+    ctx.filter = "grayscale(100%)";
+    ctx.drawImage(radar, 0, 0, width, height);
+  } else {
+    ctx.strokeStyle = CANVAS_COLORS.grid;
+    ctx.lineWidth = 1;
+    const step = width / 16;
+    for (let i = 1; i < 16; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * step, 0);
+      ctx.lineTo(i * step, height);
+      ctx.moveTo(0, i * step);
+      ctx.lineTo(width, i * step);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(190, 160, 255, 0.08)";
+    ctx.font = `bold ${width * 0.06}px "Chakra Petch", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(mapName.toUpperCase(), width / 2, height / 2);
+  }
+  ctx.restore();
+}
+
+/** Centered hint text for an empty canvas. */
+export function drawEmptyHint(ctx: CanvasRenderingContext2D, text: string) {
+  const { width, height } = ctx.canvas;
+  ctx.save();
+  ctx.fillStyle = "rgba(243, 240, 255, 0.35)";
+  ctx.font = '28px "Geist", sans-serif';
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, width / 2, height / 2);
+  ctx.restore();
+}

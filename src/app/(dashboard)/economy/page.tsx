@@ -1,10 +1,8 @@
 import { prisma } from "@/lib/db/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { Card } from "@/components/ui";
-import { mapDisplayName } from "@/lib/utils/mapNames";
-import Link from "next/link";
 import { DollarSign } from "lucide-react";
+import { ToolEmptyState, ToolMatchGrid, ToolPageIntro } from "@/components/tools/tool-match-grid";
 
 export default async function EconomyListPage() {
   const session = await getServerSession(authOptions);
@@ -13,72 +11,22 @@ export default async function EconomyListPage() {
   const matches = userId
     ? await prisma.match.findMany({
         where: { upload: { userId } },
-        select: {
-          id: true,
-          map: true,
-          date: true,
-          scoreCT: true,
-          scoreT: true,
-        },
+        select: { id: true, map: true, date: true, scoreCT: true, scoreT: true },
         orderBy: { date: "desc" },
       })
     : [];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
-          Economy Tracker
-        </h1>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Analyze team economy, buy types, and spending patterns across rounds.
-        </p>
-      </div>
-
+      <ToolPageIntro
+        overline="Narzędzia"
+        title="Ekonomia"
+        text="Wartość ekwipunku i gotówka w każdej rundzie, typy zakupów i to, czy drużyna kupuje razem."
+      />
       {matches.length === 0 ? (
-        <Card>
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-lg font-medium text-[var(--text-secondary)]">
-              No matches to analyze
-            </p>
-            <p className="mt-2 text-sm text-[var(--text-tertiary)]">
-              Upload demos to track economy.
-            </p>
-            <Link
-              href="/upload"
-              className="mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--accent)] px-5 text-sm font-medium text-[var(--on-accent)] transition-all hover:bg-[var(--accent-hover)]"
-            >
-              Upload Demo
-            </Link>
-          </div>
-        </Card>
+        <ToolEmptyState title="Brak meczów do analizy" text="Wgraj demo, aby śledzić ekonomię drużyn." />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {matches.map((match) => (
-            <Link key={match.id} href={`/economy/${match.id}`}>
-              <Card className="group relative overflow-hidden p-0 transition-all duration-150 hover:border-[var(--border-hover)]">
-                <div
-                  className="h-32 w-full bg-cover bg-center"
-                  style={{
-                    backgroundImage: `url(/maps/${match.map}_radar.png)`,
-                    filter: "grayscale(40%) brightness(0.5)",
-                  }}
-                />
-                <div className="flex items-start justify-between p-4">
-                  <div>
-                    <p className="font-medium text-[var(--text-primary)]">
-                      {mapDisplayName(match.map)}
-                    </p>
-                    <p className="text-xs text-[var(--text-tertiary)]">
-                      {match.date.toLocaleDateString()} — <span className="font-mono">{match.scoreCT}:{match.scoreT}</span>
-                    </p>
-                  </div>
-                  <DollarSign className="h-5 w-5 text-[var(--text-disabled)] transition-colors group-hover:text-[var(--success)]" />
-                </div>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        <ToolMatchGrid matches={matches} hrefBase="/economy" icon={DollarSign} actionLabel="Otwórz ekonomię" />
       )}
     </div>
   );

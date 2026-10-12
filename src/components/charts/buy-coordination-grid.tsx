@@ -32,7 +32,7 @@ export function BuyCoordinationGrid({
     return (
       <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-6">
         <p className="text-sm text-[var(--text-tertiary)]">
-          No per-player economy data yet. Re-parse this match to populate it.
+          Brak danych o zakupach graczy. Przeanalizuj mecz ponownie, aby je uzupełnić.
         </p>
       </div>
     );
@@ -40,14 +40,17 @@ export function BuyCoordinationGrid({
 
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-4">
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-          Buy Coordination
-        </h2>
-        <p className="font-mono text-xs text-[var(--text-tertiary)]">
-          <span className="text-[var(--ct-blue)]">CT avg {ctAvgSync}%</span>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h2 className="label-overline text-[var(--text-tertiary)]">Koordynacja zakupów</h2>
+          <p className="mt-0.5 text-[13px] text-[var(--text-tertiary)]">
+            Czy drużyna kupuje razem. Wiersze to drużyny według strony z drugiej połowy.
+          </p>
+        </div>
+        <p className="font-mono text-[13px] tabular-nums text-[var(--text-tertiary)]">
+          <span className="text-[var(--ct-blue)]">CT śr. {ctAvgSync}%</span>
           <span className="mx-2 text-[var(--text-disabled)]">·</span>
-          <span className="text-[var(--t-gold)]">T avg {tAvgSync}%</span>
+          <span className="text-[var(--t-gold)]">T śr. {tAvgSync}%</span>
         </p>
       </div>
 
@@ -71,12 +74,12 @@ export function BuyCoordinationGrid({
       </div>
 
       {/* Legend */}
-      <div className="mt-4 flex flex-wrap items-center gap-3 text-[10px]">
+      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px]">
         {(["FULL_BUY", "FORCE_BUY", "HALF_BUY", "ECO", "PISTOL"] as BuyTypeKey[]).map(
           (bt) => (
             <div key={bt} className="flex items-center gap-1.5">
               <div
-                className="h-2.5 w-2.5 rounded-sm"
+                className="h-3 w-3 rounded-sm"
                 style={{ backgroundColor: BUY_TYPE_COLORS[bt] }}
               />
               <span className="text-[var(--text-tertiary)]">
@@ -86,9 +89,9 @@ export function BuyCoordinationGrid({
           )
         )}
         <div className="flex items-center gap-1.5">
-          <div className="h-2.5 w-2.5 rounded-sm border-2 border-[var(--error)]" />
+          <div className="h-3 w-3 rounded-sm border-2 border-[var(--mistake)]" />
           <span className="text-[var(--text-tertiary)]">
-            Desync (&lt; {BUY_SYNC_DESYNC_THRESHOLD}%)
+            Rozjazd (&lt; {BUY_SYNC_DESYNC_THRESHOLD}% zgodności)
           </span>
         </div>
       </div>
@@ -111,20 +114,20 @@ function SideBlock({
 }) {
   return (
     <div>
-      <div className="mb-1.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider" style={{ color }}>
+      <div className="label-overline mb-1.5 flex items-center gap-2" style={{ color }}>
         {label}
       </div>
-      <div className="grid" style={{ gridTemplateColumns: `120px repeat(${rounds.length}, 18px)` }}>
+      <div className="grid" style={{ gridTemplateColumns: `minmax(96px,128px) repeat(${rounds.length}, 20px)` }}>
         {/* Header row: round numbers */}
-        <div />
+        <div className="sticky left-0 z-10 bg-[var(--surface-1)]" />
         {rounds.map((rn) => {
           const sync = syncByRound[rn] ?? 0;
           const desync = sync < BUY_SYNC_DESYNC_THRESHOLD;
           return (
             <div
               key={`hdr-${rn}`}
-              className={`text-center text-[8px] font-mono ${desync ? "text-[var(--error)]" : "text-[var(--text-disabled)]"}`}
-              title={`Round ${rn}: ${sync}% sync`}
+              className={`text-center font-mono text-[11px] tabular-nums ${desync ? "text-[var(--mistake)]" : "text-[var(--text-tertiary)]"}`}
+              title={`Runda ${rn}: ${sync}% zgodności`}
             >
               {rn}
             </div>
@@ -151,7 +154,10 @@ function PlayerCellRow({
   const cellByRound = new Map(row.cells.map((c) => [c.round, c.buyType]));
   return (
     <>
-      <div className="truncate pr-2 text-xs text-[var(--text-secondary)]" title={row.name}>
+      <div
+        className="sticky left-0 z-10 truncate bg-[var(--surface-1)] py-0.5 pr-2 font-mono text-[13px] text-[var(--text-secondary)]"
+        title={row.name}
+      >
         {row.name}
       </div>
       {rounds.map((rn) => {
@@ -161,12 +167,12 @@ function PlayerCellRow({
         return (
           <div
             key={`${row.steamId}-${rn}`}
-            className={`mx-px my-px h-4 rounded-sm transition-all duration-150 ${desync ? "outline outline-1 outline-[var(--error)]" : ""}`}
+            className={`m-px h-5 rounded-sm transition-all duration-150 ${desync ? "outline outline-1 outline-[var(--mistake)]" : ""}`}
             style={{
               backgroundColor: BUY_TYPE_COLORS[bt],
               opacity: 0.75,
             }}
-            title={`R${rn} ${row.name}: ${BUY_TYPE_LABELS[bt]}${desync ? ` (team ${sync}% sync)` : ""}`}
+            title={`R${rn} ${row.name}: ${BUY_TYPE_LABELS[bt]}${desync ? ` (drużyna ${sync}% zgodności)` : ""}`}
           />
         );
       })}

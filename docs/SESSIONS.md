@@ -35,14 +35,14 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Mecz | Clutche, trade'y, multi-kille, opening duels | ✅ | S4 (wygląd) |
 | Gracze | Profil gracza, historia, forma | 🎨 | S4 |
 | Porównanie | Radar, statystyki obok siebie, head-to-head, mapy, forma | 🎨 | S4 |
-| Replay 2D | Odtwarzacz rund (Canvas) | 🎨 | S5, S6 |
+| Replay 2D | Odtwarzacz rund (Canvas), sterowanie dotykiem, zoom, wybór gracza | ✅ | S5, S6 |
 | Replay 2D | Dane replaya z bazy zamiast z pliku .dem | 🆕 | S6 |
 | Replay 2D | Stożek widzenia (FOV), timery utility, HP, broń | 🆕 | S10 |
 | Replay 2D | Znaczniki błędów na osi czasu, skok do błędu, klip 2D błędu | 🆕 | S10 |
 | Replay 2D | Notatki na mapie, udostępnianie linku do momentu | 🆕 | S16 |
-| Heatmapy | Heatmapy meczu i zbiorcze per mapa | 🎨 | S5 |
-| Granaty | Trajektorie granatów, utility damage | 🎨 | S5 |
-| Ekonomia | Wykres ekonomii, koordynacja zakupów | 🎨 | S5 |
+| Heatmapy | Heatmapy meczu i zbiorcze per mapa | ✅ | S5 |
+| Granaty | Trajektorie granatów, utility damage | ✅ | S5 |
+| Ekonomia | Wykres ekonomii, koordynacja zakupów | ✅ | S5 |
 | Mechanika | Strzał w ruchu (counter-strafe) per broń | 🆕 | S8 |
 | Mechanika | Czas counter-strafe | 🆕 | S8 |
 | Mechanika | Celność pierwszej kuli, HS% per broń | 🆕 | S8 |
