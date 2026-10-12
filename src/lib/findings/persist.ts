@@ -25,18 +25,22 @@ export async function computeAndPersistFindings(prisma: PrismaClient, matchId: s
     aim: aim.map((a) => ({ steamId: a.steamId, moments: a.moments as unknown as AimMoment[] })),
   });
 
-  await prisma.$transaction([
-    prisma.finding.deleteMany({ where: { matchId } }),
-    prisma.finding.createMany({
+  // Serialised per match: the report and the replay can both trigger a
+  // rebuild on first view, and two interleaved delete+insert runs would
+  // otherwise leave every finding twice.
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`findings:${matchId}`}))`;
+    await tx.finding.deleteMany({ where: { matchId } });
+    await tx.finding.createMany({
       data: drafts.map((d) => ({ ...d, matchId, values: d.values as unknown as Prisma.InputJsonValue })),
-    }),
+    });
     // No stats yet (no replay data): leave the stamp unset so a later backfill
     // gets its findings built on the next view.
-    prisma.match.update({
+    await tx.match.update({
       where: { id: matchId },
       data: { findingsVersion: mechanics.length + aim.length > 0 ? FINDINGS_STAMP : null },
-    }),
-  ]);
+    });
+  });
   return drafts.length;
 }
 
