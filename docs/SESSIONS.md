@@ -13,7 +13,7 @@
 - **Po analizie kasujemy plik .dem.** W bazie zostaje raport i próbkowane dane do replaya. Gracz może oznaczyć mecz „zachowaj demo”.
 - **Analiza jak najszczegółowsza:** mechanika i taktyka. Każdy wykryty błąd ma moment w rundzie, podgląd 2D, jedną radę i porównanie z pro.
 - **Rady oceniamy po tym, co gracz mógł wiedzieć** (dźwięk, widoczność, info od teamu), a nie po widoku „z góry” w demie.
-- **Model:** darmowe z limitem meczów; płatności później.
+- **Model:** darmowe z limitem meczów; Pro i Drużyna przez Stripe (S30, na razie tryb testowy, start publiczny po testach właściciela).
 
 ## Pełna lista funkcji
 
@@ -91,7 +91,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Platforma | Panel admina, monitoring kolejki, błędy (Sentry), statystyki użycia | ✅ | S27 |
 | Platforma | Wydajność: szybsze parsowanie, cache, Lighthouse mobile ≥ 90 | 🆕 | S28 |
 | Platforma | Bezpieczeństwo i RODO: usunięcie konta i danych, polityka prywatności, rate limiting | ✅ | S29 |
-| Platforma | Plan Pro i płatności (Stripe) | 🆕 | S30 |
+| Platforma | Plan Pro i płatności (Stripe) | ✅ | S30 |
 
 ## Sesje
 
@@ -260,6 +260,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S27. Decyzja właściciela (12.10.2026): budujemy teraz w trybie testowym Stripe, start publiczny dopiero po testach. Ceny startowe z `PLAN.md` (Pro ok. 6 USD/mies., Team ok. 15 USD/mies.), łatwe do zmiany w jednym miejscu.
 - **Zakres:** Stripe (subskrypcja miesięczna i roczna), strona cennika, limity Free vs Pro w `src/lib/limits.ts`, portal klienta, webhooki, faktury.
 - **Gotowe, gdy:** testowa płatność w trybie test Stripe podnosi limit.
+- **Status:** ✅ zrobione (tryb testowy). Cennik `/pricing` (Free / Pro / Drużyna, miesięcznie lub rocznie, rocznie = 10 miesięcy), ekran „Plan i płatności” `/billing` (plan, status subskrypcji, wykorzystanie limitów, faktury z linkami do Stripe), Stripe Checkout i portal klienta (zmiana planu, karta, anulowanie, NIP na fakturze), webhooki z podpisem i bez powtórzeń, synchronizacja po powrocie ze Stripe i przyciskiem „Odśwież status” (lokalnie działa bez webhooków). Ceny w jednym miejscu: `src/lib/billing/prices.ts`. Klucz `sk_live_` jest odrzucany, dopóki właściciel nie ustawi `STRIPE_ALLOW_LIVE=1`. Plan Drużyna daje limity Pro 4 kolejnym członkom drużyny właściciela. Usunięcie konta anuluje subskrypcję. Instrukcja testu: `docs/TESTOWANIE.md`, punkt 10.
 
 ## Kolejność
 

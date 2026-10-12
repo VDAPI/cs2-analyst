@@ -7,7 +7,8 @@
  * and rivals they made stay with the team, unattributed), and finally the
  * user row, which cascades accounts, sessions, FACEIT / Steam
  * history, notifications, push subscriptions, goals, shares, notes, plans,
- * AI coach texts, feedback and lineup marks. Their MatchPlayer rows in other
+ * AI coach texts, feedback, lineup marks and payment records (live Stripe
+ * subscriptions are cancelled first). Their MatchPlayer rows in other
  * players' matches lose the link to the account (onDelete SetNull); the stats
  * stay part of that other player's match.
  *
@@ -18,6 +19,7 @@ import type { PrismaClient } from "@prisma/client";
 import { join } from "node:path";
 import { deleteStoredDemo, LOCAL_DEMO_DIR } from "@/lib/storage/demo-store";
 import { leaveAllTeams } from "@/lib/team/membership";
+import { cancelAllSubscriptions } from "@/lib/billing/persist";
 
 export interface DeleteAccountResult {
   uploads: number;
@@ -53,6 +55,11 @@ export async function deleteAccount(prisma: PrismaClient, userId: string): Promi
       });
     }
   }
+
+  // Payments (S30): a deleted account is never charged again. The
+  // subscription and invoice rows cascade with the user.
+  const billingErrors = await cancelAllSubscriptions(userId);
+  if (billingErrors) console.error(`[account] ${billingErrors} subscription(s) of user=${userId} could not be cancelled`);
 
   const matchIds = uploads.map((u) => u.matchId).filter((id): id is string => Boolean(id));
   // Teams first (S17): ownership passes on, a team left empty goes with its boards.

@@ -25,6 +25,10 @@ export const e2eEnv: Record<string, string> = {
   FACEIT_DOWNLOADS_API_KEY: "",
   STEAM_API_KEY: "",
   SENTRY_DSN: "",
+  // Payments (S30): no Stripe key (no calls to Stripe); webhooks are signed
+  // with this secret by the billing flow.
+  STRIPE_SECRET_KEY: "",
+  STRIPE_WEBHOOK_SECRET: "whsec_e2e_only_secret",
 };
 
 /** Written by global-setup, read by the specs: ids of the seeded data. */

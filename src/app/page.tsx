@@ -212,7 +212,8 @@ export default async function HomePage() {
 
       <footer className="border-t border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--text-tertiary)] sm:px-6">
         <p>CS2 Analyst &copy; {new Date().getFullYear()} · Projekt niezależny, niezwiązany z Valve Corporation ani FACEIT.</p>
-        <nav aria-label="Dokumenty" className="mt-3 flex justify-center gap-4">
+        <nav aria-label="Dokumenty" className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-2">
+          <Link href="/pricing" className="hover:text-[var(--text-primary)]">Cennik</Link>
           <Link href="/privacy" className="hover:text-[var(--text-primary)]">Polityka prywatności</Link>
           <Link href="/terms" className="hover:text-[var(--text-primary)]">Regulamin</Link>
         </nav>
@@ -239,6 +240,7 @@ function LandingHeader({ signedIn }: { signedIn: boolean }) {
           <Link href="/demo" className="hover:text-[var(--text-primary)]">Przykład</Link>
           <a href="#funkcje" className="hover:text-[var(--text-primary)]">Funkcje</a>
           <a href="#faq" className="hover:text-[var(--text-primary)]">FAQ</a>
+          <Link href="/pricing" className="hover:text-[var(--text-primary)]">Cennik</Link>
         </nav>
         <div className="flex shrink-0 items-center gap-2">
           {signedIn ? (
@@ -389,7 +391,7 @@ const faq: { q: string; a: string }[] = [
   },
   {
     q: "Ile to kosztuje?",
-    a: `Na start jest darmowe z limitem ${FREE_DEMOS} analiz miesięcznie. Płatne plany z większym limitem pojawią się później.`,
+    a: `Na start jest darmowe z limitem ${FREE_DEMOS} analiz miesięcznie. Plany Pro i Drużyna dają większy limit, ceny są w cenniku.`,
   },
   {
     q: "Skąd wiecie, co powinienem był zrobić?",

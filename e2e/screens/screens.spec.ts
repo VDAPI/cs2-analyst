@@ -53,6 +53,7 @@ const SCREENS: Screen[] = [
   { name: "pro", path: () => "/pro", volatile: lastRefresh },
   { name: "graj-jak-pro", path: () => "/play-like-pro?map=de_mirage&side=T" },
   { name: "ustawienia", path: () => "/settings" },
+  { name: "platnosci", path: () => "/billing", volatile: monthlyLimit },
   // Team (S17). /team opens the only team's dashboard.
   { name: "druzyna", path: () => "/team", heading: /Przegląd drużyny/ },
   { name: "druzyny-lista", path: () => "/team?all=1" },
