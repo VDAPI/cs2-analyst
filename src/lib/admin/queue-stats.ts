@@ -3,7 +3,7 @@
  * take the panel with it, so every read has a short timeout.
  */
 import type { Queue } from "bullmq";
-import { demoParseQueue, faceitDemoDownloadQueue } from "@/lib/queue";
+import { demoParseQueue, faceitDemoDownloadQueue, steamDemoDownloadQueue } from "@/lib/queue";
 
 export interface QueueCounts {
   name: string;
@@ -54,6 +54,7 @@ export async function getQueueStats(): Promise<QueueStats> {
       Promise.all([
         countsFor(demoParseQueue, "Analiza dem"),
         countsFor(faceitDemoDownloadQueue, "Pobieranie z FACEIT"),
+        countsFor(steamDemoDownloadQueue, "Pobieranie ze Steam (Premier)"),
       ]),
       TIMEOUT_MS
     );

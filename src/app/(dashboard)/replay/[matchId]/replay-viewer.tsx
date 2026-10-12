@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bomb, Skull } from "lucide-react";
+import Link from "next/link";
+import { Bomb, ClipboardCheck, Skull } from "lucide-react";
 import { useReplayStore, TICK_RATE } from "@/stores/replay-store";
 import type { PlayerSnapshot } from "@/stores/replay-store";
 import { PlaybackControls } from "./playback-controls";
@@ -11,6 +12,7 @@ import { ToolHeader } from "@/components/tools/tool-header";
 import { drawRadarBackground, makeWorldToCanvas, TOOL_CANVAS_SIZE, type RadarConfig } from "@/lib/canvas/radar";
 import {
   PLAYER_RADIUS,
+  VIEW_CONE_UNITS,
   activeBomb,
   drawActiveFires,
   drawActiveSmokes,
@@ -20,7 +22,14 @@ import {
   drawHEExplosions,
   drawKillMarker,
   drawPlayer,
+  drawFindingMarker,
+  drawPlayerLoadout,
+  drawSightLine,
+  drawUtilityTimers,
+  drawViewCone,
 } from "@/lib/canvas/replay-draw";
+import { FindingTag } from "@/components/ui";
+import { fmtRoundTime, type FindingView } from "@/lib/findings/view";
 import { cn } from "@/lib/utils/cn";
 
 interface RoundInfo {
@@ -49,6 +58,10 @@ interface ReplayViewerProps {
   initialRound?: number;
   /** Tick to jump to in initialRound; playback starts a moment before it. */
   initialTick?: number | null;
+  /** Player selected on open (deep link, or the viewer if they played). */
+  initialPlayer?: string | null;
+  /** Finding to highlight on open (from a report card). */
+  initialFindingId?: string | null;
 }
 
 /** Seconds of lead-in shown before a deep-linked tick. */
@@ -57,6 +70,16 @@ const DEEP_LINK_LEAD_S = 2;
 const FRESH_KILL_TICKS = 2 * TICK_RATE;
 /** Tap tolerance around a player dot, in canvas pixels. */
 const TAP_RADIUS = PLAYER_RADIUS * 3;
+/** A mistake marker shows at full strength this close to its tick, fading out by FINDING_FADE_S. */
+const FINDING_FULL_S = 0.75;
+const FINDING_FADE_S = 2;
+
+/** Strength (0–1) of a finding's marker at `tick`. */
+function findingStrength(f: FindingView, tick: number): number {
+  const dt = Math.abs(tick - f.tick) / TICK_RATE;
+  if (dt <= FINDING_FULL_S) return 1;
+  return Math.max(0, 1 - (dt - FINDING_FULL_S) / (FINDING_FADE_S - FINDING_FULL_S));
+}
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -89,6 +112,8 @@ export function ReplayViewer({
   scoreT,
   initialRound = 1,
   initialTick = null,
+  initialPlayer = null,
+  initialFindingId = null,
 }: ReplayViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number>(0);
@@ -110,18 +135,26 @@ export function ReplayViewer({
     playbackSpeed,
     showPlayerNames,
     showGrenades,
+    showFov,
     selectedSteamId,
+    findings,
+    activeFindingId,
     isLoading,
     loadRound,
     nextFrame,
     togglePlay,
     seekSeconds,
     selectPlayer,
+    setActiveFinding,
     reset,
   } = useReplayStore();
 
   // Load the first (or deep-linked) round on mount
   useEffect(() => {
+    const store = useReplayStore.getState();
+    if (initialPlayer) store.setSelectedPlayer(initialPlayer);
+    if (initialFindingId) store.setActiveFinding(initialFindingId);
+    store.loadFindings(matchId);
     const round = rounds.some((r) => r.number === initialRound) ? initialRound : 1;
     loadRound(matchId, round).then(() => {
       if (initialTick == null || round !== initialRound) return;
@@ -140,6 +173,20 @@ export function ReplayViewer({
   const frame = frames[currentFrameIndex];
   const currentTick = frame?.tick ?? 0;
 
+  // Mistakes in this round: the selected player's, or everyone's when nobody is selected.
+  const roundFindings = useMemo(
+    () =>
+      findings.filter(
+        (f) => f.roundNumber === currentRound && (!selectedSteamId || f.steamId === selectedSteamId)
+      ),
+    [findings, currentRound, selectedSteamId]
+  );
+  const conePx = useMemo(() => {
+    const a = worldToCanvas(0, 0);
+    const b = worldToCanvas(VIEW_CONE_UNITS, 0);
+    return Math.hypot(b.x - a.x, b.y - a.y);
+  }, [worldToCanvas]);
+
   // Draw the current frame
   useEffect(() => {
     const ctx = canvasRef.current?.getContext("2d");
@@ -152,7 +199,30 @@ export function ReplayViewer({
     if (showGrenades) {
       drawActiveSmokes(ctx, grenadeEvents, currentTick, worldToCanvas);
       drawActiveFires(ctx, grenadeEvents, currentTick, worldToCanvas);
+      drawUtilityTimers(ctx, grenadeEvents, currentTick, worldToCanvas, ui);
       drawGrenadeTrajectories(ctx, grenadeEvents, currentTick, worldToCanvas);
+    }
+
+    if (showFov) {
+      for (const p of frame.players) {
+        if (!p.isAlive) continue;
+        if (selectedSteamId && p.steamId !== selectedSteamId) continue;
+        const pos = worldToCanvas(p.x, p.y);
+        drawViewCone(ctx, pos.x, pos.y, p.yaw, p.team, conePx, p.steamId === selectedSteamId);
+      }
+    }
+
+    // Mistake around now: line to the enemy it was about.
+    const live = roundFindings
+      .map((f) => ({ f, strength: f.id === activeFindingId ? Math.max(0.35, findingStrength(f, currentTick)) : findingStrength(f, currentTick) }))
+      .filter((x) => x.strength > 0);
+    for (const { f } of live) {
+      if (!f.targetSteamId) continue;
+      const me = frame.players.find((p) => p.steamId === f.steamId);
+      const foe = frame.players.find((p) => p.steamId === f.targetSteamId);
+      if (me?.isAlive && foe?.isAlive) {
+        drawSightLine(ctx, worldToCanvas(me.x, me.y), worldToCanvas(foe.x, foe.y), ui);
+      }
     }
 
     for (const kill of kills) {
@@ -173,12 +243,19 @@ export function ReplayViewer({
     for (const p of ordered) {
       const pos = worldToCanvas(p.x, p.y);
       drawPlayer(ctx, pos.x, pos.y, p, showPlayerNames, p.steamId === selectedSteamId, currentTick, ui);
+      if (p.steamId === selectedSteamId) drawPlayerLoadout(ctx, pos.x, pos.y, p, ui);
+    }
+    for (const { f, strength } of live) {
+      const p = frame.players.find((x) => x.steamId === f.steamId);
+      if (!p) continue;
+      const pos = worldToCanvas(p.x, p.y);
+      drawFindingMarker(ctx, pos.x, pos.y, f.severity, currentTick, strength, ui);
     }
 
     if (showGrenades) {
       drawFlashOverlay(ctx, grenadeEvents, currentTick, width, height, worldToCanvas, !reducedMotion);
     }
-  }, [frame, currentTick, kills, grenadeEvents, bombEvents, showGrenades, showPlayerNames, selectedSteamId, worldToCanvas, radar, mapName, reducedMotion, ui]);
+  }, [frame, currentTick, kills, grenadeEvents, bombEvents, showGrenades, showPlayerNames, showFov, selectedSteamId, roundFindings, activeFindingId, conePx, worldToCanvas, radar, mapName, reducedMotion, ui]);
 
   // Playback loop; pauses while the tab is hidden
   useEffect(() => {
@@ -233,6 +310,23 @@ export function ReplayViewer({
     return () => window.removeEventListener("keydown", handleKey);
   }, [togglePlay, seekSeconds, selectPlayer, loadRound, matchId, rounds.length]);
 
+  /** Jump to a mistake: its round, a moment before it, its player selected. */
+  const goToFinding = (f: FindingView) => {
+    const store = useReplayStore.getState();
+    store.setSelectedPlayer(f.steamId);
+    setActiveFinding(f.id);
+    const seek = () => {
+      const { frames: loaded, setFrameIndex } = useReplayStore.getState();
+      const idx = loaded.findIndex((fr) => fr.tick >= f.tick - DEEP_LINK_LEAD_S * TICK_RATE);
+      setFrameIndex(Math.max(0, idx));
+    };
+    if (f.roundNumber !== store.currentRound) {
+      if (!store.isLoading) loadRound(matchId, f.roundNumber).then(seek);
+    } else {
+      seek();
+    }
+  };
+
   const onTap = ({ x, y }: { x: number; y: number }) => {
     if (!frame) return;
     let best: PlayerSnapshot | null = null;
@@ -254,6 +348,21 @@ export function ReplayViewer({
   const elapsed = Math.max(0, (currentTick - firstTick) / TICK_RATE);
   const bomb = showGrenades ? activeBomb(bombEvents, currentTick) : null;
   const visibleKills = kills.filter((k) => k.tick <= currentTick);
+
+  const nameOf = useMemo(() => new Map(players.map((p) => [p.steamId, p.name])), [players]);
+  // The mistake shown in the canvas badge: the picked one while near, else the nearest.
+  const nowFinding = useMemo(() => {
+    let best: FindingView | null = null;
+    let bestScore = 0;
+    for (const f of roundFindings) {
+      const s = findingStrength(f, currentTick) + (f.id === activeFindingId ? 0.5 : 0);
+      if (findingStrength(f, currentTick) > 0 && s > bestScore) {
+        best = f;
+        bestScore = s;
+      }
+    }
+    return best;
+  }, [roundFindings, currentTick, activeFindingId]);
 
   const livePlayers = frame?.players ?? [];
   const sideList = (side: "CT" | "T") =>
@@ -306,9 +415,21 @@ export function ReplayViewer({
                 </div>
               )}
             </div>
+            {nowFinding && (
+              <div className="pointer-events-none absolute inset-x-2 bottom-2 flex justify-center">
+                <div className="flex max-w-full items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--glass-bg)] px-2.5 py-1.5 backdrop-blur-md">
+                  <FindingTag severity={nowFinding.severity} className="shrink-0 whitespace-nowrap">
+                    {nowFinding.label}
+                  </FindingTag>
+                  <span className="hidden truncate text-xs text-[var(--text-secondary)] sm:inline">
+                    {selectedSteamId ? nowFinding.detail : `${nameOf.get(nowFinding.steamId) ?? ""}: ${nowFinding.detail}`}
+                  </span>
+                </div>
+              </div>
+            )}
           </MapViewport>
 
-          <PlaybackControls matchId={matchId} rounds={rounds} />
+          <PlaybackControls matchId={matchId} rounds={rounds} findingMarks={roundFindings} onFinding={goToFinding} />
 
           <p className="hidden text-[13px] text-[var(--text-tertiary)] md:block">
             Spacja: start/pauza · ←/→: 5 s · Shift+←/→: runda · kliknij gracza, aby go wyróżnić · Ctrl+kółko: zoom
@@ -332,6 +453,17 @@ export function ReplayViewer({
               <p className="text-sm text-[var(--text-tertiary)]">Wybierz rundę.</p>
             )}
           </div>
+
+          <FindingsPanel
+            matchId={matchId}
+            findings={roundFindings}
+            allCount={findings.filter((f) => !selectedSteamId || f.steamId === selectedSteamId).length}
+            activeId={nowFinding?.id ?? activeFindingId}
+            selectedName={selectedSteamId ? nameOf.get(selectedSteamId) ?? null : null}
+            selectedSteamId={selectedSteamId}
+            nameOf={nameOf}
+            onPick={goToFinding}
+          />
 
           <SidePanel
             side="CT"
@@ -451,5 +583,83 @@ function PlayerRow({
         </>
       )}
     </button>
+  );
+}
+
+function FindingsPanel({
+  matchId,
+  findings,
+  allCount,
+  activeId,
+  selectedName,
+  selectedSteamId,
+  nameOf,
+  onPick,
+}: {
+  matchId: string;
+  findings: FindingView[];
+  allCount: number;
+  activeId: string | null;
+  selectedName: string | null;
+  selectedSteamId: string | null;
+  nameOf: Map<string, string>;
+  onPick: (f: FindingView) => void;
+}) {
+  const active = findings.find((f) => f.id === activeId) ?? null;
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3 sm:col-span-2 lg:col-span-1">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="label-overline text-[var(--text-tertiary)]">
+          Błędy w rundzie{selectedName ? ` · ${selectedName}` : ""}
+        </p>
+        <Link
+          href={`/report/${matchId}${selectedSteamId ? `?player=${selectedSteamId}` : ""}`}
+          className="flex min-h-9 items-center gap-1 text-xs font-medium text-[var(--accent-hover)] hover:underline"
+        >
+          <ClipboardCheck className="h-3.5 w-3.5" aria-hidden />
+          Raport
+        </Link>
+      </div>
+      {findings.length === 0 ? (
+        <p className="text-[13px] text-[var(--text-tertiary)]">
+          {allCount === 0
+            ? "Brak wykrytych błędów."
+            : `W tej rundzie nic. W meczu: ${allCount}, zobacz znaczniki na osi czasu innych rund.`}
+        </p>
+      ) : (
+        <ul className="max-h-[220px] space-y-1 overflow-y-auto">
+          {findings.map((f) => (
+            <li key={f.id}>
+              <button
+                type="button"
+                onClick={() => onPick(f)}
+                aria-current={f.id === activeId ? "true" : undefined}
+                className={cn(
+                  "flex min-h-10 w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[13px] transition-colors",
+                  f.id === activeId ? "bg-[var(--accent-muted)] ring-1 ring-[var(--accent)]" : "hover:bg-[var(--surface-2)]"
+                )}
+              >
+                <span className="font-mono text-xs tabular-nums text-[var(--text-tertiary)]">{fmtRoundTime(f.roundTime)}</span>
+                <FindingTag severity={f.severity} className="shrink-0">
+                  {f.label}
+                </FindingTag>
+                {!selectedSteamId && (
+                  <span className="min-w-0 truncate font-mono text-xs text-[var(--text-secondary)]">{nameOf.get(f.steamId)}</span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {active && (
+        <div className="mt-2 rounded-lg bg-[var(--accent-muted)] p-2.5 text-xs">
+          <p className="text-[var(--text-secondary)]">{active.detail}</p>
+          <p className="mt-1 text-[var(--text-primary)]">
+            <span className="font-semibold text-[var(--accent-hover)]">Rada: </span>
+            {active.advice}
+          </p>
+        </div>
+      )}
+    </div>
   );
 }

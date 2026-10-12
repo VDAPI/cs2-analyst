@@ -23,6 +23,7 @@ export default async function SettingsPage() {
       steamId: true,
       faceitId: true,
       faceitNickname: true,
+      steamAuthCode: true,
     },
   });
 
@@ -35,7 +36,16 @@ export default async function SettingsPage() {
   return (
     <Suspense>
       <SettingsContent
-        user={dbUser}
+        user={{
+          name: dbUser.name,
+          email: dbUser.email,
+          image: dbUser.image,
+          plan: dbUser.plan,
+          steamId: dbUser.steamId,
+          faceitId: dbUser.faceitId,
+          faceitNickname: dbUser.faceitNickname,
+        }}
+        premierHistory={Boolean(dbUser.steamAuthCode)}
         usage={{
           used: usage.used,
           monthlyLimit: Number.isFinite(usage.limit) ? usage.limit : null,

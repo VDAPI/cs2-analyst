@@ -13,6 +13,7 @@ import {
   faceitDownloadsEnabled,
   FACEIT_UPLOAD_INCLUDE,
 } from "@/lib/faceit/analyze";
+import { enqueueSteamDownload, STEAM_UPLOAD_INCLUDE } from "@/lib/steam/premier";
 
 export type RetryResult =
   | { ok: true; uploadId: string }
@@ -24,9 +25,9 @@ export interface RetryOptions {
 }
 
 /**
- * Re-parse the stored demo, or re-download it from FACEIT. The caller checks
+ * Re-parse the stored demo, or re-download it from FACEIT or Steam. The caller checks
  * that the upload may be retried (FAILED, or stuck for admins). Returns the
- * upload id that now carries the analysis (a new one for a FACEIT re-download).
+ * upload id that now carries the analysis (a new one for a FACEIT or Steam re-download).
  */
 export async function retryUpload(upload: DemoUpload, { enforceLimit }: RetryOptions): Promise<RetryResult> {
   const userId = upload.userId;
@@ -55,6 +56,17 @@ export async function retryUpload(upload: DemoUpload, { enforceLimit }: RetryOpt
       const uploadId = await enqueueFaceitDownload(userId, fm, upload.keepDemo);
       return { ok: true, uploadId };
     }
+  }
+
+  // Premier / Steam match: download it again from Valve's replay server.
+  const sm = await prisma.steamMatch.findUnique({
+    where: { uploadId: upload.id },
+    include: STEAM_UPLOAD_INCLUDE,
+  });
+  if (sm && sm.userId === userId && sm.demoUrl) {
+    const uploadId = await enqueueSteamDownload(userId, sm, upload.keepDemo);
+    await prisma.demoUpload.update({ where: { id: upload.id }, data: { deletedAt: new Date() } });
+    return { ok: true, uploadId };
   }
 
   return { ok: false, status: 409, error: "The demo file is gone. Upload it again to retry." };

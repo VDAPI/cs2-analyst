@@ -8,12 +8,14 @@ import { Logo } from "./logo";
 import { NavGroups } from "./nav-groups";
 import { NavLink } from "./nav-link";
 import { adminItem, settingsItem, isActivePath } from "./nav-items";
+import { useT } from "@/lib/i18n/client";
 
 const STORAGE_KEY = "cs2a:sidebar-collapsed";
 
 /** Desktop sidebar (≥1024px). Below that the top bar drawer and mobile bottom bar take over. */
 export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
+  const t = useT();
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
         <Logo compact={collapsed} />
       </div>
 
-      <nav aria-label="Główna nawigacja" className="flex-1 overflow-y-auto p-3">
+      <nav aria-label={t("nav.mainNav")} className="flex-1 overflow-y-auto p-3">
         <NavGroups collapsed={collapsed} />
       </nav>
 
@@ -64,14 +66,14 @@ export function Sidebar({ isAdmin = false }: { isAdmin?: boolean }) {
         <button
           type="button"
           onClick={toggle}
-          aria-label={collapsed ? "Rozwiń menu" : "Zwiń menu"}
+          aria-label={collapsed ? t("nav.expandMenu") : t("nav.collapseMenu")}
           className={cn(
             "flex items-center gap-3 rounded-md px-3 py-2 text-sm text-[var(--text-tertiary)] transition-colors hover:bg-[rgba(190,160,255,0.06)] hover:text-[var(--text-secondary)]",
             collapsed && "justify-center px-0"
           )}
         >
           {collapsed ? <PanelLeftOpen className="h-[18px] w-[18px]" /> : <PanelLeftClose className="h-[18px] w-[18px]" />}
-          {!collapsed && "Zwiń"}
+          {!collapsed && t("nav.collapse")}
         </button>
       </div>
     </aside>

@@ -14,9 +14,10 @@ description: Canvas rendering patterns for the 2D replay viewer and heatmap visu
 | Canvas colors mirroring the tokens (`CANVAS_COLORS`, `GRENADE_STYLE`, `healthColor`) | `src/lib/canvas/palette.ts` |
 | `makeWorldToCanvas`, `drawRadarBackground`, `drawEmptyHint`, `TOOL_CANVAS_SIZE`, `RadarConfig` | `src/lib/canvas/radar.ts` |
 | Heatmap KDE layer + legend gradient | `src/lib/canvas/heatmap-layer.ts` |
-| Replay drawing (players, kills, smokes, fires, HE, flash, trajectories, bomb + `activeBomb`) | `src/lib/canvas/replay-draw.ts` |
+| Replay drawing (players, kills, smokes, fires, HE, flash, trajectories, bomb + `activeBomb`; S10: view cone, utility timers, loadout, sight line, mistake marker) | `src/lib/canvas/replay-draw.ts` |
 | `MapViewport`: square canvas with pinch / Ctrl+wheel zoom, drag pan, double-tap reset, +/− buttons, `onTap` in canvas coords, overlays as children | `src/components/maps/map-viewport.tsx` |
 | `useRadarImage(src)`, `useCanvasUiScale(canvasRef, zoom)` | `src/components/maps/use-canvas.ts` |
+| `FindingClip`: a few seconds of 2D replay around one finding (zoomed camera, view cones, marker), loaded on demand via `fetchRoundData` (`src/lib/replay/fetch-round.ts`) | `src/components/replay/finding-clip.tsx` |
 | One heatmap screen for a match or a whole map (`source.kind`) | `src/components/maps/heatmap-explorer.tsx` |
 | `ToolHeader` (PageHeader + score), `Segmented`, `ControlGroup`, `ToggleRow`, `ToolSelect`, `ToolMatchGrid` / `ToolEmptyState` pickers | `src/components/tools/` |
 

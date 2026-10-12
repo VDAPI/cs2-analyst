@@ -473,3 +473,179 @@ export function drawBombMarker(
 
   ctx.restore();
 }
+
+// ─── S10: view cone, utility timers, mistake markers ────
+
+/** CS2's horizontal field of view on a 16:9 screen (fov 90 on 4:3) is ~106°. */
+export const VIEW_HALF_ANGLE_DEG = 53;
+/** How far the drawn view cone reaches, in game units. */
+export const VIEW_CONE_UNITS = 1400;
+
+/**
+ * Field-of-view cone in front of a player. `lengthPx` is VIEW_CONE_UNITS in
+ * canvas pixels (from the radar scale), so the cone means the same on every map.
+ */
+export function drawViewCone(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  yaw: number,
+  team: "CT" | "T",
+  lengthPx: number,
+  strong: boolean
+) {
+  const color = team === "CT" ? "90, 169, 255" : "255, 194, 61";
+  const a = (-yaw * Math.PI) / 180; // canvas y grows down
+  const half = (VIEW_HALF_ANGLE_DEG * Math.PI) / 180;
+  ctx.save();
+  const grad = ctx.createRadialGradient(x, y, 0, x, y, lengthPx);
+  grad.addColorStop(0, `rgba(${color}, ${strong ? 0.28 : 0.12})`);
+  grad.addColorStop(1, `rgba(${color}, 0)`);
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.arc(x, y, lengthPx, a - half, a + half);
+  ctx.closePath();
+  ctx.fill();
+  if (strong) {
+    ctx.strokeStyle = `rgba(${color}, 0.45)`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(a - half) * lengthPx, y + Math.sin(a - half) * lengthPx);
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(a + half) * lengthPx, y + Math.sin(a + half) * lengthPx);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Seconds left on smokes and fires, as a ring and a number next to the cloud. */
+export function drawUtilityTimers(
+  ctx: CanvasRenderingContext2D,
+  grenades: ReplayGrenadeEvent[],
+  currentTick: number,
+  worldToCanvas: WorldToCanvas,
+  ui = 1
+) {
+  for (const g of grenades) {
+    if (g.type !== "SMOKE" && g.type !== "MOLOTOV" && g.type !== "INCENDIARY") continue;
+    const dur = grenadeDurationTicks(g);
+    const elapsed = currentTick - g.tick;
+    if (dur <= 0 || elapsed < 0 || elapsed >= dur) continue;
+    const left = 1 - elapsed / dur;
+    const seconds = Math.ceil((dur - elapsed) / TICK_RATE);
+    const pos = worldToCanvas(g.landX, g.landY);
+    const r = (g.type === "SMOKE" ? SMOKE_RADIUS : MOLOTOV_RADIUS) + 4;
+    const color = g.type === "SMOKE" ? "rgba(243, 240, 255, 0.85)" : "rgba(255, 122, 51, 0.95)";
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, r, -Math.PI / 2, -Math.PI / 2 + left * Math.PI * 2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5 * ui;
+    ctx.lineCap = "round";
+    ctx.stroke();
+
+    const label = `${seconds}`;
+    ctx.font = `bold ${Math.round(12 * ui)}px "Geist Mono", monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const lx = pos.x + r * 0.75;
+    const ly = pos.y - r * 0.75;
+    const w = ctx.measureText(label).width + 8 * ui;
+    const h = 16 * ui;
+    ctx.fillStyle = "rgba(8, 7, 13, 0.8)";
+    ctx.beginPath();
+    ctx.roundRect(lx - w / 2, ly - h / 2, w, h, 4 * ui);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.fillText(label, lx, ly + 0.5);
+    ctx.restore();
+  }
+}
+
+/** Weapon and HP under a player (the selected one), so the clip reads without the side list. */
+export function drawPlayerLoadout(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  player: Pick<PlayerSnapshot, "weapon" | "health" | "isAlive">,
+  ui = 1
+) {
+  if (!player.isAlive) return;
+  const weapon = player.weapon.replace(/^weapon_/, "");
+  const label = weapon ? `${weapon} · ${player.health} HP` : `${player.health} HP`;
+  ctx.save();
+  ctx.font = `${Math.round(12 * ui)}px "Geist Mono", monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  const ly = y + (PLAYER_RADIUS + 13) * ui;
+  ctx.strokeStyle = "rgba(8, 7, 13, 0.9)";
+  ctx.lineWidth = 4 * ui;
+  ctx.lineJoin = "round";
+  ctx.strokeText(label, x, ly);
+  ctx.fillStyle = healthColor(player.health);
+  ctx.fillText(label, x, ly);
+  ctx.restore();
+}
+
+/** Dashed line from the player to the enemy the mistake was against. */
+export function drawSightLine(
+  ctx: CanvasRenderingContext2D,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  ui = 1
+) {
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 77, 106, 0.7)";
+  ctx.lineWidth = 2 * ui;
+  ctx.setLineDash([6 * ui, 5 * ui]);
+  ctx.beginPath();
+  ctx.moveTo(from.x, from.y);
+  ctx.lineTo(to.x, to.y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Mistake marker on a player: a pulsing ring in the severity color with a "!"
+ * badge. `strength` (0–1) fades it in and out around the mistake's tick.
+ */
+export function drawFindingMarker(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  severity: "high" | "medium" | "low",
+  tick: number,
+  strength: number,
+  ui = 1
+) {
+  if (strength <= 0) return;
+  const color = severity === "high" ? CANVAS_COLORS.mistake : severity === "medium" ? CANVAS_COLORS.warning : CANVAS_COLORS.accent;
+  const pulse = 1 + Math.sin(tick * 0.25) * 0.12;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, strength);
+  ctx.beginPath();
+  ctx.arc(x, y, (PLAYER_RADIUS + 12) * ui * pulse, 0, Math.PI * 2);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3 * ui;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 14;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  const bx = x + (PLAYER_RADIUS + 10) * ui;
+  const by = y - (PLAYER_RADIUS + 10) * ui;
+  const br = 9 * ui;
+  ctx.beginPath();
+  ctx.arc(bx, by, br, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.fillStyle = CANVAS_COLORS.canvas;
+  ctx.font = `bold ${Math.round(13 * ui)}px "Geist Mono", monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("!", bx, by + 0.5);
+  ctx.restore();
+}

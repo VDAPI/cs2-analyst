@@ -11,6 +11,7 @@ import { parseDemoFile } from "./demo-parser";
 import { formatReplayStats, parseAndPersistReplayData } from "./persist-replay";
 import { computeAndPersistMechanics } from "../analysis/persist-mechanics";
 import { computeAndPersistAim } from "../analysis/persist-aim";
+import { computeAndPersistFindings } from "../findings/persist";
 
 interface PersistArgs {
   uploadId: string;
@@ -220,6 +221,12 @@ export async function parseAndPersistDemo(
         console.log(`[persist-demo] aim match=${match.id}: ${players} players`);
       } catch (error) {
         console.error(`[persist-demo] aim FAILED match=${match.id}:`, error);
+      }
+      try {
+        const findings = await computeAndPersistFindings(prisma, match.id);
+        console.log(`[persist-demo] findings match=${match.id}: ${findings}`);
+      } catch (error) {
+        console.error(`[persist-demo] findings FAILED match=${match.id}:`, error);
       }
     }
     await onProgress?.(98);

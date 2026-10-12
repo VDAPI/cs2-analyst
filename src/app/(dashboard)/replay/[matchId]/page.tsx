@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { getMapConfig } from "@/lib/utils/maps";
@@ -6,13 +8,14 @@ import { ReplayViewer } from "./replay-viewer";
 
 interface Props {
   params: Promise<{ matchId: string }>;
-  searchParams: Promise<{ round?: string; tick?: string }>;
+  searchParams: Promise<{ round?: string; tick?: string; player?: string; finding?: string }>;
 }
 
 export default async function ReplayPage({ params, searchParams }: Props) {
   const { matchId } = await params;
-  // Deep link to a moment (e.g. from the mechanics page): ?round=N&tick=T
+  // Deep link to a moment (mechanics page, report): ?round=N&tick=T&player=S&finding=F
   const query = await searchParams;
+  const session = await getServerSession(authOptions);
   const initialRound = Number(query.round) || 1;
   const initialTick = Number(query.tick) || null;
 
@@ -44,6 +47,9 @@ export default async function ReplayPage({ params, searchParams }: Props) {
   if (!match) notFound();
 
   const mapConfig = getMapConfig(match.map);
+  // Open with the linked player selected, else the viewer themselves if they played.
+  const inMatch = (id: string | null | undefined) => !!id && match.players.some((p) => p.steamId === id);
+  const initialPlayer = inMatch(query.player) ? query.player! : inMatch(session?.user?.steamId) ? session!.user.steamId : null;
 
   return (
     <ReplayViewer
@@ -73,6 +79,8 @@ export default async function ReplayPage({ params, searchParams }: Props) {
       scoreT={match.scoreT}
       initialRound={initialRound}
       initialTick={initialTick}
+      initialPlayer={initialPlayer}
+      initialFindingId={query.finding ?? null}
     />
   );
 }

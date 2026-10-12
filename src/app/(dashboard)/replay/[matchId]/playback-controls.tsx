@@ -11,7 +11,9 @@ import {
   RotateCw,
   Tag,
   Bomb,
+  Eye,
 } from "lucide-react";
+import type { FindingView } from "@/lib/findings/view";
 import { Segmented } from "@/components/tools/segmented";
 import { cn } from "@/lib/utils/cn";
 
@@ -26,7 +28,16 @@ interface RoundInfo {
 interface PlaybackControlsProps {
   matchId: string;
   rounds: RoundInfo[];
+  /** Mistakes in the current round, marked on the timeline. */
+  findingMarks?: FindingView[];
+  onFinding?: (f: FindingView) => void;
 }
+
+const SEVERITY_MARK: Record<FindingView["severity"], string> = {
+  high: "bg-[var(--mistake)]",
+  medium: "bg-[var(--warning)]",
+  low: "bg-[var(--accent)]",
+};
 
 const SPEED_OPTIONS = ["0.5", "1", "2", "4"] as const;
 type SpeedOption = (typeof SPEED_OPTIONS)[number];
@@ -37,8 +48,8 @@ function clock(seconds: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/** Touch-first replay controls: scrubber with kill/bomb marks, transport, speed, layers and a round strip. */
-export function PlaybackControls({ matchId, rounds }: PlaybackControlsProps) {
+/** Touch-first replay controls: scrubber with kill/bomb/mistake marks, transport, speed, layers and a round strip. */
+export function PlaybackControls({ matchId, rounds, findingMarks = [], onFinding }: PlaybackControlsProps) {
   const {
     frames,
     kills,
@@ -49,6 +60,8 @@ export function PlaybackControls({ matchId, rounds }: PlaybackControlsProps) {
     playbackSpeed,
     showPlayerNames,
     showGrenades,
+    showFov,
+    activeFindingId,
     isLoading,
     loadRound,
     setFrameIndex,
@@ -56,6 +69,7 @@ export function PlaybackControls({ matchId, rounds }: PlaybackControlsProps) {
     setSpeed,
     togglePlayerNames,
     toggleGrenades,
+    toggleFov,
     seekSeconds,
   } = useReplayStore();
 
@@ -96,6 +110,31 @@ export function PlaybackControls({ matchId, rounds }: PlaybackControlsProps) {
     <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--glass-bg)] p-3 backdrop-blur-xl sm:p-4">
       {/* Scrubber */}
       <div>
+        {findingMarks.length > 0 && (
+          <div className="relative mb-1 h-4">
+            {findingMarks
+              .filter((f) => f.tick >= firstTick && f.tick <= lastTick)
+              .map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => onFinding?.(f)}
+                  title={`${f.label}: ${f.detail}`}
+                  aria-label={`Przejdź do błędu: ${f.label}, ${clock(f.roundTime)}`}
+                  className="absolute top-0 flex h-4 w-4 -translate-x-1/2 items-center justify-center"
+                  style={{ left: `${((f.tick - firstTick) / span) * 100}%` }}
+                >
+                  <span
+                    className={cn(
+                      "block h-2.5 w-2.5 rotate-45 rounded-[2px]",
+                      SEVERITY_MARK[f.severity],
+                      f.id === activeFindingId && "ring-2 ring-[var(--text-primary)]"
+                    )}
+                  />
+                </button>
+              ))}
+          </div>
+        )}
         <div className="relative h-3" aria-hidden={marks.length === 0}>
           {marks.map((m, i) => (
             <button
@@ -137,6 +176,11 @@ export function PlaybackControls({ matchId, rounds }: PlaybackControlsProps) {
             <span className="flex items-center gap-1">
               <span className="h-2 w-2 rounded-full bg-[var(--t-gold)]" /> bomba
             </span>
+            {findingMarks.length > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="h-2 w-2 rotate-45 rounded-[1px] bg-[var(--mistake)]" /> błąd
+              </span>
+            )}
           </span>
           <span>{clock(span / TICK_RATE)}</span>
         </div>
@@ -177,12 +221,15 @@ export function PlaybackControls({ matchId, rounds }: PlaybackControlsProps) {
           onChange={(v) => setSpeed(Number(v))}
           options={SPEED_OPTIONS.map((s) => ({ value: s, label: <span className="font-mono">{s}×</span> }))}
         />
-        <div className="flex flex-1 gap-2 sm:flex-none">
+        <div className="flex flex-1 flex-wrap gap-2 sm:flex-none">
           <LayerToggle label="Nicki" active={showPlayerNames} onClick={togglePlayerNames}>
             <Tag className="h-4 w-4" />
           </LayerToggle>
           <LayerToggle label="Utility i bomba" active={showGrenades} onClick={toggleGrenades}>
             <Bomb className="h-4 w-4" />
+          </LayerToggle>
+          <LayerToggle label="Pole widzenia" active={showFov} onClick={toggleFov}>
+            <Eye className="h-4 w-4" />
           </LayerToggle>
         </div>
       </div>

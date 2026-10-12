@@ -2,8 +2,10 @@
 
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui";
+import { useT } from "@/lib/i18n/client";
 
 export function DevLoginButton() {
+  const t = useT();
   if (process.env.NEXT_PUBLIC_DEV_LOGIN !== "true") return null;
 
   return (
@@ -19,7 +21,7 @@ export function DevLoginButton() {
         })
       }
     >
-      Dev login (pomiń logowanie)
+      {t("auth.devLogin")}
     </Button>
   );
 }

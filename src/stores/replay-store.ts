@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { fetchRoundData } from "@/lib/replay/fetch-round";
+import type { FindingView } from "@/lib/findings/view";
 
 export interface PlayerSnapshot {
   steamId: string;
@@ -68,6 +70,12 @@ interface ReplayStore {
   showGrenades: boolean;
   /** Player highlighted on the canvas and in the side list (tap to select). */
   selectedSteamId: string | null;
+  /** Field-of-view cones on the canvas. */
+  showFov: boolean;
+  /** Every finding of the match (mistake markers); loaded once per match. */
+  findings: FindingView[];
+  /** Finding picked from the timeline or the list, highlighted until another is picked. */
+  activeFindingId: string | null;
 
   // Loading
   isLoading: boolean;
@@ -84,6 +92,11 @@ interface ReplayStore {
   /** Jump by game seconds (negative = back), clamped to the round. */
   seekSeconds: (seconds: number) => void;
   selectPlayer: (steamId: string | null) => void;
+  /** Select a player without toggling (deep links). */
+  setSelectedPlayer: (steamId: string | null) => void;
+  toggleFov: () => void;
+  loadFindings: (matchId: string) => Promise<void>;
+  setActiveFinding: (id: string | null) => void;
   reset: () => void;
 }
 
@@ -101,56 +114,18 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   showPlayerNames: true,
   showGrenades: true,
   selectedSteamId: null,
+  showFov: true,
+  findings: [],
+  activeFindingId: null,
   isLoading: false,
 
   loadRound: async (matchId, round) => {
     set({ isLoading: true, isPlaying: false, currentFrameIndex: 0 });
 
     try {
-      const [ticksRes, killsRes, grenadesRes, bombsRes] = await Promise.all([
-        fetch(`/api/matches/${matchId}/ticks?round=${round}&interval=32`),
-        fetch(`/api/matches/${matchId}/kills?round=${round}`),
-        fetch(`/api/matches/${matchId}/grenades?round=${round}`),
-        fetch(`/api/matches/${matchId}/bombs?round=${round}`),
-      ]);
-
-      if (!ticksRes.ok) throw new Error("Failed to load tick data");
-
-      const ticksData = await ticksRes.json();
-      const killsData = killsRes.ok ? await killsRes.json() : { kills: [] };
-      const grenadesData = grenadesRes.ok ? await grenadesRes.json() : { grenades: [] };
-      const bombsData = bombsRes.ok ? await bombsRes.json() : { bombs: [] };
-
-      const grenadeEvents: ReplayGrenadeEvent[] = (grenadesData.grenades ?? []).map(
-        (g: { tick: number; type: string; landPos: { x: number; y: number }; throwPos: { x: number; y: number }; duration: number | null; throwerName: string }) => ({
-          tick: g.tick,
-          type: g.type as ReplayGrenadeEvent["type"],
-          landX: g.landPos.x,
-          landY: g.landPos.y,
-          throwX: g.throwPos.x,
-          throwY: g.throwPos.y,
-          duration: g.duration,
-          throwerName: g.throwerName,
-        })
-      );
-
-      const bombEvts: ReplayBombEvent[] = (bombsData.bombs ?? []).map(
-        (b: { tick: number; type: string; x: number; y: number; site: string | null }) => ({
-          tick: b.tick,
-          type: b.type as ReplayBombEvent["type"],
-          x: b.x,
-          y: b.y,
-          site: b.site,
-        })
-      );
-
+      const data = await fetchRoundData(matchId, round, { interval: 32 });
       set({
-        frames: ticksData.ticks,
-        kills: killsData.kills ?? [],
-        grenadeEvents,
-        bombEvents: bombEvts,
-        startTick: ticksData.startTick,
-        endTick: ticksData.endTick,
+        ...data,
         currentRound: round,
         currentFrameIndex: 0,
         isLoading: false,
@@ -204,6 +179,23 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
   selectPlayer: (steamId) =>
     set((s) => ({ selectedSteamId: s.selectedSteamId === steamId ? null : steamId })),
 
+  setSelectedPlayer: (steamId) => set({ selectedSteamId: steamId }),
+
+  toggleFov: () => set((s) => ({ showFov: !s.showFov })),
+
+  loadFindings: async (matchId) => {
+    try {
+      const res = await fetch(`/api/matches/${matchId}/findings`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { findings?: FindingView[] };
+      set({ findings: data.findings ?? [] });
+    } catch {
+      set({ findings: [] });
+    }
+  },
+
+  setActiveFinding: (id) => set({ activeFindingId: id }),
+
   reset: () =>
     set({
       frames: [],
@@ -219,6 +211,9 @@ export const useReplayStore = create<ReplayStore>((set, get) => ({
       showPlayerNames: true,
       showGrenades: true,
       selectedSteamId: null,
+      showFov: true,
+      findings: [],
+      activeFindingId: null,
       isLoading: false,
     }),
 }));

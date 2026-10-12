@@ -202,7 +202,7 @@ export function AimSection({
             {shown.map((m) => (
               <Link
                 key={`${m.type}-${m.roundNumber}-${m.tick}`}
-                href={`/replay/${matchId}?round=${m.roundNumber}&tick=${m.tick}`}
+                href={`/replay/${matchId}?round=${m.roundNumber}&tick=${m.tick}&player=${steamId}`}
                 className="group flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3 transition-colors hover:border-[var(--border-hover)]"
               >
                 <div className="min-w-0 flex-1">

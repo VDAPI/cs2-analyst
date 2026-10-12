@@ -3,7 +3,8 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getPlanUsage } from "@/lib/limits";
 import { activeUploadId, FACEIT_UPLOAD_INCLUDE } from "@/lib/faceit/analyze";
-import { UploadClient, type FaceitSlot } from "./upload-client";
+import { activeSteamUploadId, STEAM_UPLOAD_INCLUDE } from "@/lib/steam/premier";
+import { UploadClient, type FaceitSlot, type SteamSlot } from "./upload-client";
 
 /**
  * Upload page. `?faceit=<id>,<id>` (from "Analyze selected" without the
@@ -13,11 +14,11 @@ import { UploadClient, type FaceitSlot } from "./upload-client";
 export default async function UploadPage({
   searchParams,
 }: {
-  searchParams: Promise<{ faceit?: string; keep?: string }>;
+  searchParams: Promise<{ faceit?: string; steam?: string; keep?: string }>;
 }) {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
-  const { faceit, keep } = await searchParams;
+  const { faceit, steam, keep } = await searchParams;
 
   const ids = (faceit ?? "").split(",").filter(Boolean).slice(0, 50);
   const faceitMatches =
@@ -38,11 +39,25 @@ export default async function UploadPage({
       faceitUrl: fm.faceitUrl,
     }));
 
+  const steamIds = (steam ?? "").split(",").filter(Boolean).slice(0, 50);
+  const steamMatches =
+    userId && steamIds.length > 0
+      ? await prisma.steamMatch.findMany({
+          where: { id: { in: steamIds }, userId },
+          include: STEAM_UPLOAD_INCLUDE,
+          orderBy: { createdAt: "desc" },
+        })
+      : [];
+  const steamSlots: SteamSlot[] = steamMatches
+    .filter((sm) => !activeSteamUploadId(sm))
+    .map((sm) => ({ id: sm.id, shareCode: sm.shareCode }));
+
   const usage = userId ? await getPlanUsage(userId) : null;
 
   return (
     <UploadClient
       faceitSlots={slots}
+      steamSlots={steamSlots}
       defaultKeepDemo={keep === "1"}
       maxFiles={Math.min(usage?.limits.uploadFiles ?? 5, usage?.remaining ?? 5)}
       remaining={usage?.remaining ?? 0}
