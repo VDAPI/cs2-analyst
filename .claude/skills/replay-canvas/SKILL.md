@@ -5,6 +5,9 @@ description: Canvas rendering patterns for the 2D replay viewer and heatmap visu
 
 # Canvas Rendering — Replay & Heatmaps
 
+> **Roadmap (`docs/SESSIONS.md`):** S5 restyles canvases to Violet Lime and makes replay controls touch-friendly (works at 360 px). Since S6 tick data comes from the DB (`RoundTicks`, every 4 ticks); the store's fetch contract (`/api/matches/[matchId]/ticks`) stayed the same. S10 adds FOV cones, utility timers, mistake markers on the timeline and jump-to-moment; S16 adds map notes and shareable moment links.
+> Colors below are today's code values. Target colors (CT `#5AA9FF`, T `#FFC23D`, mistake `#FF4D6A`, violet/lime heatmap gradient) are in `DESIGN.md` §7. Prefer reading team colors from CSS tokens (`getComputedStyle(document.documentElement).getPropertyValue("--ct-blue")`) over new hard-coded hex.
+
 ## Architecture
 
 ### Replay Viewer (`/replay/[matchId]`)
@@ -12,7 +15,7 @@ description: Canvas rendering patterns for the 2D replay viewer and heatmap visu
   - Frames: `TickFrame[]` (each frame has `tick` + `PlayerSnapshot[]`)
   - `loadRound(matchId, round)`: fetches from `/api/matches/[matchId]/ticks`
   - `nextFrame()`: advances playback, stops at end
-- **Data**: Tick data loaded on-demand per round (~190ms parse, ~110 frames/round)
+- **Data**: Tick data loaded on-demand per round from the DB (`RoundTicks`); the viewer requests `interval=32` (~110 frames/round)
 - **Render loop**: `requestAnimationFrame` driven by playback speed (0.5x–4x)
 
 ### Heatmap Viewer (`/heatmaps/[matchId]` and `/heatmaps/map/[mapName]`)

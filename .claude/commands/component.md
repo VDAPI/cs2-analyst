@@ -19,7 +19,8 @@ Create a new React component for CS2 Analyst.
    - `src/components/layout/` — layout (sidebar, topbar)
 5. Use CSS custom properties (`var(--*)`) from the design system
 6. Add `transition-all duration-150` on interactive elements
-7. Use team colors consistently: CT `#60a5fa` / T `#fbbf24`
+7. Use team colors through tokens only: `var(--ct-blue)` / `var(--t-gold)` (Violet Lime targets CT `#5AA9FF` / T `#FFC23D`, applied in S2)
+8. Must work at 360 px wide with no horizontal page scroll (mobile is mandatory)
 
 ## Args
 $ARGUMENTS — Component name and description

@@ -1,11 +1,12 @@
 # CS2 Analyst
 
-> SaaS platform for Counter-Strike 2 demo analysis — player stats, heatmaps, 2D replay, economy tracking, grenade analysis, and AI coaching.
+> SaaS platform for Counter-Strike 2 demo analysis — player stats, heatmaps, 2D replay, economy tracking, grenade analysis, FACEIT match sync. Planned: mechanics and tactics mistake reports, pro comparison and an AI coach (see `docs/SESSIONS.md`).
 
 ## Quick Start
 
 ### Prerequisites
-- Node.js 20+
+- Node.js 20+ (CI runs Node 24)
+- npm 10 — `npm install -g npm@10` (npm 11 is blocked on purpose, see "npm 10 is pinned" in `CLAUDE.md`)
 - Docker (for PostgreSQL + Redis)
 
 ### Setup
@@ -28,8 +29,11 @@ npx prisma generate
 # 5. Start development server
 npm run dev
 
-# 6. (Optional) Start demo parsing worker
+# 6. Start the demo parsing worker (needed to analyse uploads; also backfills replay data for old matches)
 npm run worker:parse
+
+# 7. (Optional) FACEIT demo download worker
+npm run worker:faceit
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
@@ -39,7 +43,7 @@ Open [http://localhost:3000](http://localhost:3000)
 ```
 ┌─── Next.js 15 (App Router) ────────────────────┐
 │  React 19 + TypeScript + Tailwind CSS            │
-│  tRPC (type-safe API) + NextAuth (Steam OpenID)  │
+│  Route Handlers + NextAuth (email/pass, Steam)   │
 └──────────────────┬──────────────────────────────┘
                    │
 ┌──────────────────┴──────────────────────────────┐
@@ -50,7 +54,7 @@ Open [http://localhost:3000](http://localhost:3000)
 ┌──────────────────┴──────────────────────────────┐
 │  PostgreSQL 16 + Prisma ORM                      │
 │  Redis (cache + job queue)                       │
-│  Cloudflare R2 (demo file storage)               │
+│  Local disk data/demos (Cloudflare R2 planned)   │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -58,26 +62,27 @@ Open [http://localhost:3000](http://localhost:3000)
 
 | File | Purpose |
 |------|---------|
-| `PLAN.md` | Full project plan, roadmap, competitive research |
-| `docs/SESSIONS.md` | Feature list and planned Claude Code sessions (S1–S18) |
+| `PLAN.md` | Original project plan and competitive research (roadmap moved to `docs/SESSIONS.md`) |
 | `DESIGN.md` | Design system (colors, typography, components) |
-| `AGENTS.md` | Instructions for AI coding agents |
+| `CLAUDE.md` | Instructions for Claude Code / AI coding agents |
+| `docs/SESSIONS.md` | Session-by-session roadmap and full feature list |
+| `.claude/skills/` | Domain skills for Claude Code (design system, parsing, analysis, canvas) |
 | `prisma/schema.prisma` | Database schema |
 | `src/types/index.ts` | Shared TypeScript types |
 | `src/lib/parsers/` | Demo parsing logic |
-| `src/lib/analysis/` | Stats calculation, heatmaps |
+| `src/lib/analysis/`, `src/lib/utils/` | Heatmaps, clutches, trades, multi-kills, buy types |
 | `workers/` | Background job processors |
 
 ## Tech Stack
 
 - **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS 4, Radix UI
-- **State**: Zustand + React Query / tRPC
-- **Backend**: Next.js API Routes, tRPC, BullMQ
+- **State**: Zustand (replay)
+- **Backend**: Next.js Route Handlers, BullMQ
 - **Database**: PostgreSQL 16, Prisma ORM, Redis
 - **Parser**: @laihoe/demoparser2 (Rust core, Node.js bindings)
-- **Rendering**: Canvas API (2D replay), Recharts/D3 (charts)
-- **Auth**: NextAuth.js with Steam OpenID
-- **Storage**: Cloudflare R2
+- **Rendering**: Canvas API (2D replay, heatmaps), Recharts (charts)
+- **Auth**: NextAuth.js — email + password, optional Steam; FACEIT linked via OAuth2 + PKCE
+- **Storage**: local disk today, Cloudflare R2 planned
 
 ## License
 
