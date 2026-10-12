@@ -59,9 +59,16 @@ export const MAX_MOMENTS = 150;
 /** Bump when the analysis changes, so stored stats are recomputed. */
 export const MECHANICS_VERSION = 1;
 
-/** "weapon_ak47" / "AK47" → "ak47". Returns null for non-guns. */
+/** Display names (replay frames' active_weapon_name, after stripping spaces/dashes). */
+const DISPLAY_ALIASES: Record<string, string> = {
+  m4a1s: "m4a1_silencer", usps: "usp_silencer", deserteagle: "deagle", cz75auto: "cz75a",
+  dualberettas: "elite", ppbizon: "bizon", sg553: "sg556", r8revolver: "revolver",
+};
+
+/** "weapon_ak47" / "AK47" / "AK-47" → "ak47". Returns null for non-guns. */
 export function normalizeWeapon(raw: string): string | null {
-  const w = raw.toLowerCase().replace(/^weapon_/, "");
+  const w0 = raw.toLowerCase().replace(/^weapon_/, "").replace(/[\s-]/g, "");
+  const w = DISPLAY_ALIASES[w0] ?? w0;
   if (w === "m4a4") return "m4a1";
   if (w === "usp" || w === "usp_s") return "usp_silencer";
   if (w === "m4a1_s") return "m4a1_silencer";

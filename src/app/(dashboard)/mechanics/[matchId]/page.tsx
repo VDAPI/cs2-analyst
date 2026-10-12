@@ -8,11 +8,14 @@ import { Card, Badge } from "@/components/ui";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { getMechanicsStats } from "@/lib/analysis/persist-mechanics";
 import { pct, type MovementMoment, type WeaponMechanics } from "@/lib/analysis/movement";
+import { getAimStats } from "@/lib/analysis/persist-aim";
+import type { AimMomentType } from "@/lib/analysis/aim";
+import { AimSection, type AimRow } from "./aim-section";
 import { cn } from "@/lib/utils/cn";
 
 interface Props {
   params: Promise<{ matchId: string }>;
-  searchParams: Promise<{ player?: string }>;
+  searchParams: Promise<{ player?: string; aim?: string }>;
 }
 
 const WEAPON_LABEL: Record<string, string> = {
@@ -26,6 +29,10 @@ const WEAPON_LABEL: Record<string, string> = {
   mag7: "MAG-7", sawedoff: "Sawed-Off", m249: "M249", negev: "Negev",
 };
 const weaponLabel = (w: string) => WEAPON_LABEL[w] ?? w;
+
+const AIM_FILTERS = new Set<AimMomentType>([
+  "crosshair", "reaction", "spray", "overflick", "dry_peek", "noise", "jump", "air_shot", "reload",
+]);
 
 const fmtPct = (v: number | null) => (v == null ? "–" : `${v.toFixed(0)}%`);
 
@@ -45,7 +52,7 @@ function fmtRoundTime(s: number): string {
 
 export default async function MechanicsPage({ params, searchParams }: Props) {
   const { matchId } = await params;
-  const { player } = await searchParams;
+  const { player, aim: aimFilter } = await searchParams;
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) notFound();
 
@@ -61,7 +68,13 @@ export default async function MechanicsPage({ params, searchParams }: Props) {
   });
   if (!match) notFound();
 
-  const stats = await getMechanicsStats(prisma, matchId);
+  const [stats, aimStats] = await Promise.all([
+    getMechanicsStats(prisma, matchId),
+    getAimStats(prisma, matchId),
+  ]);
+  const aimOf = new Map(
+    aimStats.map((a) => [a.steamId, a as unknown as AimRow])
+  );
   const nameOf = new Map(match.players.map((p) => [p.steamId, p.name]));
   const teamOf = new Map(match.players.map((p) => [p.steamId, p.team as "CT" | "T"]));
   const rows = stats
@@ -76,6 +89,7 @@ export default async function MechanicsPage({ params, searchParams }: Props) {
       hsPct: pct(s.headHits, s.hits),
       weaponRows: s.weapons as unknown as WeaponMechanics[],
       momentRows: s.moments as unknown as MovementMoment[],
+      aim: aimOf.get(s.steamId) ?? null,
     }))
     .sort((a, b) => (a.team === b.team ? a.name.localeCompare(b.name) : a.team === "CT" ? -1 : 1));
 
@@ -96,11 +110,11 @@ export default async function MechanicsPage({ params, searchParams }: Props) {
 
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
-          Ruch przy strzale
+          Mechanika
         </h1>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
           {mapDisplayName(match.map)} <span className="font-mono">{match.scoreCT}:{match.scoreT}</span>
-          {" — "}czy gracz stał, gdy padła pierwsza kula w pojedynku?
+          {" — "}ruch przy strzale, celowanie i pojedynki.
         </p>
       </div>
 
@@ -126,6 +140,8 @@ export default async function MechanicsPage({ params, searchParams }: Props) {
                     <th className="px-3 py-2.5 text-center" title="Średni czas counter-strafe">Strafe</th>
                     <th className="px-3 py-2.5 text-center" title="Celność pierwszej kuli w pojedynkach">1. kula</th>
                     <th className="px-3 py-2.5 text-center" title="Odsetek trafień w głowę">HS</th>
+                    <th className="px-3 py-2.5 text-center" title="Mediana kąta celownika do głowy wroga w chwili, gdy stał się widoczny">Crosshair</th>
+                    <th className="px-3 py-2.5 text-center" title="Mediana czasu reakcji">Reakcja</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -165,6 +181,12 @@ export default async function MechanicsPage({ params, searchParams }: Props) {
                       <td className="px-3 py-2.5 text-center font-mono text-[var(--text-secondary)]">
                         {fmtPct(r.hsPct)}
                       </td>
+                      <td className="px-3 py-2.5 text-center font-mono text-[var(--text-secondary)]">
+                        {r.aim?.crosshairMedianDeg == null ? "–" : `${r.aim.crosshairMedianDeg}°`}
+                      </td>
+                      <td className="px-3 py-2.5 text-center font-mono text-[var(--text-secondary)]">
+                        {r.aim?.reactionMedianMs == null ? "–" : `${r.aim.reactionMedianMs} ms`}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -174,12 +196,27 @@ export default async function MechanicsPage({ params, searchParams }: Props) {
 
           {selected && <PlayerDetail matchId={matchId} p={selected} />}
 
+          {selected?.aim && (
+            <AimSection
+              matchId={matchId}
+              steamId={selected.steamId}
+              aim={selected.aim}
+              filter={AIM_FILTERS.has(aimFilter as AimMomentType) ? (aimFilter as AimMomentType) : null}
+            />
+          )}
+
           <p className="text-xs text-[var(--text-tertiary)]">
             Strzał jest „w ruchu”, gdy prędkość przekracza 34% maksymalnej prędkości broni (od tego
             progu CS2 dodaje rozrzut za ruch) albo gracz jest w powietrzu. Pojedynek to seria, w której
             trafiłeś wroga albo wróg trafił ciebie do 2 s wcześniej; strzały w próżnię są pomijane.
             Counter-strafe to czas od prędkości biegu (60% maks.) do prędkości celnej, liczony z próbek
             co 4 ticki, więc dokładność to ok. ±20 ms. AWP i SSG ze scope&apos;em mają próg jak bez scope&apos;a.
+          </p>
+          <p className="text-xs text-[var(--text-tertiary)]">
+            Celowanie: moment pojawienia się wroga bierzemy z widoczności zapisanej w grze (kto kogo widzi), a w
+            starszych meczach przybliżamy go polem widzenia. Czas reakcji to start ruchu celownika w stronę wroga albo
+            pierwszy strzał, z dokładnością ok. ±30 ms. Bieg i skoki liczymy tylko przy wrogu, o którym twój team
+            wiedział, albo gdy skończyły się trafieniem. Progi są wstępne, zastąpią je normy z meczów pro.
           </p>
         </>
       )}

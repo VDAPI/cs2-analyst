@@ -6,6 +6,7 @@
  * Runs in the parse worker (and the backfill script), never in API routes.
  */
 import {
+  REPLAY_EXTRA_PROPS,
   REPLAY_SAMPLE_INTERVAL,
   REPLAY_TICK_PROPS,
   encodeRoundTicks,
@@ -69,10 +70,23 @@ export interface ParsedDamage {
   victimZ: number;
 }
 
+export interface ParsedReload {
+  tick: number;
+  roundNumber: number;
+  steamId: string;
+  weapon: string;
+  /** Rounds left in the clip when the reload started; null when unknown. */
+  clip: number | null;
+  x: number;
+  y: number;
+  z: number;
+}
+
 export interface ReplayData {
   roundTicks: Map<number, EncodedRoundTicks>;
   shots: ParsedShot[];
   damages: ParsedDamage[];
+  reloads: ParsedReload[];
 }
 
 export async function parseReplayData(
@@ -84,15 +98,30 @@ export async function parseReplayData(
   const filePath = rawPath.replace(/\\/g, "/");
 
   const roundTicks = new Map<number, EncodedRoundTicks>();
+  // Visibility and clip (format v2) are best-effort: if the parser can't read
+  // them, fall back to the base props for the rest of the match.
+  let withExtras = true;
   for (let i = 0; i < rounds.length; i += ROUNDS_PER_PASS) {
     const batch = rounds.slice(i, i + ROUNDS_PER_PASS);
     const wanted = batch.flatMap((r) =>
       sampleTickList(r.startTick, r.endTick, REPLAY_SAMPLE_INTERVAL)
     );
-    const rows = (parser.parseTicks(filePath, REPLAY_TICK_PROPS, wanted) ?? []) as Record<
-      string,
-      unknown
-    >[];
+    let rows: Record<string, unknown>[] | null = null;
+    if (withExtras) {
+      try {
+        rows = (parser.parseTicks(filePath, [...REPLAY_TICK_PROPS, ...REPLAY_EXTRA_PROPS], wanted) ??
+          []) as Record<string, unknown>[];
+      } catch (err) {
+        console.warn("[replay-data] visibility/ammo props unavailable, storing format v1:", err);
+        withExtras = false;
+      }
+    }
+    if (!rows) {
+      rows = (parser.parseTicks(filePath, REPLAY_TICK_PROPS, wanted) ?? []) as Record<
+        string,
+        unknown
+      >[];
+    }
     for (const r of batch) {
       const inRound = rows.filter((row) => {
         const t = Number(row.tick);
@@ -100,7 +129,7 @@ export async function parseReplayData(
       });
       roundTicks.set(
         r.number,
-        encodeRoundTicks(inRound, r.startTick, r.endTick, REPLAY_SAMPLE_INTERVAL)
+        encodeRoundTicks(inRound, r.startTick, r.endTick, REPLAY_SAMPLE_INTERVAL, withExtras)
       );
     }
   }
@@ -112,10 +141,21 @@ export async function parseReplayData(
     "X", "Y", "Z", "pitch", "yaw",
   ]) ?? []) as Record<string, unknown>[];
 
+  // Reloads feed the "reload at a bad moment" check; never fail the replay for them.
+  let reloadEvents: Record<string, unknown>[] = [];
+  try {
+    reloadEvents = (parser.parseEvent(filePath, "weapon_reload", [
+      "X", "Y", "Z", "active_weapon_name", "active_weapon_ammo",
+    ]) ?? []) as Record<string, unknown>[];
+  } catch (err) {
+    console.warn("[replay-data] weapon_reload unavailable:", err);
+  }
+
   return {
     roundTicks,
     shots: shotsFromEvents(fireEvents, rounds),
     damages: damagesFromEvents(hurtEvents, rounds),
+    reloads: reloadsFromEvents(reloadEvents, rounds),
   };
 }
 
@@ -199,6 +239,31 @@ export function damagesFromEvents(
     });
   }
   return damages.sort((a, b) => a.tick - b.tick);
+}
+
+export function reloadsFromEvents(
+  events: Record<string, unknown>[],
+  rounds: ReplayRoundWindow[]
+): ParsedReload[] {
+  const reloads: ParsedReload[] = [];
+  for (const e of events) {
+    const steamId = str(e.user_steamid);
+    if (!steamId) continue;
+    const tick = num(e.tick);
+    const roundNumber = roundForTick(tick, rounds);
+    if (roundNumber === null) continue;
+    reloads.push({
+      tick,
+      roundNumber,
+      steamId,
+      weapon: str(e.user_active_weapon_name),
+      clip: e.user_active_weapon_ammo == null ? null : num(e.user_active_weapon_ammo),
+      x: num(e.user_X),
+      y: num(e.user_Y),
+      z: num(e.user_Z),
+    });
+  }
+  return reloads.sort((a, b) => a.tick - b.tick);
 }
 
 function num(val: unknown): number {
