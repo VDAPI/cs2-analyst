@@ -159,6 +159,32 @@ check("defusing flag", stateAt(ctx, S(61)).defusing === 1 && stateAt(ctx, S(59))
 const revived = stateAt(ctx, S(31), { revive: [T2] });
 check("counterfactual: revive", revived.t_alive === 2 && revived.t_hp === 140);
 check("counterfactual: kill", stateAt(ctx, S(30), { kill: [C1] }).ct_alive === 1);
+// Knife out from the spawn, the rifle drawn only at 8 s: carried into the round, counted from freeze end.
+const knifeFirst = buildRoundContext(
+  {
+    ...round1,
+    frames: round1.frames.map((f) => ({
+      ...f,
+      players: f.players.map((p) => (p.steamId === C1 && f.tick < S(8) ? { ...p, weapon: "knife" } : p)),
+    })),
+  },
+  TR,
+  SITES
+);
+check("rifle carried before it is drawn", stateAt(knifeFirst, FREEZE_END).ct_rifles === 2);
+// A primary first seen after the first kill may be a pick-up: not counted back to the round start.
+const pickedUp = buildRoundContext(
+  {
+    ...round1,
+    frames: round1.frames.map((f) => ({
+      ...f,
+      players: f.players.map((p) => (p.steamId === C1 && f.tick < S(25) ? { ...p, weapon: "knife" } : p)),
+    })),
+  },
+  TR,
+  SITES
+);
+check("weapon picked up after a kill not counted earlier", stateAt(pickedUp, S(5)).ct_rifles === 1 && stateAt(pickedUp, S(26)).ct_rifles === 2);
 const dropped = stateAt(ctx, S(5), { addEquip: { [T2]: 2700 }, addRifle: [T2] });
 check("counterfactual: drop", dropped.t_rifles === 2 && near(dropped.t_equip, 7.2));
 
