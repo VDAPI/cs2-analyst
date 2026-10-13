@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getT } from "@/lib/i18n/server";
 import type { MessageKey, TFunction } from "@/lib/i18n/translate";
 import { getRivalReport, getTeamContext } from "@/lib/team/load";
-import { ANTISTRAT_MIN_TOGETHER, canEditItem } from "@/lib/team/roster";
+import { ANTISTRAT_MIN_TOGETHER, canManageRivals } from "@/lib/team/roster";
 import {
   FAST_HIT_S,
   LATE_HIT_S,
@@ -68,7 +68,8 @@ export default async function RivalPage({ params, searchParams }: Props) {
   if (!rival) notFound();
 
   const { report } = await getRivalReport(prisma, ctx.memberUserIds, rival);
-  const canEdit = canEditItem(ctx.role, session.user.id, rival.createdById);
+  // Changing a rival's players is for owner/coach only (see canManageRivals).
+  const canEdit = canManageRivals(ctx.role);
   const known = await prisma.matchPlayer.findMany({
     where: { steamId: { in: rival.steamIds } },
     orderBy: { match: { date: "desc" } },

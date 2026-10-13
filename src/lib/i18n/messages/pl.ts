@@ -1187,6 +1187,7 @@ export const pl = {
     listCounts: "{players} graczy · {matches} meczów · {boards} tablic",
     emptyTitle: "Nie scoutujecie jeszcze nikogo",
     emptyBody: "Dodaj rywala z meczu przeciwko nim, z wgranego dema ich meczu albo po SteamID.",
+    addOwnerOnly: "Rywali dodaje właściciel albo trener drużyny. Raporty istniejących rywali widzisz powyżej.",
     addTitle: "Dodaj rywala",
     fromTeam: "Z naszego meczu",
     fromLibrary: "Z wgranego dema",

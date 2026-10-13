@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { rateLimit } from "@/lib/security/rate-limit-http";
 import { getTeamContext } from "@/lib/team/load";
-import { MAX_RIVAL_PLAYERS, TEAM_NAME_MAX, canEditItem, isSteamId64 } from "@/lib/team/roster";
+import { MAX_RIVAL_PLAYERS, TEAM_NAME_MAX, canEditItem, canManageRivals, isSteamId64 } from "@/lib/team/roster";
 
 interface Props {
   params: Promise<{ teamId: string; rivalId: string }>;
@@ -40,7 +40,10 @@ export async function PATCH(req: Request, { params }: Props) {
   const body = schema.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const { name, steamIds, notes } = body.data;
-  if ((name !== undefined || steamIds !== undefined) && !canEditItem(found.ctx.role, session.user.id, found.rival.createdById)) {
+  if (
+    (name !== undefined && !canEditItem(found.ctx.role, session.user.id, found.rival.createdById)) ||
+    (steamIds !== undefined && !canManageRivals(found.ctx.role))
+  ) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   await prisma.teamRival.update({

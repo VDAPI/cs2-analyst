@@ -15,10 +15,12 @@
  *
  * No demo file or database required — everything here is pure.
  */
+import { readFileSync } from "node:fs";
 import {
   ANTISTRAT_MIN_TOGETHER,
   canEditItem,
   canManageContent,
+  canManageRivals,
   canManageTeam,
   isInviteCode,
   isSteamId64,
@@ -112,6 +114,12 @@ const THEM = [11, 12, 13, 14, 15].map(sid);
   check("last member: nobody", nextOwner([members[0]], "a") === null);
   check("roles: owner manages, coach edits content", canManageTeam("OWNER") && !canManageTeam("COACH") && canManageContent("COACH") && !canManageContent("PLAYER"));
   check("boards: author or owner/coach", canEditItem("PLAYER", "u1", "u1") && !canEditItem("PLAYER", "u1", "u2") && canEditItem("COACH", "u1", "u2") && !canEditItem("PLAYER", "u1", null));
+  check("rivals: only owner and coach add them or change their players", canManageRivals("OWNER") && canManageRivals("COACH") && !canManageRivals("PLAYER"));
+  {
+    const post = readFileSync("src/app/api/teams/[teamId]/rivals/route.ts", "utf8");
+    const patch = readFileSync("src/app/api/teams/[teamId]/rivals/[rivalId]/route.ts", "utf8");
+    check("rival POST and steamIds PATCH check canManageRivals", /canManageRivals\(ctx\.role\)/.test(post) && /steamIds !== undefined && !canManageRivals/.test(patch));
+  }
 
   const list = parseSteamIdList(` ${OURS[0]}, ${OURS[1]}\n${OURS[0]}; abc 123 `);
   check("SteamID list: valid de-duplicated, invalid reported", list.ids.length === 2 && list.invalid.join(",") === "abc,123");
