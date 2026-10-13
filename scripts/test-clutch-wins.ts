@@ -14,7 +14,7 @@
  *
  * No demo file required — both functions are pure.
  */
-import { computeClutchWins, computeClutchStats, computeAssistCounts } from "@/lib/parsers/demo-parser";
+import { computeClutchWins, computeClutchStats, computeAssistCounts, markFirstKills } from "@/lib/parsers/demo-parser";
 
 const checks: [string, boolean][] = [];
 const check = (label: string, ok: boolean) => checks.push([label, ok]);
@@ -123,6 +123,26 @@ check(
   "player with no assists is present and zeroed",
   assists.get("p2")?.assists === 0 && assists.get("p2")?.flashAssists === 0
 );
+
+// ─── 3. Opening kill: one per round, also on a collateral ─
+{
+  const fk = [
+    // Round 1: team kill first (not an opening), then an AWP collateral on one tick.
+    { tick: 90, roundNumber: 1, attackerSteamId: "p3", victimSteamId: "p4", isFirstKill: false },
+    { tick: 100, roundNumber: 1, attackerSteamId: "p1", victimSteamId: "p3", isFirstKill: false },
+    { tick: 100, roundNumber: 1, attackerSteamId: "p1", victimSteamId: "p4", isFirstKill: false },
+    { tick: 150, roundNumber: 1, attackerSteamId: "p3", victimSteamId: "p2", isFirstKill: false },
+    { tick: 300, roundNumber: 2, attackerSteamId: "p4", victimSteamId: "p2", isFirstKill: false },
+  ];
+  const team = (id: string) => playerRoster.get(id)?.team;
+  markFirstKills(fk, (k) => k.attackerSteamId === k.victimSteamId || team(k.attackerSteamId) === team(k.victimSteamId));
+  check(
+    "collateral on the opening tick gives exactly one opening kill (round 1)",
+    fk.filter((k) => k.roundNumber === 1 && k.isFirstKill).length === 1 && fk[1].isFirstKill
+  );
+  check("team kill is never the opening kill", !fk[0].isFirstKill);
+  check("round 2 has its own opening kill", fk[4].isFirstKill);
+}
 
 // ─── Report ──────────────────────────────────────────────
 

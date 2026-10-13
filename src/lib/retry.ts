@@ -5,15 +5,15 @@
  * whether the monthly limit applies.
  */
 import type { DemoUpload } from "@prisma/client";
-import { prisma } from "@/lib/db/prisma";
 import { demoParseQueue } from "@/lib/queue";
-import { checkMonthlyDemoLimit, limitReachedMessage } from "@/lib/limits";
+import { limitReachedMessage, withUploadSlots } from "@/lib/limits";
 import {
-  enqueueFaceitDownload,
+  createFaceitUpload,
   faceitDownloadsEnabled,
   FACEIT_UPLOAD_INCLUDE,
+  queueFaceitDownload,
 } from "@/lib/faceit/analyze";
-import { enqueueSteamDownload, STEAM_UPLOAD_INCLUDE } from "@/lib/steam/premier";
+import { createSteamUpload, queueSteamDownload, STEAM_UPLOAD_INCLUDE } from "@/lib/steam/premier";
 
 export type RetryResult =
   | { ok: true; uploadId: string }
@@ -24,50 +24,76 @@ export interface RetryOptions {
   enforceLimit: boolean;
 }
 
+type RetryPlan =
+  | { ok: false; status: number; error: string }
+  | { ok: true; kind: "parse"; uploadId: string; filePath: string }
+  | { ok: true; kind: "faceit"; uploadId: string; faceitMatchId: string }
+  | { ok: true; kind: "steam"; uploadId: string; steamMatchId: string };
+
 /**
- * Re-parse the stored demo, or re-download it from FACEIT or Steam. The caller checks
- * that the upload may be retried (FAILED, or stuck for admins). Returns the
- * upload id that now carries the analysis (a new one for a FACEIT or Steam re-download).
+ * Re-parse the stored demo, or re-download it from FACEIT or Steam. The caller
+ * checks that the upload may be retried (FAILED, or stuck for admins, who mark
+ * it FAILED first). Returns the upload id that now carries the analysis (a new
+ * one for a FACEIT or Steam re-download).
+ *
+ * The limit check and the claim of the failed row run under the per-user
+ * upload lock (`withUploadSlots`) and re-read the row there: parallel retries
+ * (a double click, or one request per failed upload) could otherwise all pass
+ * the limit with one slot left, or queue the same upload twice / create
+ * several FACEIT or Steam re-downloads of one match.
  */
 export async function retryUpload(upload: DemoUpload, { enforceLimit }: RetryOptions): Promise<RetryResult> {
   const userId = upload.userId;
 
-  if (enforceLimit) {
-    // A failed upload isn't counted; running it again is.
-    const limit = await checkMonthlyDemoLimit(userId);
-    if (!limit.allowed) return { ok: false, status: 403, error: limitReachedMessage(limit) };
-  }
-
-  if (upload.fileUrl && !upload.demoDeletedAt) {
-    await prisma.demoUpload.update({
-      where: { id: upload.id },
-      data: { status: "QUEUED", error: null, progress: 0, retries: { increment: 1 } },
-    });
-    await demoParseQueue.add("parse", { uploadId: upload.id, filePath: upload.fileUrl, userId });
-    return { ok: true, uploadId: upload.id };
-  }
-
-  if (upload.faceitMatchId && faceitDownloadsEnabled()) {
-    const fm = await prisma.faceitMatch.findUnique({
-      where: { userId_faceitMatchId: { userId, faceitMatchId: upload.faceitMatchId } },
-      include: FACEIT_UPLOAD_INCLUDE,
-    });
-    if (fm && fm.userId === userId) {
-      const uploadId = await enqueueFaceitDownload(userId, fm, upload.keepDemo);
-      return { ok: true, uploadId };
+  const plan = await withUploadSlots<RetryPlan>(userId, async (tx, usage) => {
+    const current = await tx.demoUpload.findUnique({ where: { id: upload.id } });
+    if (!current || current.deletedAt || current.status !== "FAILED") {
+      return { ok: false, status: 409, error: "This analysis is already being retried." };
     }
-  }
+    // A failed upload isn't counted; running it again is.
+    if (enforceLimit && !usage.allowed) return { ok: false, status: 403, error: limitReachedMessage(usage) };
 
-  // Premier / Steam match: download it again from Valve's replay server.
-  const sm = await prisma.steamMatch.findUnique({
-    where: { uploadId: upload.id },
-    include: STEAM_UPLOAD_INCLUDE,
+    if (current.fileUrl && !current.demoDeletedAt) {
+      await tx.demoUpload.update({
+        where: { id: current.id },
+        data: { status: "QUEUED", error: null, progress: 0, retries: { increment: 1 } },
+      });
+      return { ok: true, kind: "parse", uploadId: current.id, filePath: current.fileUrl };
+    }
+
+    if (current.faceitMatchId && faceitDownloadsEnabled()) {
+      const fm = await tx.faceitMatch.findUnique({
+        where: { userId_faceitMatchId: { userId, faceitMatchId: current.faceitMatchId } },
+        include: FACEIT_UPLOAD_INCLUDE,
+      });
+      if (fm && fm.userId === userId) {
+        const uploadId = await createFaceitUpload(tx, userId, fm, current.keepDemo);
+        return { ok: true, kind: "faceit", uploadId, faceitMatchId: fm.faceitMatchId };
+      }
+    }
+
+    // Premier / Steam match: download it again from Valve's replay server.
+    const sm = await tx.steamMatch.findUnique({
+      where: { uploadId: current.id },
+      include: STEAM_UPLOAD_INCLUDE,
+    });
+    if (sm && sm.userId === userId && sm.demoUrl) {
+      const uploadId = await createSteamUpload(tx, userId, sm, current.keepDemo);
+      await tx.demoUpload.update({ where: { id: current.id }, data: { deletedAt: new Date() } });
+      return { ok: true, kind: "steam", uploadId, steamMatchId: sm.id };
+    }
+
+    return { ok: false, status: 409, error: "The demo file is gone. Upload it again to retry." };
   });
-  if (sm && sm.userId === userId && sm.demoUrl) {
-    const uploadId = await enqueueSteamDownload(userId, sm, upload.keepDemo);
-    await prisma.demoUpload.update({ where: { id: upload.id }, data: { deletedAt: new Date() } });
-    return { ok: true, uploadId };
-  }
 
-  return { ok: false, status: 409, error: "The demo file is gone. Upload it again to retry." };
+  if (!plan.ok) return plan;
+  // Jobs are queued once the rows are committed, outside the lock.
+  if (plan.kind === "parse") {
+    await demoParseQueue.add("parse", { uploadId: plan.uploadId, filePath: plan.filePath, userId });
+  } else if (plan.kind === "faceit") {
+    await queueFaceitDownload(plan.uploadId, plan.faceitMatchId, userId);
+  } else {
+    await queueSteamDownload(plan.uploadId, plan.steamMatchId, userId);
+  }
+  return { ok: true, uploadId: plan.uploadId };
 }

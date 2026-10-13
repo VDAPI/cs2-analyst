@@ -258,8 +258,14 @@ def evaluate(ds: Dataset, prior: dict, log=print) -> dict:
             raw[test] = score(spec, ds, test)
         oof[c.name] = raw
         plain = metrics(ds.y, calibrated(raw, None), ds.weight)
+        # Calibration is judged cross-fitted (each fold calibrated on the other folds' scores),
+        # so it never scores itself on the data it was fitted on; the stored one uses every fold.
+        crossfit = np.zeros(len(ds.y))
+        for test in folds:
+            rest = np.setdiff1d(all_idx, test)
+            crossfit[test] = calibrated(raw[test], fit_platt(raw[rest], ds.y[rest], ds.weight[rest]))
+        with_cal = metrics(ds.y, crossfit, ds.weight)
         cal = fit_platt(raw, ds.y, ds.weight)
-        with_cal = metrics(ds.y, calibrated(raw, cal), ds.weight)
         use_cal = with_cal["logloss"] < plain["logloss"] - 1e-4
         report[c.name] = {**(with_cal if use_cal else plain), "calibration": cal if use_cal else None}
         log(f"  {c.name:<12} {report[c.name]}")

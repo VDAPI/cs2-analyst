@@ -138,6 +138,18 @@ const ace = byKey.get("2-b4");
 check("ace found", ace?.kind === "ace" && ace.kills === 5 && ace.marks.length === 5);
 check("an ace outranks a 1v3 clutch with 3 kills", (ace?.score ?? 0) > (clutch?.score ?? 0));
 check("team kill is not a frag (no 3K for a2)", !byKey.has("3-a2"));
+{
+  // Exit frags: a1 kills 2 in the round and hunts a saver after the round end → no 3K.
+  const exit = detectHighlights({
+    rounds: [{
+      number: 5, startTick: 0, endTick: 50 * T, winner: "CT",
+      kills: [kill(10 * T, "a1", "b1"), kill(20 * T, "a1", "b2"), kill(53 * T, "a1", "b3")],
+    }],
+    finalTeamBySteamId: finalTeam,
+    sideAt: (s) => s,
+  });
+  check("kills after the round end don't make a multi-kill", !exit.some((h) => h.key === "5-a1"));
+}
 check("lost clutch is not a highlight", !byKey.has("3-b1"));
 const fourK = byKey.get("13-a3");
 check("4K found", fourK?.kind === "4k" && fourK.kills === 4);

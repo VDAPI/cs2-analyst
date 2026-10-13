@@ -21,7 +21,7 @@ import type { RoleOf } from "@/lib/roles/effective";
 import { FINDING_TYPES, type FindingCategory, type FindingSeverity, type FindingType } from "./catalog";
 
 /** Bump when detectors or severities change, so stored findings are rebuilt. */
-export const FINDINGS_VERSION = 4;
+export const FINDINGS_VERSION = 5;
 
 /** One number on a finding card ("Prędkość 180 u/s, próg 73"). */
 export interface FindingValue {
@@ -478,6 +478,8 @@ const TACTICS_ADVICE: Record<string, string> = {
     "Po plancie w clutchu czas gra dla ciebie: schowaj się w pozycji na bombę i strzelaj dopiero, gdy CT zaczyna rozbrajać.",
   "death_with_money:last_round":
     "W ostatniej rundzie połowy kasa przepada: wydaj wszystko na utility, pancerz i najlepszą broń, albo kup koledze.",
+  "death_with_money:match_end":
+    "Po ostatniej rundzie meczu kasa nic nie znaczy: wydaj wszystko na utility, pancerz i najlepszą broń, albo kup koledze.",
 };
 
 const TACTICS_SEVERITY: Record<TacticsMoment["type"], (m: TacticsMoment) => FindingSeverity> = {
@@ -491,7 +493,7 @@ const TACTICS_SEVERITY: Record<TacticsMoment["type"], (m: TacticsMoment) => Find
   clutch_decision: (m) => (m.variant === "time" ? "high" : "medium"),
   bad_force: () => "medium",
   no_drop: (m) => (m.lost ? "medium" : "low"),
-  death_with_money: (m) => (m.variant === "last_round" && m.lost ? "medium" : "low"),
+  death_with_money: (m) => ((m.variant === "last_round" || m.variant === "match_end") && m.lost ? "medium" : "low"),
   predictable_position: (m) => (m.costly ? "medium" : "low"),
   isolated_aggression: (m) => (m.lost ? "high" : "medium"),
 };

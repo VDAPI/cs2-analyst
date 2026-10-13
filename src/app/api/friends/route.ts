@@ -30,7 +30,11 @@ export async function POST(req: Request) {
 
   const existing = await findFriendship(prisma, userId, targetId);
   if (existing?.status === "pending" && existing.requesterId === targetId) {
-    // They already asked: asking back accepts.
+    // They already asked: asking back accepts (same friend cap as PATCH /api/friends/[id]).
+    const [mine, theirs] = await Promise.all([countFriends(prisma, userId), countFriends(prisma, targetId)]);
+    if (mine >= MAX_FRIENDS || theirs >= MAX_FRIENDS) {
+      return NextResponse.json({ error: "Friend limit", max: MAX_FRIENDS }, { status: 409 });
+    }
     await prisma.friendship.update({ where: { id: existing.id }, data: { status: "accepted", acceptedAt: new Date() } });
     const me = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, faceitNickname: true } });
     await notifyFriend(prisma, { userId: targetId, type: "FRIEND_ACCEPTED", name: me?.name || me?.faceitNickname || "" });

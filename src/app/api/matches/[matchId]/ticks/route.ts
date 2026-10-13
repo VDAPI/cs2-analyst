@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { access as fileAccess } from "fs/promises";
 import { getMatchAccess, roundAllowed } from "@/lib/sharing/access";
 import { prisma } from "@/lib/db/prisma";
+import { parseRoundParam } from "@/lib/sharing/share";
 import { parseDemoLocation } from "@/lib/storage/demo-store";
 import {
   REPLAY_TICK_PROPS,
@@ -39,7 +40,8 @@ export async function GET(req: Request, { params }: Props) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const url = new URL(req.url);
-  const roundNum = parseInt(url.searchParams.get("round") ?? "1", 10);
+  const roundNum = parseRoundParam(url.searchParams.get("round"));
+  if (roundNum == null) return NextResponse.json({ error: "Invalid round" }, { status: 400 });
   const requested = parseInt(url.searchParams.get("interval") ?? "32", 10);
   const interval = Number.isFinite(requested) && requested >= 1 ? requested : 32;
   const fromTick = parseInt(url.searchParams.get("from") ?? "", 10);

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
-import { getPlanUsage } from "@/lib/limits";
+import { withUploadSlots } from "@/lib/limits";
 import { deleteAnalysis, replayDataComplete } from "@/lib/library";
 import { deleteUploadDemo } from "@/lib/storage/demo-store";
 
@@ -42,14 +42,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         { status: 409 }
       );
     }
-    const usage = await getPlanUsage(userId);
-    if (!upload.keepDemo && usage.keptDemos >= usage.limits.keptDemos) {
-      return NextResponse.json(
-        { error: `You can keep up to ${usage.limits.keptDemos} demos on the ${usage.plan} plan.` },
-        { status: 403 }
-      );
-    }
-    await prisma.demoUpload.update({ where: { id }, data: { keepDemo: true } });
+    // Count and set under the per-user upload lock: parallel PATCHes on
+    // several uploads could otherwise all see the last free "keep" slot.
+    const capError = await withUploadSlots(userId, async (tx, usage) => {
+      const current = await tx.demoUpload.findUnique({ where: { id }, select: { keepDemo: true } });
+      if (current?.keepDemo) return null;
+      if (usage.keptDemos >= usage.limits.keptDemos) {
+        return `You can keep up to ${usage.limits.keptDemos} demos on the ${usage.plan} plan.`;
+      }
+      await tx.demoUpload.update({ where: { id }, data: { keepDemo: true } });
+      return null;
+    });
+    if (capError) return NextResponse.json({ error: capError }, { status: 403 });
     return NextResponse.json({ keepDemo: true, demoDeleted: false });
   }
 

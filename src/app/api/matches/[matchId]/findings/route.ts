@@ -25,7 +25,7 @@ export async function GET(req: Request, { params }: Props) {
 
   const { matchId } = await params;
   const match = await prisma.match.findFirst({
-    where: { id: matchId, upload: { userId: session.user.id } },
+    where: { id: matchId, upload: { userId: session.user.id, deletedAt: null } },
     select: { id: true },
   });
   if (!match && !(await teamCanSeeMatch(prisma, session.user.id, matchId))) {

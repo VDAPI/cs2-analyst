@@ -4,7 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { rateLimit } from "@/lib/security/rate-limit-http";
-import { getRivalReport, getTeamContext } from "@/lib/team/load";
+import { getRivalReport, getTeamContext, withTeamLock } from "@/lib/team/load";
 import { BOARD_NAME_MAX, boardFromTokens, emptyBoard, parseBoardData, type BoardData } from "@/lib/team/board";
 import { MAX_BOARDS } from "@/lib/team/roster";
 import { getMapConfig } from "@/lib/utils/maps";
@@ -61,9 +61,15 @@ export async function POST(req: Request, { params }: Props) {
     rivalId = rival.id;
   }
 
-  const board = await prisma.tacticBoard.create({
-    data: { teamId, name, map, side, data, rivalId, createdById: session.user.id },
-    select: { id: true },
+  // Re-count under the team lock: parallel creates could all pass the early check.
+  const userId = session.user.id;
+  const board = await withTeamLock(prisma, teamId, async (tx) => {
+    if ((await tx.tacticBoard.count({ where: { teamId } })) >= MAX_BOARDS) return null;
+    return tx.tacticBoard.create({
+      data: { teamId, name, map, side, data, rivalId, createdById: userId },
+      select: { id: true },
+    });
   });
+  if (!board) return NextResponse.json({ error: "Board limit", max: MAX_BOARDS }, { status: 409 });
   return NextResponse.json({ id: board.id });
 }

@@ -16,13 +16,17 @@
 import {
   assignGrenadeDamage,
   bombSiteLetter,
+  pistolRoundNumbers,
   resolveTeamASides,
   scoreRounds,
 } from "@/lib/parsers/demo-parser";
 import { parseRoundWinner, parseWinReason } from "@/lib/parsers/round-end";
 import {
   createSideResolver,
+  halfIndex,
+  playerSideAtRound,
   ruleSideAtRound,
+  sideInRound,
   teamASidesFromScores,
   type Side,
 } from "@/lib/utils/sideSplit";
@@ -195,6 +199,64 @@ const live = (aTeamNum: number) =>
 check("site entity index + place name → letter", bombSiteLetter(184, "BombsiteA") === "A");
 check("letter passes through", bombSiteLetter("B", undefined) === "B");
 check("unknown index without place → undefined", bombSiteLetter(185, "CTSpawn") === undefined);
+
+// ─── sideSplit edge cases ────────────────────────────────────
+
+check("halfIndex: regulation halves", halfIndex(1) === 0 && halfIndex(12) === 0 && halfIndex(13) === 1 && halfIndex(24) === 1);
+check("halfIndex: MR3 overtime halves", halfIndex(25) === 2 && halfIndex(27) === 2 && halfIndex(28) === 3 && halfIndex(31) === 4);
+check("rule: round past lastRound treated as the last half", ruleSideAtRound("T", 20, 12) === "T");
+check("rule: entering OT keeps the side (24 → 25)", ruleSideAtRound("CT", 24, 27) === ruleSideAtRound("CT", 25, 27));
+check("rule: 28-round OT, round 24 as finished", ruleSideAtRound("CT", 24, 28) === "T" && ruleSideAtRound("CT", 28, 28) === "CT");
+check("playerSideAtRound defaults to a 24-round match", playerSideAtRound("CT", 1) === "T" && playerSideAtRound("CT", 13) === "CT");
+{
+  // sideInRound reads a Map or a plain record, and falls back to the rule.
+  const asRecord: Record<number, Side> = { 1: "T", 2: "CT" };
+  check("sideInRound: record, teamA (finished CT)", sideInRound("CT", 1, asRecord, 24) === "T");
+  check("sideInRound: record, teamB is the other side", sideInRound("T", 2, asRecord, 24) === "T");
+  check("sideInRound: missing round falls back to the rule", sideInRound("CT", 5, new Map<number, Side>(), 24) === "T");
+}
+{
+  // A round whose score moves by 2 (data glitch) or has no winner uses the rule;
+  // unsorted input is fine.
+  const rounds = [
+    { number: 2, winner: "CT", ctScore: 1, tScore: 1 },
+    { number: 1, winner: "T", ctScore: 1, tScore: 0 },
+    { number: 3, winner: "", ctScore: 1, tScore: 2 },
+    { number: 4, winner: "CT", ctScore: 3, tScore: 2 },
+  ];
+  const sides = teamASidesFromScores(rounds);
+  check("scores: teamA scored as T in round 1", sides.get(1) === "T");
+  check("scores: teamB scored as CT in round 2 → teamA T", sides.get(2) === "T");
+  check("scores: no winner → rule fallback", sides.get(3) === ruleSideAtRound("CT", 3, 4));
+  check("scores: +2 jump → rule fallback", sides.get(4) === ruleSideAtRound("CT", 4, 4));
+  check("scores: empty match → empty map", teamASidesFromScores([]).size === 0);
+  const resolve = createSideResolver(rounds);
+  check("resolver: teamB player is the other side", resolve("T", 1) === "CT" && resolve("CT", 1) === "T");
+}
+
+// ─── Pistol rounds follow the match format ───────────────────
+
+{
+  const sidesOf = (half: number, last: number) =>
+    new Map(
+      Array.from({ length: last }, (_, i): [number, Side] => [i + 1, i + 1 <= half ? "T" : "CT"])
+    );
+  const set = (s: Set<number>) => [...s].sort((a, b) => a - b).join(",");
+  check("MR12: pistols 1 and 13", set(pistolRoundNumbers(sidesOf(12, 24))) === "1,13");
+  check("wingman MR8: pistols 1 and 9", set(pistolRoundNumbers(sidesOf(8, 16))) === "1,9");
+  check("short match without halftime: only round 1", set(pistolRoundNumbers(sidesOf(10, 10))) === "1");
+  check("empty match: no pistols", pistolRoundNumbers(new Map()).size === 0);
+  // Overtime halves swap too but start with full money: not pistol rounds.
+  const ot = resolveTeamASides({
+    roundNumbers: Array.from({ length: 30 }, (_, i) => i + 1),
+    liveTeamsByRound: new Map(),
+    playerRoster: roster,
+  });
+  check("OT 30 rounds (rule fallback): pistols 1 and 13 only", set(pistolRoundNumbers(ot)) === "1,13");
+  // A gap in the round list never fakes a swap.
+  const gap = new Map<number, Side>([[1, "T"], [2, "T"], [4, "CT"], [5, "CT"]]);
+  check("gap in rounds is not a swap", set(pistolRoundNumbers(gap)) === "1");
+}
 
 // ─── Report ──────────────────────────────────────────────────
 

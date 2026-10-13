@@ -36,6 +36,9 @@ import {
 import { FINDING_TYPES } from "@/lib/findings/catalog";
 import { applyRole, detectFindings, ROLE_RULES } from "@/lib/findings/detect";
 import { buildReport, playerMetrics } from "@/lib/findings/report";
+import { detectTradeKills } from "@/lib/utils/tradeKills";
+import { detectMultiKills, multiKillsByRound } from "@/lib/utils/multiKills";
+import { teamBuySyncScore } from "@/lib/utils/buySync";
 
 const checks: [string, boolean][] = [];
 const check = (label: string, ok: boolean) => checks.push([label, ok]);
@@ -402,6 +405,129 @@ check("predictable position reaches A1's top 3", a1Report.top.some((i) => i.type
   const a1Entry = roleDrafts.find((d) => d.steamId === A1 && d.type === "entry_death")!;
   check("detectFindings applies the round's role", a1Entry.role === "awp" && roleDrafts.length === drafts.length);
   check("every role rule has advice text", Object.values(ROLE_RULES).every((r) => Object.values(r ?? {}).every((x) => (x?.advice ?? "").length > 30)));
+}
+
+// ─── 11. After the explosion: CTs hunted while saving ───
+{
+  // Round 2: A on T, B on CT. Plant at 2000, explosion at 2000 + 40 s.
+  const plantTick = 2000;
+  const boom = plantTick + 40 * TICK_RATE;
+  const pk: TacticsKill[] = [];
+  const pkill = (rn: number, tick: number, attacker: string, victim: string, vx = 0) =>
+    pk.push({
+      tick, roundNumber: rn, attackerSteamId: attacker, victimSteamId: victim,
+      attackerPosX: 0, attackerPosY: 0, attackerPosZ: 0, victimPosX: vx, victimPosY: 0, victimPosZ: 0,
+    });
+  // Round 2: B1 left alone before the explosion, hunted 3 s after it (exit frag).
+  pkill(2, 2500, A1, B2);
+  pkill(2, 2600, A1, B3);
+  pkill(2, boom + 3 * TICK_RATE, A2, B1);
+  // Round 3: B1 killed 3 s after the explosion, B3 alive 3000 u away (no retake possible).
+  pkill(3, boom + 3 * TICK_RATE, A2, B1);
+  const pos: Record<string, number> = { [B1]: 0, [B2]: 2500, [B3]: 3000, [A1]: 9000, [A2]: 200, [A3]: 9000 };
+  const still3: TacticsFrame[] = [0, boom + 10 * TICK_RATE].map((tick) => ({
+    tick,
+    players: [...A, ...B].map((id) => ({
+      steamId: id, team: A.includes(id) ? ("T" as const) : ("CT" as const),
+      x: pos[id], y: 0, z: 0, velX: 0, velY: 0, isAlive: true,
+    })),
+  }));
+  const pb = (rn: number): TacticsBomb => ({ tick: plantTick, roundNumber: rn, type: "PLANTED", playerSteamId: A1, posX: 0, posY: 0, posZ: 0, site: "A" });
+  const post = analyzeTactics({
+    tickRate: TICK_RATE,
+    rounds: [
+      { number: 2, startTick: 0, endTick: boom, winner: "T", winReason: "BOMB_EXPLODED", ctScore: 0, tScore: 2, frames: [] },
+      { number: 3, startTick: 0, endTick: boom, winner: "T", winReason: "BOMB_EXPLODED", ctScore: 0, tScore: 3, frames: still3 },
+    ],
+    kills: pk, damages: [], bombs: [pb(2), pb(3)], economy: [], players, totalRounds: 24,
+  });
+  const b1 = post.find((p) => p.steamId === B1)!;
+  check("hunted after the explosion while saving → no clutch 'save' (no negative time)",
+    !b1.moments.some((m) => m.type === "clutch_decision"));
+  check("killed after the explosion → no solo retake", !b1.moments.some((m) => m.type === "retake_solo"));
+}
+
+// ─── 12. Exit frags after the round end; money in the match's last round ───
+{
+  const ek: TacticsKill[] = [];
+  const ekill = (rn: number, tick: number, attacker: string, victim: string) =>
+    ek.push({
+      tick, roundNumber: rn, attackerSteamId: attacker, victimSteamId: victim,
+      attackerPosX: 0, attackerPosY: 0, attackerPosZ: 0, victimPosX: 0, victimPosY: 0, victimPosZ: 0,
+    });
+  // Round 4 (A on T): ends at 3000 by time; B1 (CT) hunted at 3200, teammates 2500 u away.
+  ekill(4, 3200, A1, B1);
+  // Round 24 (A on CT, final round of a 24-round match): B1 dies with $2000 left.
+  ekill(24, 1000, A1, B1);
+  const epos: Record<string, number> = { [B1]: 0, [B2]: 2500, [B3]: 2600, [A1]: 9000, [A2]: 9000, [A3]: 9000 };
+  const eframes: TacticsFrame[] = [0, 3500].map((tick) => ({
+    tick,
+    players: [...A, ...B].map((id) => ({
+      steamId: id, team: A.includes(id) ? ("T" as const) : ("CT" as const),
+      x: epos[id], y: 0, z: 0, velX: 0, velY: 0, isAlive: true,
+    })),
+  }));
+  const exitRes = analyzeTactics({
+    tickRate: TICK_RATE,
+    rounds: [
+      { number: 4, startTick: 0, endTick: 3000, winner: "CT", winReason: "TIME_RAN_OUT", ctScore: 3, tScore: 1, frames: eframes },
+      { number: 24, startTick: 0, endTick: 3000, winner: "CT", winReason: "ELIMINATION", ctScore: 13, tScore: 11, frames: [] },
+    ],
+    kills: ek, damages: [], bombs: [],
+    economy: [{ roundNumber: 24, steamId: B1, equipValue: 4500, money: 2000 }],
+    players, totalRounds: 24,
+  });
+  const eb1 = exitRes.find((p) => p.steamId === B1)!;
+  check("killed after the round end → no untraded death, not counted as a death (only the round-24 one)",
+    !eb1.moments.some((m) => m.roundNumber === 4) && eb1.deaths === 1);
+  const end = eb1.moments.find((m) => m.type === "death_with_money" && m.roundNumber === 24);
+  check("money in the match's final round: own variant, no side-change text",
+    end?.variant === "match_end" && !end.detail.includes("zmianie stron"));
+  const endDraft = detectFindings({ mechanics: [], aim: [], tactics: [{ steamId: B1, moments: end ? [end] : [] }] })[0];
+  check("match-end money gets its own advice", !!endDraft && endDraft.advice.includes("meczu") && endDraft.severity === "medium");
+}
+
+// ─── Trade kills / multi-kills / buy sync (match page helpers) ───
+{
+  const team = new Map<string, "CT" | "T">([["a1", "CT"], ["a2", "CT"], ["b1", "T"], ["b2", "T"]]);
+  const k = (id: string, roundId: string, tick: number, attackerSteamId: string, victimSteamId: string) =>
+    ({ id, roundId, tick, attackerSteamId, victimSteamId });
+  const res = detectTradeKills({
+    tickRate: 64,
+    teamBySteamId: team,
+    kills: [
+      k("k2", "r1", 1000 + 64 * 5, "a2", "b1"), // trade at exactly 5 s (unsorted input)
+      k("k1", "r1", 1000, "b1", "a1"),
+      k("k3", "r2", 1000, "b2", "a1"),
+      k("k4", "r2", 1000 + 64 * 5 + 1, "a2", "b2"), // one tick too late
+      k("k5", "r3", 1000, "b1", "a1"),
+      k("k6", "r4", 1100, "a2", "b1"), // other round: never a trade
+    ],
+  });
+  check("trade: revenge within the window", res.tradedKillIds.has("k1") && res.tradeKillIds.has("k2"));
+  check("trade: one tick past the window is not a trade", !res.tradedKillIds.has("k3") && !res.tradeKillIds.has("k4"));
+  check("trade: a kill in another round never trades", !res.tradedKillIds.has("k5"));
+  const a1 = res.perPlayer.get("a1");
+  const a2 = res.perPlayer.get("a2");
+  check("trade: per-player counters", a1?.deaths === 3 && a1.deathsTraded === 1 && a2?.kills === 3 && a2.tradeKills === 1);
+
+  const kill = (attackerSteamId: string, opts: { hs?: boolean; teamKill?: boolean } = {}) => ({
+    attackerSteamId, attackerName: attackerSteamId, weapon: "ak47", headshot: !!opts.hs, teamKill: opts.teamKill,
+  });
+  const mks = detectMultiKills([
+    { number: 1, kills: [kill("a1", { hs: true }), kill("a1"), kill("a1"), kill("b1"), kill("b1")] },
+    { number: 2, kills: [kill("a1"), kill("a1"), kill("a1", { teamKill: true })] },
+    { number: 3, kills: [1, 2, 3, 4, 5].map(() => kill("b2")) },
+    { number: 4, kills: [1, 2, 3, 4].map(() => kill("a2")) },
+  ]);
+  check("multi-kill: 3k with headshots counted", mks.some((m) => m.roundNumber === 1 && m.steamId === "a1" && m.type === "3k" && m.headshots === 1));
+  check("multi-kill: 2 kills are not a multi-kill", !mks.some((m) => m.steamId === "b1"));
+  check("multi-kill: a team kill does not count", !mks.some((m) => m.roundNumber === 2));
+  check("multi-kill: ace and 4k", mks.some((m) => m.type === "ace" && m.count === 5) && mks.some((m) => m.type === "4k"));
+  check("multi-kill: indexed by round", multiKillsByRound(mks).get(3)?.[0].steamId === "b2" && !multiKillsByRound(mks).has(2));
+
+  check("buy sync: all the same → 100", teamBuySyncScore(["FULL_BUY", "FULL_BUY", "FULL_BUY"]) === 100);
+  check("buy sync: 3 of 5 → 60, empty → 0", teamBuySyncScore(["ECO", "ECO", "ECO", "FULL_BUY", "FORCE_BUY"]) === 60 && teamBuySyncScore([]) === 0);
 }
 
 // ─── Report ──────────────────────────────────────────────

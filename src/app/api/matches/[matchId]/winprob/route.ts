@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMatchAccess, roundAllowed } from "@/lib/sharing/access";
 import { prisma } from "@/lib/db/prisma";
+import { parseRoundParam } from "@/lib/sharing/share";
 import { buildRoundContext } from "@/lib/winprob/features";
 import { getActiveModel, loadWinProbMatch } from "@/lib/winprob/persist";
 import { roundSeries } from "@/lib/winprob/series";
@@ -20,8 +21,8 @@ export async function GET(req: Request, { params }: Props) {
   const { matchId } = await params;
   const access = await getMatchAccess(req, matchId);
   if (!access) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const round = parseInt(new URL(req.url).searchParams.get("round") ?? "1", 10);
-  if (!Number.isFinite(round) || round < 1 || !roundAllowed(access, round)) {
+  const round = parseRoundParam(new URL(req.url).searchParams.get("round"));
+  if (round == null || !roundAllowed(access, round)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

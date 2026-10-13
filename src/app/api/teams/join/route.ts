@@ -4,7 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { rateLimit } from "@/lib/security/rate-limit-http";
-import { guessMemberSteamId } from "@/lib/team/load";
+import { guessMemberSteamId, withTeamLock } from "@/lib/team/load";
 import { MAX_MEMBERS, MAX_TEAMS_PER_USER, isInviteCode } from "@/lib/team/roster";
 
 const schema = z.object({ code: z.string().refine(isInviteCode) });
@@ -30,10 +30,15 @@ export async function POST(req: Request) {
   const count = await prisma.teamMember.count({ where: { userId } });
   if (count >= MAX_TEAMS_PER_USER) return NextResponse.json({ error: "Team limit", max: MAX_TEAMS_PER_USER }, { status: 409 });
 
-  await prisma.teamMember.upsert({
-    where: { teamId_userId: { teamId: team.id, userId } },
-    update: {},
-    create: { teamId: team.id, userId, role: "PLAYER", steamId: await guessMemberSteamId(prisma, userId) },
+  const steamId = await guessMemberSteamId(prisma, userId);
+  // Re-count under the team lock: parallel joins could all see the last free seat.
+  const full = await withTeamLock(prisma, team.id, async (tx) => {
+    const members = await tx.teamMember.findMany({ where: { teamId: team.id }, select: { userId: true } });
+    if (members.some((m) => m.userId === userId)) return false;
+    if (members.length >= MAX_MEMBERS) return true;
+    await tx.teamMember.create({ data: { teamId: team.id, userId, role: "PLAYER", steamId } });
+    return false;
   });
+  if (full) return NextResponse.json({ error: "Team full", max: MAX_MEMBERS }, { status: 409 });
   return NextResponse.json({ id: team.id });
 }

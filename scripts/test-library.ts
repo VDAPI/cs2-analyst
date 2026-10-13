@@ -17,7 +17,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getR2Config, objectTarget, signS3Request } from "@/lib/storage/r2";
 import { deleteStoredDemo, parseDemoLocation, shouldDeleteDemo } from "@/lib/storage/demo-store";
-import { allowedBatch, PLAN_LIMITS } from "@/lib/limits";
+import {
+  allowedBatch,
+  effectiveMonthlyLimit,
+  formatLimit,
+  keepDemoSlotsLeft,
+  limitReachedMessage,
+  PLAN_LIMITS,
+  startOfMonthUTC,
+  type PlanUsage,
+} from "@/lib/limits";
 import { filterHistory, historyMaps } from "@/lib/faceit/filters";
 import { userResult } from "@/lib/faceit/sync";
 import { demoState, queueStage } from "@/lib/library";
@@ -107,6 +116,26 @@ async function main() {
   check("nothing left means nothing queued", allowedBatch(5, 0, 5) === 0);
   check("unlimited plan still capped by batch", allowedBatch(80, Infinity, 50) === 50);
   check("free plan picks 5 at once", PLAN_LIMITS.FREE.batchSize === 5);
+  check("negative wanted/remaining never queue a negative count", allowedBatch(-2, 5, 5) === 0 && allowedBatch(3, -1, 5) === 0);
+  check("plans grow FREE < PRO < TEAM", (["monthlyDemos", "keptDemos", "batchSize", "uploadFiles"] as const).every(
+    (k) => PLAN_LIMITS.FREE[k] < PLAN_LIMITS.PRO[k] && PLAN_LIMITS.PRO[k] < PLAN_LIMITS.TEAM[k]
+  ));
+  check("negative admin override is ignored", effectiveMonthlyLimit("PRO", -1) === PLAN_LIMITS.PRO.monthlyDemos);
+  check(
+    "month starts at 00:00 UTC on the 1st",
+    startOfMonthUTC(new Date("2026-10-31T23:59:59Z")).toISOString() === "2026-10-01T00:00:00.000Z" &&
+      startOfMonthUTC(new Date("2027-01-01T00:00:00Z")).toISOString() === "2027-01-01T00:00:00.000Z"
+  );
+  const usage = (kept: number): PlanUsage => ({
+    allowed: true, used: 0, limit: 10, remaining: 10, plan: "FREE", limits: PLAN_LIMITS.FREE, keptDemos: kept,
+  });
+  check("keep-demo slots left", keepDemoSlotsLeft(usage(1)) === PLAN_LIMITS.FREE.keptDemos - 1);
+  check("keep-demo slots never negative (plan downgraded)", keepDemoSlotsLeft(usage(PLAN_LIMITS.FREE.keptDemos + 4)) === 0);
+  check("unlimited shows ∞, numbers as is", formatLimit(Infinity) === "∞" && formatLimit(10) === "10");
+  check(
+    "limit message names used/limit and plan",
+    limitReachedMessage({ allowed: false, used: 10, limit: 10, remaining: 0, plan: "FREE" }).includes("10/10 on FREE")
+  );
 
   const now = new Date("2026-10-12T12:00:00Z");
   const history = [

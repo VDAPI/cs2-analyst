@@ -4,7 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { rateLimit } from "@/lib/security/rate-limit-http";
-import { getTeamContext } from "@/lib/team/load";
+import { getTeamContext, withTeamLock } from "@/lib/team/load";
 import { MAX_RIVALS, MAX_RIVAL_PLAYERS, TEAM_NAME_MAX, isSteamId64 } from "@/lib/team/roster";
 
 interface Props {
@@ -57,9 +57,15 @@ export async function POST(req: Request, { params }: Props) {
     steamIds = [...new Set(body.data.steamIds)];
   }
 
-  const rival = await prisma.teamRival.create({
-    data: { teamId, name, steamIds, createdById: session.user.id },
-    select: { id: true },
+  // Re-count under the team lock: parallel creates could all pass the early check.
+  const userId = session.user.id;
+  const rival = await withTeamLock(prisma, teamId, async (tx) => {
+    if ((await tx.teamRival.count({ where: { teamId } })) >= MAX_RIVALS) return null;
+    return tx.teamRival.create({
+      data: { teamId, name, steamIds, createdById: userId },
+      select: { id: true },
+    });
   });
+  if (!rival) return NextResponse.json({ error: "Rival limit", max: MAX_RIVALS }, { status: 409 });
   return NextResponse.json({ id: rival.id });
 }

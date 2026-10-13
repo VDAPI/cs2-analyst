@@ -10,6 +10,18 @@ export function isShareToken(s: unknown): s is string {
   return typeof s === "string" && /^[A-Za-z0-9_-]{22}$/.test(s);
 }
 
+/**
+ * The `?round=` of a replay data route (ticks, kills, bombs, winprob): a
+ * round number 1–999, `fallback` when absent, null when malformed (answer
+ * 400; a NaN or out-of-range Int reaching Prisma would throw a 500).
+ */
+export function parseRoundParam(raw: string | null, fallback = 1): number | null {
+  if (raw == null || raw === "") return fallback;
+  if (!/^\d{1,3}$/.test(raw)) return null;
+  const n = Number(raw);
+  return n >= 1 ? n : null;
+}
+
 export const SLUG_MIN = 3;
 export const SLUG_MAX = 30;
 const RESERVED_SLUGS = new Set(["admin", "api", "settings", "login", "register", "me", "new", "edit", "null", "undefined"]);

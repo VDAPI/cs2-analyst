@@ -8,7 +8,9 @@ import { getT } from "@/lib/i18n/server";
 import type { MessageKey } from "@/lib/i18n/translate";
 import { formatDateTime } from "@/lib/utils/formatters";
 import { cn } from "@/lib/utils/cn";
+import { calibrationReport, snapshotPoints, type StoredSnapshots } from "@/lib/winprob/calibration";
 import { WP_FEATURES_VERSION } from "@/lib/winprob/features";
+import { getActiveModel } from "@/lib/winprob/persist";
 import { PRIOR_SOURCES } from "@/lib/winprob/prior";
 import { ML_MIN_MATCHES, mlServiceUrl } from "@/lib/winprob/train-trigger";
 
@@ -27,6 +29,15 @@ interface Evaluation {
 }
 
 const CANDIDATES = ["prior", "logistic", "lgbm", "lgbm_mono"];
+/** Newest matches whose stored snapshots the calibration table scores. */
+const CALIBRATION_MATCHES = 100;
+
+function readSnapshots(features: unknown, rows: unknown): StoredSnapshots | null {
+  if (!Array.isArray(features) || !Array.isArray(rows)) return null;
+  return { features: features.map(String), rows: rows.filter(Array.isArray) as StoredSnapshots["rows"] };
+}
+
+const pct = (v: number) => (Number.isFinite(v) ? `${Math.round(v * 100)}%` : "–");
 
 interface LastRun {
   note?: string;
@@ -54,7 +65,7 @@ function readEvaluation(v: unknown): Evaluation | null {
 export default async function AdminMlPage() {
   await requireAdminPage();
   const { t } = await getT();
-  const [counts, dataAgg, proData, situations, models, lastRun] = await Promise.all([
+  const [counts, dataAgg, proData, situations, models, lastRun, activeModel, calData] = await Promise.all([
     countAdminUploads(),
     prisma.winProbData.aggregate({ where: { version: WP_FEATURES_VERSION }, _count: true, _sum: { rounds: true } }),
     prisma.winProbData.count({ where: { version: WP_FEATURES_VERSION, pro: true } }),
@@ -65,7 +76,17 @@ export default async function AdminMlPage() {
       select: { id: true, kind: true, active: true, featuresVersion: true, metrics: true, nMatches: true, nRounds: true, createdAt: true },
     }),
     prisma.appSetting.findUnique({ where: { key: "winprob:lastRun" } }),
+    getActiveModel(prisma),
+    prisma.winProbData.findMany({
+      where: { version: WP_FEATURES_VERSION },
+      orderBy: { createdAt: "desc" },
+      take: CALIBRATION_MATCHES,
+      select: { features: true, rows: true },
+    }),
   ]);
+  const sets = calData.map((d) => readSnapshots(d.features, d.rows)).filter((d): d is StoredSnapshots => d != null);
+  const scored = snapshotPoints(sets, activeModel.spec);
+  const calib = scored.points.length > 0 ? calibrationReport(scored.points, scored.rounds) : null;
   const active = models.find((m) => m.active && m.featuresVersion === WP_FEATURES_VERSION) ?? null;
   const run = parseRun(lastRun?.value);
   // The comparison of the newest training: the active model's, or the last run that kept the prior.
@@ -157,6 +178,61 @@ export default async function AdminMlPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </section>
+
+      <section className="space-y-3" aria-labelledby="ml-calibration">
+        <h2 id="ml-calibration" className="font-display text-lg font-semibold text-[var(--text-primary)]">
+          {t("winprob.admin.calTitle")}
+        </h2>
+        {!calib ? (
+          <p className="rounded-xl border border-dashed border-[var(--border)] px-3 py-2.5 text-sm text-[var(--text-tertiary)]">
+            {t("winprob.admin.calNone")}
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-[var(--text-secondary)]">
+              {t("winprob.admin.calHint", { matches: sets.length, rounds: calib.rounds })}
+            </p>
+            <p className="font-mono text-xs text-[var(--text-secondary)]">
+              {t("winprob.admin.calSummary", {
+                logloss: calib.logloss.toFixed(4),
+                brier: calib.brier.toFixed(4),
+                ece: calib.ece.toFixed(3),
+              })}
+            </p>
+            <div className="table-scroll rounded-xl border border-[var(--border)]">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>{t("winprob.admin.calBin")}</th>
+                    <th className="text-right">{t("winprob.admin.calPredicted")}</th>
+                    <th className="text-right">{t("winprob.admin.calActual")}</th>
+                    <th className="text-right">{t("winprob.admin.calCount")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {calib.bins.map((b) => (
+                    <tr key={b.lo}>
+                      <td className="font-mono">
+                        {Math.round(b.lo * 100)}–{Math.round(b.hi * 100)}%
+                      </td>
+                      <td className="text-right font-mono">{pct(b.predicted)}</td>
+                      <td
+                        className={cn(
+                          "text-right font-mono",
+                          b.n > 0 && Math.abs(b.actual - b.predicted) > 0.05 && "text-[var(--warning)]"
+                        )}
+                      >
+                        {pct(b.actual)}
+                      </td>
+                      <td className="text-right font-mono">{b.n}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
 

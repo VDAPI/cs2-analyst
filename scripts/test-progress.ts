@@ -37,6 +37,7 @@ import { resolvePlayer } from "@/lib/progress/identity";
 import { buildProgressView } from "@/lib/progress/view";
 import {
   isShareToken,
+  parseRoundParam,
   isValidSlug,
   momentReplayPath,
   normalizeSlug,
@@ -46,6 +47,7 @@ import {
 } from "@/lib/sharing/share";
 import { newShareToken } from "@/lib/sharing/token";
 import { makeCanvasToWorld, makeWorldToCanvas } from "@/lib/canvas/radar";
+import { roundAllowed, type MatchAccess } from "@/lib/sharing/access";
 import { pl } from "@/lib/i18n/messages/pl";
 import { en } from "@/lib/i18n/messages/en";
 
@@ -243,6 +245,12 @@ check("tie → ambiguous", resolvePlayer({ appearances: [ap("A", "x", 1), ap("B"
 const tok = newShareToken();
 check("share token: 22 url-safe chars, random", isShareToken(tok) && tok !== newShareToken());
 check("bad tokens rejected", !isShareToken("abc") && !isShareToken("../../etc/passwd/xxxxxx") && !isShareToken(null));
+check(
+  "replay ?round=: 1-999, default when absent, null when malformed (no NaN or Int overflow reaches Prisma)",
+  parseRoundParam(null) === 1 && parseRoundParam("") === 1 && parseRoundParam("12") === 12 && parseRoundParam("999") === 999 &&
+    parseRoundParam("0") === null && parseRoundParam("abc") === null && parseRoundParam("3abc") === null &&
+    parseRoundParam("-1") === null && parseRoundParam("99999999999") === null && parseRoundParam("1e2") === null
+);
 check("slug normalised (Polish letters, spaces)", normalizeSlug("  Łukasz Żółw!! ") === "lukasz-zolw");
 check("valid slugs", isValidSlug("lukasz-zolw") && isValidSlug("abc") && !isValidSlug("ab") && !isValidSlug("-abc") && !isValidSlug("a--b") && !isValidSlug("admin") && !isValidSlug("ABC"));
 check("suggested slug is valid", isValidSlug(suggestSlug("Żółty Gracz", "ab12")) && isValidSlug(suggestSlug(null, "ab12")) && isValidSlug(suggestSlug("x", "ab12")));
@@ -266,6 +274,15 @@ const view = buildProgressView(goalMatches);
 check("view: one series per metric, points per match", view.series.length === PROGRESS_METRICS.length && view.series.every((s) => s.points.length === goalMatches.length));
 check("view: wins counted", view.wins === goalMatches.length && view.losses === 0);
 check("view: trend for moving first shots is better", view.series.find((s) => s.key === "moving_first")?.trend?.verdict === "better");
+
+// ─── Share access: a moment/clip link only reads its round ───
+{
+  const access = (round: number | null): MatchAccess => ({ ownerId: null, round, shareId: "s", uploaderId: "u" });
+  check("report/owner access reads every round", roundAllowed(access(null), 1) && roundAllowed(access(null), 30));
+  check("moment link reads only its round", roundAllowed(access(7), 7) && !roundAllowed(access(7), 8));
+  // getMatchAccess maps a moment link without a round to -1: nothing readable.
+  check("moment link without a round reads nothing", !roundAllowed(access(-1), 1) && !roundAllowed(access(-1), 0));
+}
 
 // ─── Report ────────────────────────────────────────────────
 

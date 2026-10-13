@@ -21,7 +21,7 @@
  */
 import { normalizeWeapon } from "@/lib/analysis/movement";
 
-export const WP_FEATURES_VERSION = 2;
+export const WP_FEATURES_VERSION = 3;
 
 /** CS2 round clock after freeze time, seconds. */
 export const ROUND_TIME_S = 115;
@@ -178,6 +178,14 @@ export interface RoundContext {
   rows: Map<string, WpFramePlayer>[];
   /** Per frame: steamId → last primary weapon class seen in hand up to that frame. */
   primaryAt: Map<string, PrimaryClass>[];
+  /**
+   * steamId → the primary carried into the round: the first one seen in hand
+   * after freeze end and before the round's first kill. Frames only store the
+   * weapon in hand, not the inventory; until the first death no weapon can
+   * change owner except by a drop, so this is what the player bought and runs
+   * with (knife out) before drawing it.
+   */
+  openingPrimary: Map<string, PrimaryClass>;
   /** Per frame: steamId → last HP above zero up to that frame. */
   lastHpAt: Map<string, number>[];
 }
@@ -252,6 +260,17 @@ export function buildRoundContext(round: WpRound, tickRate: number, sites: SiteC
     primaryAt.push(primary);
     lastHpAt.push(hp);
   }
+  const firstKill = round.kills.reduce((a, k) => Math.min(a, k.tick), Infinity);
+  const openingPrimary = new Map<string, PrimaryClass>();
+  for (const f of frames) {
+    if (f.tick < freezeEnd) continue;
+    if (f.tick >= firstKill) break;
+    for (const p of f.players) {
+      if (!p.isAlive || openingPrimary.has(p.steamId)) continue;
+      const cls = primaryClass(p.weapon);
+      if (cls) openingPrimary.set(p.steamId, cls);
+    }
+  }
   return {
     round: { ...round, frames },
     tickRate,
@@ -264,6 +283,7 @@ export function buildRoundContext(round: WpRound, tickRate: number, sites: SiteC
     frames,
     rows,
     primaryAt,
+    openingPrimary,
     lastHpAt,
   };
 }
@@ -300,7 +320,8 @@ export interface PlayerState {
  * Every player's state at `tick`: alive from the kill feed (exact tick) and
  * the frames, HP/armour/position from the last frame at or before it, primary
  * weapon = the last primary seen in hand this round (a player running with
- * the knife still carries the rifle).
+ * the knife still carries the rifle), or before he first draws one, the
+ * primary he carried into the round (openingPrimary).
  */
 export function playersAt(ctx: RoundContext, tick: number, cf: Counterfactual = {}): PlayerState[] {
   const idx = Math.max(0, frameIndexAt(ctx.frames, tick));
@@ -326,7 +347,9 @@ export function playersAt(ctx: RoundContext, tick: number, cf: Counterfactual = 
       pos: s ? { x: s.x, y: s.y, z: s.z } : null,
       health,
       armor: alive ? (s?.armor ?? 0) : 0,
-      primary: rifle.has(steamId) ? "rifle" : (ctx.primaryAt[idx]?.get(steamId) ?? null),
+      primary: rifle.has(steamId)
+        ? "rifle"
+        : (ctx.primaryAt[idx]?.get(steamId) ?? ctx.openingPrimary.get(steamId) ?? null),
       equip: (ctx.round.equip[steamId] ?? 0) + (cf.addEquip?.[steamId] ?? 0),
     });
   }

@@ -31,6 +31,17 @@ import { createT, pluralForm, translate } from "@/lib/i18n/translate";
 import { notificationView } from "@/lib/notifications/text";
 import { isAllowedPushEndpoint } from "@/lib/notifications/push-endpoint";
 import { navGroups, activeGroupId, mobilePrimaryHrefs } from "@/components/layout/nav-items";
+import {
+  formatDate,
+  formatDateTime,
+  formatDuration,
+  formatHSPercent,
+  formatKD,
+  formatShortDate,
+  mapDisplayName,
+  tickToTime,
+  weaponDisplayName,
+} from "@/lib/utils/formatters";
 
 const checks: [string, boolean][] = [];
 const check = (label: string, ok: boolean) => checks.push([label, ok]);
@@ -176,6 +187,21 @@ async function main() {
     check("a page outside the menu opens no category", activeGroupId("/settings") === undefined);
     const groupKeys = navGroups.map((g) => g.labelKey.split(".")[1] as keyof typeof pl.nav);
     check("every nav category has PL and EN labels", groupKeys.every((k) => !!pl.nav[k] && !!en.nav[k]));
+  }
+
+  // ─── 8. Formatters (dates in Polish time on any host) ──
+  {
+    // 23:30 UTC is already the next day in Warsaw (CEST and CET).
+    check("formatDate uses Europe/Warsaw, not the host zone", formatDate("2026-10-12T23:30:00Z") === "13 paź 2026");
+    check("formatShortDate drops the year", formatShortDate(new Date("2026-10-12T23:30:00Z")) === "13 paź");
+    check("formatDateTime in winter time (UTC+1)", formatDateTime("2026-01-12T23:30:00Z") === "13 sty, 00:30");
+    check("formatDuration pads seconds", formatDuration(65) === "1:05" && formatDuration(0) === "0:00" && formatDuration(3600) === "60:00");
+    check("tickToTime: 64 tick default, 128 tick", tickToTime(64 * 75) === "1:15" && tickToTime(128 * 75, 128) === "1:15");
+    check("tickToTime floors partial seconds", tickToTime(64 * 10 + 63) === "0:10");
+    check("formatKD: no deaths shows kills", formatKD(7, 0) === "7.0" && formatKD(0, 0) === "0.0" && formatKD(20, 15) === "1.33");
+    check("formatHSPercent takes a fraction", formatHSPercent(0.456) === "46%" && formatHSPercent(0) === "0%");
+    check("map names: known, unknown passes through", mapDisplayName("de_dust2") === "Dust II" && mapDisplayName("de_thera") === "de_thera");
+    check("weapon names are case-insensitive", weaponDisplayName("AK47") === "AK-47" && weaponDisplayName("m4a1_silencer") === "M4A1-S" && weaponDisplayName("zeus") === "zeus");
   }
 }
 

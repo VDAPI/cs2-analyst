@@ -20,6 +20,7 @@ import { detectClutchesBySide, type ClutchInputKill } from "@/lib/utils/clutches
 import { otherSide, ruleSideAtRound, sideInRound, type Side } from "@/lib/utils/sideSplit";
 import { parseRoundWinner, parseWinReason } from "@/lib/parsers/round-end";
 import { loadDemoParser, parseTickRows } from "./load-parser";
+import { matchEndTickFor } from "./replay-data";
 
 /**
  * Weapons whose player_hurt damage counts as utility damage.
@@ -170,17 +171,15 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
   // suicides when players leave the server) must not count. Without a win
   // panel, allow a short grace after the last round_end for exit frags.
   const lastRoundEndTick = boundaries.length ? boundaries[boundaries.length - 1].endTick : Infinity;
-  let matchEndTick = lastRoundEndTick + Math.round(header.tickRate * 5);
+  let winPanelTicks: number[] = [];
   try {
     const winPanel = (parser.parseEvent(filePath, "cs_win_panel_match") as Record<string, unknown>[] | null) ?? [];
-    const panelTicks = winPanel
-      .map((e) => num(e.tick))
-      .filter((t) => t >= lastRoundEndTick)
-      .sort((a, b) => a - b);
-    if (panelTicks.length > 0) matchEndTick = panelTicks[0];
+    winPanelTicks = winPanel.map((e) => num(e.tick));
   } catch {
     // optional event
   }
+  // Shared with the replay data (shots/damage/reloads), see matchEndTickFor.
+  const matchEndTick = matchEndTickFor(lastRoundEndTick, header.tickRate, winPanelTicks);
   const inMatch = (tick: number) => tick > matchStartTick && tick <= matchEndTick;
 
   // Per-player per-round economy snapshots (populated during freeze-end loop below)
@@ -221,6 +220,8 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
 
   // Live samples per round: steamId → team_num.
   const liveTeamsByRound = new Map<number, Map<string, number>>();
+  // Rounds whose economy was read at freeze end (buy types set below).
+  const economyRounds = new Set<number>();
   if (sampleTickToRound.size > 0) {
     try {
       const tickData = parseTickRows(
@@ -281,7 +282,7 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
               steamId,
               equipValue: equip,
               money,
-              buyType: classifyBuyType(equip, 1, round.number),
+              buyType: classifyBuyType(equip, 1),
             });
           }
         }
@@ -292,8 +293,9 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
         round.tEquipValue = tEquipTotal;
         round.ctMoney = ctMoneyTotal;
         round.tMoney = tMoneyTotal;
-        round.buyTypeCT = classifyBuyType(ctEquipTotal, ctCount, round.number);
-        round.buyTypeT = classifyBuyType(tEquipTotal, tCount, round.number);
+        round.buyTypeCT = classifyBuyType(ctEquipTotal, ctCount);
+        round.buyTypeT = classifyBuyType(tEquipTotal, tCount);
+        economyRounds.add(round.number);
       }
     } catch {
       // parseTicks may fail on some demos — economy is optional and sides
@@ -309,6 +311,18 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
     playerRoster,
   });
   const score = scoreRounds(rounds, teamASideByRound);
+
+  // Pistol rounds follow the match format (MR12 → 1 and 13, wingman MR8 →
+  // 1 and 9): the first round and the first side swap.
+  const pistols = pistolRoundNumbers(teamASideByRound);
+  for (const round of rounds) {
+    if (!pistols.has(round.number) || !economyRounds.has(round.number)) continue;
+    round.buyTypeCT = "PISTOL";
+    round.buyTypeT = "PISTOL";
+  }
+  for (const econ of roundPlayerEcon.values()) {
+    if (pistols.has(econ.roundNumber)) econ.buyType = "PISTOL";
+  }
   header.scoreCT = score.teamA;
   header.scoreT = score.teamB;
 
@@ -339,7 +353,6 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
   ]) as Record<string, unknown>[];
 
   const kills: ParsedKill[] = [];
-  const firstKillTicks = new Map<number, number>();
 
   // Victim's inventory at death ("died with unused utility", S11). Separate
   // pass so a parser that can't read the prop still gets every kill.
@@ -404,23 +417,11 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
       victimInventory: inventoryAtDeath.get(`${tick}|${victimId}`) ?? null,
     };
 
-    // Opening duels only count enemy kills (no suicides / team kills)
-    if (!isNonEnemyKill(kill)) {
-      const existing = firstKillTicks.get(roundNum);
-      if (existing === undefined || tick < existing) {
-        firstKillTicks.set(roundNum, tick);
-      }
-    }
-
     kills.push(kill);
   }
 
-  // Mark first kills
-  for (const kill of kills) {
-    if (firstKillTicks.get(kill.roundNumber) === kill.tick && !isNonEnemyKill(kill)) {
-      kill.isFirstKill = true;
-    }
-  }
+  // Mark first kills (opening duels only count enemy kills)
+  markFirstKills(kills, isNonEnemyKill);
 
   // 5. Damage events (for ADR)
   // Track HP per player per round to correctly cap overkill damage. Every hurt
@@ -831,6 +832,26 @@ export function assignGrenadeDamage(
 }
 
 /**
+ * Flag the opening kill of every round: the earliest enemy kill (no suicides,
+ * world deaths or team kills). Exactly one per round, so a collateral (two
+ * victims on one tick) gives the killer one opening kill and one victim one
+ * opening death, not two of each.
+ */
+export function markFirstKills<K extends Pick<ParsedKill, "tick" | "roundNumber" | "isFirstKill">>(
+  kills: K[],
+  isNonEnemyKill: (k: K) => boolean
+): void {
+  const firstByRound = new Map<number, K>();
+  for (const k of kills) {
+    k.isFirstKill = false;
+    if (isNonEnemyKill(k)) continue;
+    const existing = firstByRound.get(k.roundNumber);
+    if (!existing || k.tick < existing.tick) firstByRound.set(k.roundNumber, k);
+  }
+  for (const k of firstByRound.values()) k.isFirstKill = true;
+}
+
+/**
  * Bombsite letter from a bomb event's `site` (a letter on some sources, the
  * trigger's entity index on CS2) or the player's place name ("BombsiteA").
  */
@@ -1019,16 +1040,38 @@ export function computeClutchWins(input: ClutchWinsInput): Map<string, number> {
 }
 
 /**
- * Classify buy type based on total team equipment value.
+ * Pistol rounds of a match: round 1 and the first round after the first side
+ * swap (the regulation halftime — 13 in MR12, 9 in wingman MR8). Overtime
+ * halves start with full money, so later swaps are not pistol rounds. The
+ * sides come from `resolveTeamASides`, which falls back to the MR12 rule for
+ * rounds without live samples (→ 13).
+ */
+export function pistolRoundNumbers(teamASideByRound: Map<number, Side>): Set<number> {
+  const numbers = [...teamASideByRound.keys()].sort((a, b) => a - b);
+  const out = new Set<number>();
+  if (numbers.length === 0) return out;
+  out.add(numbers[0]);
+  for (let i = 1; i < numbers.length; i++) {
+    const n = numbers[i];
+    if (n !== numbers[i - 1] + 1) continue;
+    if (teamASideByRound.get(n) !== teamASideByRound.get(numbers[i - 1])) {
+      out.add(n);
+      break;
+    }
+  }
+  return out;
+}
+
+/**
+ * Classify buy type based on total team equipment value (pistol rounds are
+ * set afterwards from the match format, see `pistolRoundNumbers`).
  * SKILL.md thresholds:
- * - Pistol round: rounds 1 and 13
  * - Eco: avg equip < $1000 per player
  * - Half buy: avg equip $1000-$2500
  * - Force buy: avg equip $2500-$4000
  * - Full buy: avg equip >= $4000
  */
-function classifyBuyType(totalEquip: number, playerCount: number, roundNumber: number): string {
-  if (roundNumber === 1 || roundNumber === 13) return "PISTOL";
+function classifyBuyType(totalEquip: number, playerCount: number): string {
   if (playerCount === 0) return "UNKNOWN";
 
   const avgEquip = totalEquip / playerCount;
