@@ -8,6 +8,8 @@ the features have exactly one implementation (src/lib/winprob/features.ts).
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, field
 from typing import Iterable, Sequence
 
@@ -51,7 +53,7 @@ def build_dataset(matches: Iterable[MatchRows]) -> Dataset:
     version = max(m.version for m in matches)
     matches = [m for m in matches if m.version == version]
     features = matches[0].features
-    matches = [m for m in matches if m.features == features]
+    matches = dedupe([m for m in matches if m.features == features])
 
     xs, ys, gs, rs = [], [], [], []
     round_index = 0
@@ -73,6 +75,21 @@ def build_dataset(matches: Iterable[MatchRows]) -> Dataset:
     counts = np.bincount(rounds)
     weight = 1.0 / counts[rounds]
     return Dataset(features, X, y, groups, rounds, weight, [m.match_id for m in matches], version)
+
+
+def dedupe(matches: list[MatchRows]) -> list[MatchRows]:
+    """One demo uploaded twice (two players of a 5-stack, a pro demo added again) gives
+    identical snapshots under two match ids. Kept twice it would count double and,
+    split across folds, let the cross-validation score a match it was trained on."""
+    seen: set[str] = set()
+    out = []
+    for m in matches:
+        key = hashlib.sha1(json.dumps(m.rows, separators=(",", ":"), default=float).encode()).hexdigest()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(m)
+    return out
 
 
 def load_from_db(database_url: str) -> list[MatchRows]:

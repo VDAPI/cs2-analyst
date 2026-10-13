@@ -22,6 +22,8 @@ import {
   siteCenters,
   snapshotTicks,
   stateAt,
+  trainableRound,
+  usableRound,
   WP_FEATURES,
   type WpFrame,
   type WpFramePlayer,
@@ -166,6 +168,20 @@ check("snapshots: kill and plant ticks included", ticks.includes(S(20)) && ticks
 check("snapshots: nothing at or after the result", ticks.every((t) => t >= FREEZE_END && t < ctx.decided));
 const snaps = matchSnapshots({ tickRate: TR, sites: SITES, rounds: [round1, { ...round1, number: 2, frames: [] }] });
 check("snapshots: rounds without frames skipped", snaps.every((s) => s.roundNumber === 1) && snaps.length === ticks.length);
+// A surrender / vote / cut demo is stored as ELIMINATION with the losers alive: never a training label.
+const surrender: WpRound = { ...round1, number: 3, winner: "T", winReason: "ELIMINATION", bombs: [] };
+const surrenderCtx = buildRoundContext(surrender, TR, SITES);
+check("snapshots: surrender round still replays", usableRound(surrenderCtx));
+check("snapshots: surrender round not trained on", !trainableRound(surrenderCtx));
+check("snapshots: defused round trained on", trainableRound(ctx));
+check(
+  "snapshots: result that contradicts the reason not trained on",
+  !trainableRound(buildRoundContext({ ...round1, winner: "T" }, TR, SITES))
+);
+check(
+  "snapshots: surrender skipped in the match snapshots",
+  matchSnapshots({ tickRate: TR, sites: SITES, rounds: [round1, surrender] }).every((s) => s.roundNumber === 1)
+);
 check("snapshots: label is the round result", snaps.every((s) => s.tWin === 0));
 check("snapshots: one value per feature", snaps.every((s) => s.features.length === WP_FEATURES.length));
 
