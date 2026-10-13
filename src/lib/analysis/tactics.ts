@@ -15,7 +15,10 @@
  * - bad_force: the team forced, lost, and could not full-buy next round,
  * - no_drop: rich player, broke teammate, no drop,
  * - death_with_money: died with a lot of money left unspent,
- * - predictable_position: CT held the same spot round after round.
+ * - predictable_position: CT held the same spot round after round,
+ * - isolated_aggression (S31): CT alone on a bombsite left the spot to take a
+ *   fight and died untraded, leaving the site empty. Staying passive there is
+ *   fine (the job is not to give the site away), so only the push is judged.
  *
  * Sides are per round (per half, see CLAUDE.md): read from the frames' team,
  * falling back to the regulation halves when a round has no frames. Every
@@ -26,8 +29,10 @@
  * Pure module (no DB), covered by `npm run test:tactics`.
  */
 
+import { distToSite, mergeSites, siteCentresFromPlants, zoneOf, type SiteCentres } from "./sites";
+
 /** Bump when detection or summary numbers change; stored rows are recomputed. */
-export const TACTICS_VERSION = 1;
+export const TACTICS_VERSION = 2;
 
 /** A kill of the killer within this many seconds trades the death. */
 export const TRADE_WINDOW_S = 3;
@@ -66,6 +71,10 @@ export const DROP_MONEY = { T: 2700, CT: 3100 } as const;
 export const UNSPENT_MONEY = 3000;
 /** In the last round of a half all money goes; more than this left is wasted. */
 export const LAST_ROUND_UNSPENT = 1500;
+/** A CT setup spot this far from every teammate is isolated (as roles.ts ISOLATED_RANGE). */
+export const ISOLATED_SPOT = 1200;
+/** Dying this much farther from the site than the setup spot = pushed out of the site. */
+export const PUSHED_OUT = 300;
 
 type Side = "CT" | "T";
 
@@ -179,7 +188,8 @@ export type TacticsMomentType =
   | "bad_force"
   | "no_drop"
   | "death_with_money"
-  | "predictable_position";
+  | "predictable_position"
+  | "isolated_aggression";
 
 export interface TacticsValue {
   label: string;
@@ -338,8 +348,14 @@ function emptyPlayer(steamId: string): PlayerTactics {
   };
 }
 
-export function analyzeTactics(input: TacticsInput): PlayerTactics[] {
+export interface TacticsOptions {
+  /** Bombsite centres of the map (sites.ts, from callouts); this match's plants fill in a missing one. */
+  sites?: SiteCentres;
+}
+
+export function analyzeTactics(input: TacticsInput, opts: TacticsOptions = {}): PlayerTactics[] {
   const { tickRate } = input;
+  const sites = mergeSites(opts.sites, siteCentresFromPlants(input.bombs));
   const out = new Map<string, PlayerTactics>(input.players.map((p) => [p.steamId, emptyPlayer(p.steamId)]));
   const nameOf = new Map(input.players.map((p) => [p.steamId, p.name]));
   const finalSide = new Map(input.players.map((p) => [p.steamId, p.team]));
@@ -411,6 +427,41 @@ export function analyzeTactics(input: TacticsInput): PlayerTactics[] {
         k.tick > tick &&
         k.tick <= tick + TRADE_WINDOW_S * tickRate
     ) ?? null;
+
+  /**
+   * S31: a CT alone on a bombsite (setup spot ANCHOR_DELAY_S after freeze end,
+   * no teammate within ISOLATED_SPOT) who died before the plant away from
+   * that spot and farther from the site than he stood: he went for a fight
+   * instead of holding. Null when the death doesn't fit.
+   */
+  const isolatedPush = (c: RoundCtx, id: string, deathTick: number, deathPos: Vec) => {
+    if (c.plant && c.plant.tick <= deathTick) return null;
+    const setupTick = c.freezeEnd + ANCHOR_DELAY_S * tickRate;
+    if (setupTick >= deathTick) return null;
+    const f = frameAt(c.round.frames, setupTick);
+    if (!f || Math.abs(f.tick - setupTick) > tickRate) return null;
+    const me = f.players.find((p) => p.steamId === id && p.isAlive);
+    if (!me) return null;
+    const site = zoneOf(me, null, sites);
+    if (site !== "A" && site !== "B") return null;
+    let mate = Infinity;
+    for (const q of f.players) {
+      if (q.steamId !== id && q.isAlive && c.sideOf.get(q.steamId) === "CT") mate = Math.min(mate, dist(me, q));
+    }
+    if (mate < ISOLATED_SPOT) return null;
+    const out = dist(me, deathPos);
+    const setupToSite = distToSite(me, site, sites);
+    const deathToSite = distToSite(deathPos, site, sites);
+    if (out < LEFT_SPOT || setupToSite == null || deathToSite == null || deathToSite < setupToSite + PUSHED_OUT) return null;
+    const deathZone = zoneOf(deathPos, null, sites);
+    if (deathZone && deathZone !== "mid" && deathZone !== site) return null; // rotated to the other site
+    // Was anyone else of the team still holding that site when he died?
+    const at = frameAt(c.round.frames, deathTick);
+    const empty = !(at?.players ?? []).some(
+      (q) => q.steamId !== id && q.isAlive && c.sideOf.get(q.steamId) === "CT" && zoneOf(q, null, sites) === site
+    );
+    return { site, out: Math.round(out), mate: Number.isFinite(mate) ? Math.round(mate) : 0, empty };
+  };
 
   for (const c of ctxs) {
     const { round } = c;
@@ -557,6 +608,26 @@ export function analyzeTactics(input: TacticsInput): PlayerTactics[] {
           detail: `lurk: zginąłeś ${Math.round(nearest.d)} u od drużyny przed plantem, bez zabójstwa w tej rundzie`,
         });
         continue;
+      }
+      if (side === "CT" && round.frames.length > 0) {
+        const pushed = isolatedPush(c, victim, k.tick, victimPos);
+        if (pushed) {
+          const plantedThere = c.plant != null && c.plant.site === pushed.site;
+          push(victim, {
+            ...base,
+            type: "isolated_aggression",
+            value: pushed.out,
+            values: [
+              { label: "Od pozycji", value: pushed.out, unit: "u", ref: LEFT_SPOT },
+              { label: "Najbliższy kolega", value: pushed.mate, unit: "u", ref: ISOLATED_SPOT },
+            ],
+            detail:
+              `sam na ${pushed.site}: wyszedłeś ${pushed.out} u z pozycji i zginąłeś bez trade'u` +
+              (pushed.empty ? `, na ${pushed.site} nie został nikt` : "") +
+              (plantedThere ? `, T podłożyli tam bombę` : ""),
+          });
+          continue;
+        }
       }
       if (nearest && nearest.d >= TRADE_RANGE) {
         push(victim, {

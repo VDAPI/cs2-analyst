@@ -199,6 +199,7 @@ export default async function ReportPage({ params, searchParams }: Props) {
               data={role}
               mapName={mapDisplayName(match.map)}
               compareHref={`/play-like-pro?map=${match.map}${role.sides.T ? "&side=T" : ""}`}
+              correction={selected ? { matchId, steamId: selected.steamId } : null}
               t={t}
             />
           )}

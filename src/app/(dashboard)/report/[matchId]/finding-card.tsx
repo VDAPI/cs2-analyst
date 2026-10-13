@@ -14,6 +14,7 @@ import { FindingImpact } from "@/components/winprob/finding-impact";
 import { ProAdvicePanel } from "@/components/winprob/pro-advice";
 import { ShareButton } from "@/components/share/share-button";
 import { findingClipShare } from "@/lib/clips/clip";
+import { asRole, roleKey } from "@/lib/roles/view";
 
 export interface ClipContext {
   matchId: string;
@@ -42,11 +43,15 @@ export function FindingCard({
   const t = useT();
   const [open, setOpen] = useState(false);
   const [pro, setPro] = useState(false);
+  const role = asRole(f.role);
   return (
     <div className="flex min-w-0 flex-col gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">R{f.roundNumber}</span>
         <span className="font-mono text-sm text-[var(--text-tertiary)]">{fmtRoundTime(f.roundTime)}</span>
+        {role && (
+          <span className="text-xs text-[var(--accent-2)]">{t("roles.findingRole", { role: t(roleKey(role)) })}</span>
+        )}
         <FindingTag severity={f.severity} className="ml-auto" />
       </div>
       <p className="text-sm text-[var(--text-secondary)]">
