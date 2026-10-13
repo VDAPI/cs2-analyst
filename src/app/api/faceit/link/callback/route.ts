@@ -1,9 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { faceitOAuthBaseUrl, faceitRedirectUri } from "@/lib/faceit/oauth";
+import { sessionUserId } from "@/lib/auth-request";
+import { requestOrigin } from "@/lib/request-origin";
+import {
+  FACEIT_RETURN_COOKIE,
+  faceitReturnOrigin,
+  faceitRedirectUri,
+  isFaceitLinkConfigured,
+} from "@/lib/faceit/oauth";
 
 const TOKEN_URL = "https://api.faceit.com/auth/v1/oauth/token";
 const USERINFO_URL = "https://api.faceit.com/auth/v1/resources/userinfo";
@@ -28,7 +33,19 @@ export async function GET(req: NextRequest) {
 
   console.log("[FACEIT Callback] Received:", { code: code ? "present" : "missing", state: state ? "present" : "missing", error });
 
-  const settingsUrl = new URL("/settings", faceitOAuthBaseUrl());
+  // Back to the address the link was started from (it can be another port
+  // than this callback: S20 Settings on :3000, callback on :3443).
+  const cookieStore = await cookies();
+  const returnOrigin = faceitReturnOrigin(
+    cookieStore.get(FACEIT_RETURN_COOKIE)?.value,
+    requestOrigin(req.headers, req.url)
+  );
+  const settingsUrl = new URL("/settings", returnOrigin);
+
+  if (!isFaceitLinkConfigured()) {
+    settingsUrl.searchParams.set("error", "faceit-not-configured");
+    return NextResponse.redirect(settingsUrl.toString());
+  }
 
   // Handle FACEIT errors
   if (error) {
@@ -44,7 +61,6 @@ export async function GET(req: NextRequest) {
   }
 
   // Validate state and extract userId
-  const cookieStore = await cookies();
   const storedState = cookieStore.get("faceit-oauth-state")?.value;
   const codeVerifier = cookieStore.get("faceit-pkce-verifier")?.value;
 
@@ -70,8 +86,8 @@ export async function GET(req: NextRequest) {
   // and its cookie are both under the caller's control in their own browser.
   // The state's userId must still match, so a flow started by one account
   // can't be finished by another.
-  const session = await getServerSession(authOptions);
-  const userId = session?.user?.id;
+  // Either session cookie: signed in on http, FACEIT returns to https.
+  const userId = await sessionUserId(req);
   let stateUserId: unknown;
   try {
     const parsed: unknown = JSON.parse(Buffer.from(state, "base64url").toString());
@@ -83,7 +99,7 @@ export async function GET(req: NextRequest) {
   }
   if (!userId || stateUserId !== userId) {
     console.error("[FACEIT Callback] No session, or the state belongs to another user");
-    settingsUrl.searchParams.set("error", "faceit-link-failed");
+    settingsUrl.searchParams.set("error", userId ? "faceit-link-failed" : "faceit-session-lost");
     return NextResponse.redirect(settingsUrl.toString());
   }
 
@@ -97,7 +113,7 @@ export async function GET(req: NextRequest) {
   });
 
   const basicAuth = Buffer.from(
-    `${process.env.FACEIT_CLIENT_ID!}:${process.env.FACEIT_CLIENT_SECRET!}`
+    `${process.env.FACEIT_CLIENT_ID}:${process.env.FACEIT_CLIENT_SECRET}`
   ).toString("base64");
 
   let accessToken: string;
@@ -180,25 +196,31 @@ export async function GET(req: NextRequest) {
   // Clean up cookies
   cookieStore.delete("faceit-oauth-state");
   cookieStore.delete("faceit-pkce-verifier");
+  cookieStore.delete(FACEIT_RETURN_COOKIE);
 
   console.log("[FACEIT Callback] Linking complete!");
 
-  // Return an HTML page that notifies the opener window and closes the popup
+  // Notify the opener (Settings, possibly on another port of this host) and
+  // close the popup; without an opener (mobile tab, or a browser that cut
+  // the link) go to Settings on the address the link was started from.
+  const done = new URL("/settings?linked=faceit", returnOrigin).toString();
+  const js = (v: string) => JSON.stringify(v).replace(/</g, "\\u003c");
   const html = `<!DOCTYPE html>
 <html><head><title>FACEIT Linked</title></head>
 <body>
 <script>
-  if (window.opener) {
-    window.opener.postMessage({ type: "faceit-linked" }, window.location.origin);
-    window.close();
-  } else {
-    window.location.href = "/settings?linked=faceit";
-  }
+  try {
+    if (window.opener && !window.opener.closed) {
+      window.opener.postMessage({ type: "faceit-linked" }, ${js(returnOrigin)});
+      window.close();
+    }
+  } catch (e) {}
+  setTimeout(function () { window.location.href = ${js(done)}; }, 300);
 </script>
-<noscript><a href="/settings?linked=faceit">Return to settings</a></noscript>
+<noscript><a href="${done.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}">Return to settings</a></noscript>
 </body></html>`;
 
   return new NextResponse(html, {
-    headers: { "Content-Type": "text/html" },
+    headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 }

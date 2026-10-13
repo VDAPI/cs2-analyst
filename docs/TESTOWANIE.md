@@ -14,7 +14,7 @@ Ta instrukcja prowadzi krok po kroku od czystego komputera do działającej apli
 6. [Telefon w tej samej sieci Wi-Fi](#6-telefon-w-tej-samej-sieci-wi-fi)
 7. [Wgrywanie dem](#7-wgrywanie-dem)
 8. [Konto administratora](#8-konto-administratora)
-9. [Połączenie konta FACEIT (HTTPS)](#9-połączenie-konta-faceit-https)
+9. [Połączenie konta FACEIT (HTTPS) i Steam](#9-połączenie-konta-faceit-https-i-steam)
 10. [Płatności testowe (Stripe)](#10-płatności-testowe-stripe)
 11. [Lista rzeczy do sprawdzenia](#11-lista-rzeczy-do-sprawdzenia)
 12. [Codzienna obsługa](#12-codzienna-obsługa)
@@ -57,7 +57,7 @@ Aplikacja działa bez żadnych kluczy: konto, wgrywanie dem, raport, replay 2D, 
 | --- | --- | --- |
 | `ANTHROPIC_API_KEY` | Teksty Trenera AI (plan tygodnia i karta „Trener AI” w raporcie). Bez klucza trener pokazuje standardowe rady. | <https://console.anthropic.com/> → API Keys |
 | `FACEIT_API_KEY` | Scouting rywali, rangi z pokoju FACEIT, historia meczów FACEIT | <https://developers.faceit.com/> → App Studio → twoja aplikacja → API Keys (Server side) |
-| `FACEIT_CLIENT_ID`, `FACEIT_CLIENT_SECRET` | Łączenie konta FACEIT w Ustawieniach (patrz [punkt 9](#9-połączenie-konta-faceit-https)) | ta sama aplikacja w FACEIT Developers → Authentication |
+| `FACEIT_CLIENT_ID`, `FACEIT_CLIENT_SECRET` | Łączenie konta FACEIT w Ustawieniach (patrz [punkt 9](#9-połączenie-konta-faceit-https-i-steam)) | ta sama aplikacja w FACEIT Developers → Authentication |
 | `FACEIT_DOWNLOADS_API_KEY` | Pobieranie dem z FACEIT po kliknięciu „Analizuj zaznaczone” (bez klucza aplikacja kieruje do ręcznego uploadu) | FACEIT Developers, Downloads API |
 | `STEAM_API_KEY` | Logowanie przez Steam i historia meczów Premier | <https://steamcommunity.com/dev/apikey> |
 | `STRIPE_SECRET_KEY` | Testowe płatności za plan Pro i Drużyna (patrz [punkt 10](#10-płatności-testowe-stripe)). Tylko klucz testowy `sk_test_…`. | <https://dashboard.stripe.com/test/apikeys> |
@@ -161,17 +161,23 @@ Panel admina jest pod <http://localhost:3000/admin> (przegląd, analizy, użytko
 
 3. Odśwież stronę. Polecenie wypisze konto (id, data założenia), żebyś mógł sprawdzić, że to twoje.
 
-## 9. Połączenie konta FACEIT (HTTPS)
+## 9. Połączenie konta FACEIT (HTTPS) i Steam
 
-FACEIT przyjmuje logowanie (OAuth) tylko na zarejestrowane adresy `https://`. Dlatego Docker udostępnia aplikację także pod <https://localhost:3443>. Jednorazowo:
+### FACEIT
 
-1. Wpisz `FACEIT_CLIENT_ID`, `FACEIT_CLIENT_SECRET` i `FACEIT_API_KEY` w `.env` ([punkt 3](#3-klucze-api-opcjonalnie)) i uruchom `docker compose up -d`.
-2. W <https://developers.faceit.com/> → App Studio → twoja aplikacja → Authentication → Redirect URLs dodaj:
+FACEIT przyjmuje logowanie (OAuth) tylko na zarejestrowane adresy `https://`. Dlatego Docker udostępnia aplikację także pod <https://localhost:3443> i tam FACEIT odsyła po zalogowaniu. Jednorazowo:
+
+1. Wpisz `FACEIT_CLIENT_ID`, `FACEIT_CLIENT_SECRET` i `FACEIT_API_KEY` w `.env` ([punkt 3](#3-klucze-api-opcjonalnie)) i uruchom `docker compose up -d`. Bez `FACEIT_CLIENT_ID` i `FACEIT_CLIENT_SECRET` przycisk „Połącz” w Ustawieniach tylko pokaże komunikat, że łączenie jest wyłączone.
+2. W <https://developers.faceit.com/> → App Studio → twoja aplikacja → Authentication → Redirect URLs dodaj dokładnie (bez ukośnika na końcu):
    `https://localhost:3443/api/faceit/link/callback`
-3. Otwórz <https://localhost:3443>. Przeglądarka ostrzeże o certyfikacie (jest lokalny, wystawiony przez Dockera). Chrome/Edge: „Zaawansowane” → „Przejdź do localhost”. Safari: „Pokaż szczegóły” → „odwiedź tę witrynę”. Firefox: „Zaawansowane” → „Akceptuję ryzyko”.
-4. Zaloguj się, wejdź w „Ustawienia” i kliknij „Połącz FACEIT”.
+3. Raz otwórz <https://localhost:3443> i zaakceptuj ostrzeżenie o certyfikacie (jest lokalny, wystawiony przez Dockera). Chrome/Edge: „Zaawansowane” → „Przejdź do localhost”. Safari: „Pokaż szczegóły” → „odwiedź tę witrynę”. Firefox: „Zaawansowane” → „Akceptuję ryzyko”. Bez tego okienko FACEIT zatrzyma się na ostrzeżeniu.
+4. Na komputerze (<http://localhost:3000> albo <https://localhost:3443>, oba działają) wejdź w „Ustawienia” i kliknij „Połącz” przy FACEIT. Otworzy się okienko FACEIT; po zalogowaniu zamknie się samo, a Ustawienia pokażą „Połączono jako …”.
 
-Po połączeniu możesz wrócić na <http://localhost:3000> albo na telefon: konto zostaje połączone, a historia FACEIT, zaznaczanie meczów i scouting działają na każdym adresie.
+Połączenie robi się na komputerze, na którym działa Docker: z telefonu FACEIT odesłałby na `localhost`, czyli na sam telefon (Ustawienia na telefonie o tym przypominają). Po połączeniu konto jest połączone wszędzie, także na telefonie.
+
+### Steam
+
+Steam nie wymaga rejestrowania adresu powrotu: wystarczy `STEAM_API_KEY` w `.env` (klucz z <https://steamcommunity.com/dev/apikey>; w polu „Domain Name” wpisz cokolwiek, np. `localhost`). Potem „Ustawienia” → „Połącz” przy Steam przenosi prosto na stronę logowania Steam i z powrotem do Ustawień. Działa na komputerze i na telefonie (adres `http://<IP komputera>:3000`). Bez klucza przycisk pokaże komunikat, że Steam jest wyłączony, a na stronie logowania nie ma przycisku Steam.
 
 ## 10. Płatności testowe (Stripe)
 
@@ -229,7 +235,7 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 
 **FACEIT, Steam, powiadomienia**
 
-- [ ] Połączenie FACEIT ([punkt 9](#9-połączenie-konta-faceit-https)), synchronizacja historii, zaznaczenie meczów i „Analizuj zaznaczone”
+- [ ] Połączenie FACEIT ([punkt 9](#9-połączenie-konta-faceit-https-i-steam)), synchronizacja historii, zaznaczenie meczów i „Analizuj zaznaczone”
 - [ ] Scouting: wklejenie linku do pokoju FACEIT, karta rywali i sugestia veto
 - [ ] Premier (z `STEAM_API_KEY`): kod udostępniania meczu, synchronizacja
 - [ ] Dzwonek powiadomień po zakończonej analizie
