@@ -16,7 +16,7 @@ test("raport pokazuje błędy z radą, ćwiczeniem i podglądem 2D", async ({ pa
   await expectCanvasPainted(page, "canvas[aria-label^='Podgląd 2D']");
 
   // Every issue lists its moments; each one opens its own clip.
-  const issue = page.locator("details").first();
+  const issue = page.locator("details[id^='issue-']").first();
   await issue.locator("summary").click();
   const ticks = page.waitForResponse((r) => r.url().includes(`/api/matches/${matchId}/ticks`) && r.ok());
   await issue.getByRole("button", { name: "Podgląd 2D" }).first().click();
