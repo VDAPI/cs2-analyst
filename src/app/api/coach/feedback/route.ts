@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
   // A match rating is only accepted for the user's own analysis.
   if (context.startsWith("match:")) {
-    const owned = await prisma.match.count({ where: { id: context.slice(6), upload: { userId } } });
+    const owned = await prisma.match.count({ where: { id: context.slice(6), upload: { userId, deletedAt: null } } });
     if (owned === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

@@ -29,7 +29,7 @@ export async function GET(req: Request) {
   // Get all user's matches on this map (or filtered set)
   const whereClause = {
     map: mapName,
-    upload: { userId: session.user.id },
+    upload: { userId: session.user.id, deletedAt: null },
     ...(matchIds?.length ? { id: { in: matchIds } } : {}),
   };
 

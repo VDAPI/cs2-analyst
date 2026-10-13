@@ -33,11 +33,11 @@ export async function GET(req: Request, { params }: Props) {
     select: {
       id: true,
       map: true,
-      upload: { select: { userId: true } },
+      upload: { select: { userId: true, deletedAt: true } },
     },
   });
 
-  if (!match || match.upload?.userId !== session.user.id) {
+  if (!match || match.upload?.userId !== session.user.id || match.upload.deletedAt) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
