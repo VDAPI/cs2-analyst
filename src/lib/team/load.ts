@@ -60,6 +60,26 @@ export interface TeamContext {
   memberUserIds: string[];
 }
 
+/**
+ * Runs `fn` in a transaction holding a per-team advisory lock (the
+ * `withUploadSlots` pattern), so a count-then-create against a team cap
+ * (members, rivals, boards) can't be raced past by parallel requests. Keep
+ * slow work outside `fn`.
+ */
+export async function withTeamLock<T>(
+  prisma: PrismaClient,
+  teamId: string,
+  fn: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`team:${teamId}`}))`;
+      return fn(tx);
+    },
+    { timeout: 15_000 }
+  );
+}
+
 /** The team as seen by one of its members, or null when the user is not in it. */
 export async function getTeamContext(prisma: PrismaClient, userId: string, teamId: string): Promise<TeamContext | null> {
   const team = await prisma.team.findFirst({
