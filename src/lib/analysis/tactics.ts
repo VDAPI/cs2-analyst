@@ -32,7 +32,7 @@
 import { distToSite, mergeSites, siteCentresFromPlants, zoneOf, type SiteCentres } from "./sites";
 
 /** Bump when detection or summary numbers change; stored rows are recomputed. */
-export const TACTICS_VERSION = 4;
+export const TACTICS_VERSION = 5;
 
 /** A kill of the killer within this many seconds trades the death. */
 export const TRADE_WINDOW_S = 3;
@@ -653,13 +653,18 @@ export function analyzeTactics(input: TacticsInput, opts: TacticsOptions = {}): 
     for (const side of ["CT", "T"] as Side[]) {
       const roster = c.roster[side];
       if (roster.length < 2) continue;
-      const deathsOnSide = c.kills.filter((k) => c.sideOf.get(k.victimSteamId) === side);
+      // Every death counts here, not only enemy kills: a mate who dies to the
+      // bomb, a fall or a team kill (stored as Kill rows with attacker = victim
+      // or a same-side attacker) leaves the player alone just the same.
+      const deathsOnSide = [...c.deathTick]
+        .filter(([id, tick]) => c.sideOf.get(id) === side && roster.includes(id) && tick <= round.endTick)
+        .map(([, tick]) => tick)
+        .sort((a, b) => a - b);
       // The moment one player is left alone.
-      const lastMateDeath = deathsOnSide.find((k) => aliveOn(c, side, k.tick).length === 1);
-      if (!lastMateDeath) continue;
-      const solo = aliveOn(c, side, lastMateDeath.tick)[0];
+      const soloStart = deathsOnSide.find((tick) => aliveOn(c, side, tick).length === 1);
+      if (soloStart == null) continue;
+      const solo = aliveOn(c, side, soloStart)[0];
       if (!solo) continue;
-      const soloStart = lastMateDeath.tick;
       const enemiesAt = (tick: number) => aliveOn(c, other(side), tick).length;
       if (enemiesAt(soloStart) === 0) continue;
       const soloDeath = c.deathTick.get(solo);
