@@ -166,40 +166,85 @@ export async function parseReplayData(
     console.warn("[replay-data] weapon_reload unavailable:", err);
   }
 
+  // Same match-end cutoff as the parser's kills/damage/grenades/bombs, so late
+  // last-round events are kept here too.
+  const lastRoundEndTick = rounds.reduce((m, r) => Math.max(m, r.endTick), -Infinity);
+  let tickRate = 64;
+  try {
+    tickRate = num(parser.parseHeader(filePath)?.tickrate) || 64;
+  } catch {
+    // header is optional here; 64 is the CS2 default
+  }
+  let winPanelTicks: number[] = [];
+  try {
+    const panel = (parser.parseEvent(filePath, "cs_win_panel_match") ?? []) as Record<string, unknown>[];
+    winPanelTicks = panel.map((e) => num(e.tick));
+  } catch {
+    // optional event
+  }
+  const matchEndTick = matchEndTickFor(lastRoundEndTick, tickRate, winPanelTicks);
+
   return {
     roundTicks,
-    shots: shotsFromEvents(fireEvents, rounds),
-    damages: damagesFromEvents(hurtEvents, rounds),
-    reloads: reloadsFromEvents(reloadEvents, rounds),
+    shots: shotsFromEvents(fireEvents, rounds, matchEndTick),
+    damages: damagesFromEvents(hurtEvents, rounds, matchEndTick),
+    reloads: reloadsFromEvents(reloadEvents, rounds, matchEndTick),
   };
+}
+
+/** Seconds after the last round_end that still count when there is no win panel. */
+export const MATCH_END_GRACE_S = 5;
+
+/**
+ * Last tick that belongs to the match, shared by the parser (kills, damage,
+ * grenades, bombs) and the replay data (shots, damage, reloads): the first
+ * cs_win_panel_match at or after the last round_end, else that round_end plus
+ * `MATCH_END_GRACE_S` (exit frags). Infinity when there are no rounds.
+ */
+export function matchEndTickFor(
+  lastRoundEndTick: number,
+  tickRate: number,
+  winPanelTicks: number[]
+): number {
+  if (!Number.isFinite(lastRoundEndTick)) return Infinity;
+  const panel = winPanelTicks.filter((t) => t >= lastRoundEndTick).sort((a, b) => a - b);
+  if (panel.length > 0) return panel[0];
+  return lastRoundEndTick + Math.round((tickRate > 0 ? tickRate : 64) * MATCH_END_GRACE_S);
 }
 
 /**
  * Round an event belongs to: the last round started at or before it (so
  * post-round-end events stay with their round, matching kills). Events before
- * the first round (warmup, knife) or after the last round ends are dropped.
+ * the first round (warmup, knife) or after the match ends are dropped: after
+ * `matchEndTick` when given (the parser's cutoff, see `matchEndTickFor`), else
+ * after the last round's end.
  */
-export function roundForTick(tick: number, rounds: ReplayRoundWindow[]): number | null {
+export function roundForTick(
+  tick: number,
+  rounds: ReplayRoundWindow[],
+  matchEndTick?: number
+): number | null {
   let found: ReplayRoundWindow | null = null;
   for (const r of rounds) {
     if (r.startTick <= tick && (!found || r.startTick > found.startTick)) found = r;
   }
   if (!found) return null;
   const last = rounds.reduce((a, b) => (b.startTick > a.startTick ? b : a));
-  if (found === last && tick > last.endTick) return null;
+  if (found === last && tick > (matchEndTick ?? last.endTick)) return null;
   return found.number;
 }
 
 export function shotsFromEvents(
   events: Record<string, unknown>[],
-  rounds: ReplayRoundWindow[]
+  rounds: ReplayRoundWindow[],
+  matchEndTick?: number
 ): ParsedShot[] {
   const shots: ParsedShot[] = [];
   for (const e of events) {
     const steamId = str(e.user_steamid);
     if (!steamId) continue;
     const tick = num(e.tick);
-    const roundNumber = roundForTick(tick, rounds);
+    const roundNumber = roundForTick(tick, rounds, matchEndTick);
     if (roundNumber === null) continue;
     shots.push({
       tick,
@@ -221,14 +266,15 @@ export function shotsFromEvents(
 
 export function damagesFromEvents(
   events: Record<string, unknown>[],
-  rounds: ReplayRoundWindow[]
+  rounds: ReplayRoundWindow[],
+  matchEndTick?: number
 ): ParsedDamage[] {
   const damages: ParsedDamage[] = [];
   for (const e of events) {
     const victimSteamId = str(e.user_steamid);
     if (!victimSteamId) continue;
     const tick = num(e.tick);
-    const roundNumber = roundForTick(tick, rounds);
+    const roundNumber = roundForTick(tick, rounds, matchEndTick);
     if (roundNumber === null) continue;
     // World / fall damage has no attacker; keep the event, null the attacker.
     const attackerSteamId = str(e.attacker_steamid) || null;
@@ -258,14 +304,15 @@ export function damagesFromEvents(
 
 export function reloadsFromEvents(
   events: Record<string, unknown>[],
-  rounds: ReplayRoundWindow[]
+  rounds: ReplayRoundWindow[],
+  matchEndTick?: number
 ): ParsedReload[] {
   const reloads: ParsedReload[] = [];
   for (const e of events) {
     const steamId = str(e.user_steamid);
     if (!steamId) continue;
     const tick = num(e.tick);
-    const roundNumber = roundForTick(tick, rounds);
+    const roundNumber = roundForTick(tick, rounds, matchEndTick);
     if (roundNumber === null) continue;
     reloads.push({
       tick,

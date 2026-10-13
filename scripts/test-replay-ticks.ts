@@ -25,7 +25,13 @@ import {
   subsampleFrames,
   REPLAY_SAMPLE_INTERVAL,
 } from "@/lib/replay/round-ticks";
-import { damagesFromEvents, roundForTick, shotsFromEvents } from "@/lib/parsers/replay-data";
+import {
+  damagesFromEvents,
+  matchEndTickFor,
+  reloadsFromEvents,
+  roundForTick,
+  shotsFromEvents,
+} from "@/lib/parsers/replay-data";
 
 const checks: [string, boolean][] = [];
 const check = (label: string, ok: boolean) => checks.push([label, ok]);
@@ -179,6 +185,26 @@ const damages = damagesFromEvents(
 );
 check("damage: attacker fields kept", damages[0].attackerSteamId === "a" && damages[0].attackerX === 10 && damages[0].healthAfter === 73);
 check("damage: world damage kept with null attacker", damages[1].attackerSteamId === null && damages[1].attackerX === null);
+
+// Match-end cutoff = the parser's rule for kills/damage/grenades/bombs: the
+// first win panel at/after the last round_end, else round_end + 5 s.
+check("match end: no win panel → last round end + 5 s", matchEndTickFor(9000, 64, []) === 9320);
+check("match end: win panel before the last round end ignored", matchEndTickFor(9000, 64, [8000]) === 9320);
+check("match end: earliest win panel after the last round end", matchEndTickFor(9000, 64, [9700, 9100]) === 9100);
+check("match end: 128-tick grace", matchEndTickFor(9000, 128, []) === 9640);
+check("match end: no rounds → no cutoff", matchEndTickFor(-Infinity, 64, []) === Infinity);
+{
+  const end = matchEndTickFor(9000, 64, []);
+  check("late last-round tick kept with the parser's cutoff", roundForTick(9100, rounds, end) === 2);
+  check("tick after the parser's cutoff dropped", roundForTick(9400, rounds, end) === null);
+  check("cutoff only affects the last round", roundForTick(900, rounds, end) === null && roundForTick(5200, rounds, end) === 1);
+  const late = shotsFromEvents([{ tick: 9200, user_steamid: "a", weapon: "ak47" }, { tick: 9500, user_steamid: "a", weapon: "ak47" }], rounds, end);
+  check("shots: late last-round shot kept, after match end dropped", late.length === 1 && late[0].roundNumber === 2);
+  const lateDmg = damagesFromEvents([{ tick: 9300, user_steamid: "b", attacker_steamid: "a", weapon: "ak47", dmg_health: 10 }], rounds, end);
+  check("damage: late last-round hit kept (matches Kill)", lateDmg.length === 1 && lateDmg[0].roundNumber === 2);
+  const lateReload = reloadsFromEvents([{ tick: 9250, user_steamid: "a", user_active_weapon_name: "ak47" }], rounds, end);
+  check("reloads: late last-round reload kept", lateReload.length === 1 && lateReload[0].roundNumber === 2);
+}
 
 // ─── 4. Size of a synthetic full match ───────────────────
 
