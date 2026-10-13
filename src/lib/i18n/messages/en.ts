@@ -1184,6 +1184,7 @@ export const en: Messages = {
     listCounts: "{players} players · {matches} matches · {boards} boards",
     emptyTitle: "You're not scouting anyone yet",
     emptyBody: "Add a rival from a match against them, from an uploaded demo of their match, or by SteamID.",
+    addOwnerOnly: "Rivals are added by the team owner or coach. You can see the reports of existing rivals above.",
     addTitle: "Add a rival",
     fromTeam: "From our match",
     fromLibrary: "From an uploaded demo",

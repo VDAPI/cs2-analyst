@@ -25,6 +25,12 @@ export const TEAM_MATCH_LIMIT = 60;
 export const canManageTeam = (role: TeamRoleName) => role === "OWNER";
 export const canManageContent = (role: TeamRoleName) =>
   role === "OWNER" || role === "COACH";
+/**
+ * Adding a rival or changing its players: owner and coach only (owner's call,
+ * 2026-10-13). A rival's SteamIDs open teammates' matches with those players to
+ * every member (`teamCanSeeMatch`), so a player must not pick them freely.
+ */
+export const canManageRivals = canManageContent;
 /** Boards and rivals: their author, or owner/coach. */
 export const canEditItem = (
   role: TeamRoleName,

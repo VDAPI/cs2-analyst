@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getT } from "@/lib/i18n/server";
 import { findTeamMatches, getTeamContext } from "@/lib/team/load";
+import { canManageRivals } from "@/lib/team/roster";
 import type { AntiStratReport } from "@/lib/team/antistrat";
 import { formatDate } from "@/lib/utils/formatters";
 import { EmptyState, SectionTitle } from "@/components/ui";
@@ -89,6 +90,9 @@ export default async function RivalsPage({ params }: Props) {
         <SectionTitle>
           <span id="dodaj-rywala">{t("rivals.addTitle")}</span>
         </SectionTitle>
+        {!canManageRivals(ctx.role) ? (
+          <p className="text-sm text-[var(--text-secondary)]">{t("rivals.addOwnerOnly")}</p>
+        ) : (
         <RivalCreate
           teamId={teamId}
           teamMatches={teamMatches.map((m) => {
@@ -111,6 +115,7 @@ export default async function RivalsPage({ params }: Props) {
               t: m.players.filter((p) => p.team === "T").map((p) => p.name),
             }))}
         />
+        )}
       </section>
     </div>
   );
