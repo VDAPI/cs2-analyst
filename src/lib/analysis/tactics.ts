@@ -32,7 +32,7 @@
 import { distToSite, mergeSites, siteCentresFromPlants, zoneOf, type SiteCentres } from "./sites";
 
 /** Bump when detection or summary numbers change; stored rows are recomputed. */
-export const TACTICS_VERSION = 3;
+export const TACTICS_VERSION = 4;
 
 /** A kill of the killer within this many seconds trades the death. */
 export const TRADE_WINDOW_S = 3;
@@ -390,7 +390,9 @@ export function analyzeTactics(input: TacticsInput, opts: TacticsOptions = {}): 
     const sideOf = sidesFor(round);
     const roster: Record<Side, string[]> = { CT: [], T: [] };
     for (const [id, side] of sideOf) if (out.has(id)) roster[side].push(id);
+    // Exit frags after the round end (savers hunted) are not part of the round's play.
     const kills = (killsBy.get(round.number) ?? [])
+      .filter((k) => k.tick <= round.endTick)
       .filter((k) => {
         const a = sideOf.get(k.attackerSteamId);
         const v = sideOf.get(k.victimSteamId);
@@ -885,9 +887,11 @@ export function analyzeTactics(input: TacticsInput, opts: TacticsOptions = {}): 
         if (died == null || dropped.has(id)) continue;
         const lastRound = isLastOfHalf(n);
         if (!(lastRound ? e.money >= LAST_ROUND_UNSPENT : e.money >= UNSPENT_MONEY && e.equipValue < 5000)) continue;
+        // The match's final round: no side change follows, the money is simply worth nothing after it.
+        const matchEnd = lastRound && n >= totalRounds;
         push(id, {
           type: "death_with_money",
-          variant: lastRound ? "last_round" : "underbuy",
+          variant: matchEnd ? "match_end" : lastRound ? "last_round" : "underbuy",
           roundNumber: n,
           tick: died,
           roundTime: roundTime(c.round, died),
@@ -896,7 +900,9 @@ export function analyzeTactics(input: TacticsInput, opts: TacticsOptions = {}): 
             { label: "Niewydane", value: e.money, unit: "$", ref: lastRound ? LAST_ROUND_UNSPENT : UNSPENT_MONEY },
             { label: "Sprzęt", value: e.equipValue, unit: "$" },
           ],
-          detail: lastRound
+          detail: matchEnd
+            ? `ostatnia runda meczu: zginąłeś z ${e.money} $, które po meczu nic nie były warte`
+            : lastRound
             ? `ostatnia runda połowy: zginąłeś z ${e.money} $, które po zmianie stron przepadły`
             : `zginąłeś z ${e.money} $ niewydanymi przy sprzęcie za ${e.equipValue} $`,
           costly: true,

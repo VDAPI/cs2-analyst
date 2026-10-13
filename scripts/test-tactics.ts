@@ -444,6 +444,46 @@ check("predictable position reaches A1's top 3", a1Report.top.some((i) => i.type
   check("killed after the explosion → no solo retake", !b1.moments.some((m) => m.type === "retake_solo"));
 }
 
+// ─── 12. Exit frags after the round end; money in the match's last round ───
+{
+  const ek: TacticsKill[] = [];
+  const ekill = (rn: number, tick: number, attacker: string, victim: string) =>
+    ek.push({
+      tick, roundNumber: rn, attackerSteamId: attacker, victimSteamId: victim,
+      attackerPosX: 0, attackerPosY: 0, attackerPosZ: 0, victimPosX: 0, victimPosY: 0, victimPosZ: 0,
+    });
+  // Round 4 (A on T): ends at 3000 by time; B1 (CT) hunted at 3200, teammates 2500 u away.
+  ekill(4, 3200, A1, B1);
+  // Round 24 (A on CT, final round of a 24-round match): B1 dies with $2000 left.
+  ekill(24, 1000, A1, B1);
+  const epos: Record<string, number> = { [B1]: 0, [B2]: 2500, [B3]: 2600, [A1]: 9000, [A2]: 9000, [A3]: 9000 };
+  const eframes: TacticsFrame[] = [0, 3500].map((tick) => ({
+    tick,
+    players: [...A, ...B].map((id) => ({
+      steamId: id, team: A.includes(id) ? ("T" as const) : ("CT" as const),
+      x: epos[id], y: 0, z: 0, velX: 0, velY: 0, isAlive: true,
+    })),
+  }));
+  const exitRes = analyzeTactics({
+    tickRate: TICK_RATE,
+    rounds: [
+      { number: 4, startTick: 0, endTick: 3000, winner: "CT", winReason: "TIME_RAN_OUT", ctScore: 3, tScore: 1, frames: eframes },
+      { number: 24, startTick: 0, endTick: 3000, winner: "CT", winReason: "ELIMINATION", ctScore: 13, tScore: 11, frames: [] },
+    ],
+    kills: ek, damages: [], bombs: [],
+    economy: [{ roundNumber: 24, steamId: B1, equipValue: 4500, money: 2000 }],
+    players, totalRounds: 24,
+  });
+  const eb1 = exitRes.find((p) => p.steamId === B1)!;
+  check("killed after the round end → no untraded death, not counted as a death (only the round-24 one)",
+    !eb1.moments.some((m) => m.roundNumber === 4) && eb1.deaths === 1);
+  const end = eb1.moments.find((m) => m.type === "death_with_money" && m.roundNumber === 24);
+  check("money in the match's final round: own variant, no side-change text",
+    end?.variant === "match_end" && !end.detail.includes("zmianie stron"));
+  const endDraft = detectFindings({ mechanics: [], aim: [], tactics: [{ steamId: B1, moments: end ? [end] : [] }] })[0];
+  check("match-end money gets its own advice", !!endDraft && endDraft.advice.includes("meczu") && endDraft.severity === "medium");
+}
+
 // ─── Report ──────────────────────────────────────────────
 
 let failed = 0;

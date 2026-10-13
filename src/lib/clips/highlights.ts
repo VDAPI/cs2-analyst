@@ -126,6 +126,8 @@ export function detectHighlights({ rounds, finalTeamBySteamId, sideAt, tickRate 
 
     const byPlayer = new Map<string, HighlightKill[]>();
     for (const k of round.kills) {
+      // Exit frags after the round end (savers hunted) are not part of a multi-kill.
+      if (k.tick > round.endTick) continue;
       const a = sideOf.get(k.attackerSteamId);
       const v = sideOf.get(k.victimSteamId);
       // Suicides, world deaths and team kills are not frags.
