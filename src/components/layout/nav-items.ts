@@ -24,6 +24,9 @@ import {
   Clapperboard,
   UserRound,
   CreditCard,
+  FolderOpen,
+  Sparkles,
+  Map as MapIcon,
   type LucideIcon,
 } from "lucide-react";
 import type { MessageKey } from "@/lib/i18n/translate";
@@ -40,48 +43,77 @@ export interface NavItem {
 }
 
 export interface NavGroup {
+  /** Stable id, used to remember whether the group is open. */
+  id: string;
   labelKey: MessageKey;
-  /** Shorter label for the mobile bottom bar. */
-  shortLabelKey?: MessageKey;
+  icon: LucideIcon;
   items: NavItem[];
 }
 
+/** Sidebar categories; each one expands into its screens. Every screen lives in exactly one group. */
 export const navGroups: NavGroup[] = [
   {
-    labelKey: "nav.groupAnalysis",
+    id: "matches",
+    labelKey: "nav.groupMatches",
+    icon: FolderOpen,
     items: [
       { href: "/matches", labelKey: "nav.matches", icon: BarChart3 },
       { href: "/report", labelKey: "nav.report", icon: ClipboardCheck },
-      { href: "/progress", labelKey: "nav.progress", icon: TrendingUp },
-      { href: "/coach", labelKey: "nav.coach", icon: GraduationCap },
-      { href: "/training", labelKey: "nav.training", icon: Dumbbell },
-      { href: "/clips", labelKey: "nav.clips", icon: Clapperboard },
       { href: "/upload", labelKey: "nav.upload", shortLabelKey: "nav.uploadShort", icon: Upload },
       { href: "/queue", labelKey: "nav.queue", icon: ListOrdered },
       { href: "/library", labelKey: "nav.library", icon: Library },
       { href: "/premier", labelKey: "nav.premier", icon: Gamepad2 },
-      { href: "/players", labelKey: "nav.players", icon: Users },
-      { href: "/compare", labelKey: "nav.compare", icon: GitCompare },
     ],
   },
   {
-    labelKey: "nav.groupTools",
+    id: "improve",
+    labelKey: "nav.groupImprove",
+    icon: Sparkles,
+    items: [
+      { href: "/progress", labelKey: "nav.progress", icon: TrendingUp },
+      { href: "/coach", labelKey: "nav.coach", icon: GraduationCap },
+      { href: "/training", labelKey: "nav.training", icon: Dumbbell },
+      { href: "/clips", labelKey: "nav.clips", icon: Clapperboard },
+    ],
+  },
+  {
+    id: "map",
+    labelKey: "nav.groupMap",
+    icon: MapIcon,
     items: [
       { href: "/replay", labelKey: "nav.replay", icon: Play },
       { href: "/heatmaps", labelKey: "nav.heatmaps", icon: Flame },
       { href: "/grenades", labelKey: "nav.grenades", icon: Crosshair },
       { href: "/lineups", labelKey: "nav.lineups", icon: Target },
       { href: "/economy", labelKey: "nav.economy", icon: DollarSign },
+    ],
+  },
+  {
+    id: "players",
+    labelKey: "nav.groupPlayers",
+    icon: Users,
+    items: [
+      { href: "/players", labelKey: "nav.players", icon: Users },
+      { href: "/compare", labelKey: "nav.compare", icon: GitCompare },
+      { href: "/friends", labelKey: "nav.friends", icon: UserRound },
+    ],
+  },
+  {
+    id: "team",
+    labelKey: "nav.groupTeam",
+    icon: Shield,
+    items: [
+      { href: "/team", labelKey: "nav.team", icon: Shield },
       { href: "/scouting", labelKey: "nav.scouting", icon: Binoculars },
     ],
   },
   {
+    id: "pro",
     labelKey: "nav.groupPro",
+    icon: Trophy,
     items: [
       { href: "/pro", labelKey: "nav.pro", icon: Trophy },
       { href: "/play-like-pro", labelKey: "nav.playLikePro", icon: Swords },
-      { href: "/team", labelKey: "nav.team", icon: Shield },
-      { href: "/friends", labelKey: "nav.friends", icon: UserRound },
       { href: "/billing", labelKey: "nav.billing", icon: CreditCard },
     ],
   },
@@ -97,4 +129,9 @@ export const mobilePrimaryHrefs = ["/matches", "/report", "/upload", "/replay"];
 
 export function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** The group holding the current screen, if any. */
+export function activeGroupId(pathname: string): string | undefined {
+  return navGroups.find((g) => g.items.some((i) => isActivePath(pathname, i.href)))?.id;
 }
