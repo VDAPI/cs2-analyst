@@ -272,6 +272,10 @@ export function buildTeamDashboard(
       s.clutchAttempts += p.clutchAttempts;
       s.utilityDamage += p.utilityDamage;
       s.flashAssists += p.flashAssists;
+    }
+    // Openings of the whole side, the same players as the trades below.
+    for (const p of m.players) {
+      if (p.team !== m.teamSide) continue;
       out.openings.kills += p.firstKills;
       out.openings.deaths += p.firstDeaths;
     }

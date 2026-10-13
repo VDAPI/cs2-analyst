@@ -176,6 +176,7 @@ const THEM = [11, 12, 13, 14, 15].map(sid);
   check("ADR / rating weighted by rounds", near(one.adr, Math.round(((90 * 16 + 120 * 8) / 24) * 10) / 10) && near(one.rating, Math.round(((1.3 * 16 + 1.6 * 8) / 24) * 100) / 100));
   check("only roster players get a line", d.players.length === 3 && !d.players.some((p) => p.steamId === sid(50) || p.steamId === THEM[0]));
   check("trades count the team's side (pug included), not the enemy", d.trades.deaths === 50 && d.trades.traded === 18);
+  check("openings count the same players as trades (pug included), not the enemy", d.openings.kills === 14 && d.openings.deaths === 22);
   const untraded = d.findings.find((f) => f.type === "untraded_death")!;
   check("mistakes: roster only, most common first", d.findings[0].type === "untraded_death" && untraded.count === 6 && untraded.high === 2 && untraded.players[0].steamId === OURS[0]);
   check("mistakes per 10 rounds", near(untraded.per10, Math.round((6 / 24) * 100) / 10));
