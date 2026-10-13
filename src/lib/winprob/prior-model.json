@@ -12,99 +12,119 @@
     "planted",
     "t_alive",
     "t_hp",
+    "time_left",
     "time_pressure"
   ],
-  "intercept": -0.0334,
+  "intercept": 0.31758,
   "terms": [
     {
       "f": [
         "alive_log_ratio"
       ],
-      "w": 2.8979
+      "w": 3.68907
     },
     {
       "f": [
         "alive_diff"
       ],
-      "w": 0.3784
+      "w": -0.08258
     },
     {
       "f": [
         "t_hp"
       ],
-      "w": 0.0055
+      "w": 0.00406
     },
     {
       "f": [
         "ct_hp"
       ],
-      "w": -0.0055
+      "w": -0.00527
     },
     {
       "f": [
         "t_alive"
       ],
-      "w": -0.5499999999999999
+      "w": -0.01633
     },
     {
       "f": [
         "ct_alive"
       ],
-      "w": 0.5499999999999999
+      "w": 0.06391
     },
     {
       "f": [
         "equip_avg_diff"
       ],
-      "w": 0.7
+      "w": 0.11315
+    },
+    {
+      "f": [
+        "equip_avg_diff",
+        "time_left"
+      ],
+      "w": 0.00312
     },
     {
       "f": [
         "planted"
       ],
-      "w": 1.95
+      "w": 2.76103
+    },
+    {
+      "f": [
+        "planted",
+        "alive_log_ratio"
+      ],
+      "w": 0.24135
     },
     {
       "f": [
         "defuse_margin"
       ],
-      "w": -0.11
+      "w": -0.17114
     },
     {
       "f": [
         "defuse_short"
       ],
-      "w": 0.4
+      "w": 0.48326
     },
     {
       "f": [
         "defusing"
       ],
-      "w": -1.0
+      "w": -1.21763
     },
     {
       "f": [
         "time_pressure"
       ],
-      "w": -0.2
+      "w": 0.52735
     },
     {
       "f": [
         "time_pressure",
         "time_pressure"
       ],
-      "w": -5.6
+      "w": -3.22213
+    },
+    {
+      "f": [
+        "time_pressure",
+        "alive_log_ratio"
+      ],
+      "w": 0.49694
     }
   ],
   "fill": {
     "defuse_margin": 0
   },
   "sources": [
-    "Man advantage (alive counts): nomiun.substack.com 'Which Players Win the Most Rounds?' (pro CS2, 2025); cryptm.org CS:GO MM table (~400k rounds, Kaggle csgo-matchmaking-damage); scope.gg 2026 first-kill conversion (Premier/FACEIT)",
-    "Round start: CT 51.1% in tier-1 CS2 2025-26 (TaiZo1, ~32k rounds)",
-    "Plant: T ~70% right after the plant in an even mid-round state; ~78-82% expected post-plant in pro gun rounds (HLTV/EDGE 2024)",
-    "Economy: full buy vs full eco ~96% (HLTV Rating 3.0 example); eco wins ~3% vs any buy (Xenopoulos et al. 2021)",
-    "Clock and defuse race: set by hand (no public source quantifies them); the trained model replaces them",
+    "Fitted on ESTA (Esports Trajectories and Actions): 1558 pro CS:GO matches, 41016 rounds, 2021-22 (P. Xenopoulos, C. Silva et al., github.com/pnxenopoulos/esta, CC BY-SA 4.0); same round rules as CS2",
+    "Held-out check (20% of the matches): log loss 0.43705, AUC 0.8693, calibration error 0.01128",
+    "Replaced by a model trained on this site's own CS2 matches once one beats it on them",
     "Model form and validation: Xenopoulos, Doraiswamy, Silva, 'Valuing Player Actions in CS:GO' (arXiv 2011.01324)"
   ]
 }

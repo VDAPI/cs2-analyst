@@ -881,6 +881,13 @@ export const en: Messages = {
   },
   winprob: {
     costLong: "Cost the team {pp} pp of round win chance",
+    costByKind: {
+      death: "This death cost the team {pp} pp of round win chance",
+      mate_death: "The flashed teammate's death cost the team {pp} pp of round win chance",
+      trade: "The missing trade cost the team {pp} pp of round win chance",
+      drop: "The missing drop cost the team {pp} pp of round win chance",
+    },
+    deathUpperBound: "The whole value of this death. The duel might have been lost without this mistake too, so the mistake itself cost at most this much.",
     gainLong: "Gave the team +{pp} pp of round win chance",
     beforeAfter: "{before}% → {after}%",
     approx: "starter model, ≈",

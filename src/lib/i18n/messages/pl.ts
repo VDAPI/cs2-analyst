@@ -884,6 +884,13 @@ export const pl = {
   },
   winprob: {
     costLong: "Kosztowało team {pp} pp szansy na rundę",
+    costByKind: {
+      death: "Ta śmierć kosztowała drużynę {pp} pp szansy na rundę",
+      mate_death: "Śmierć oślepionego kolegi kosztowała drużynę {pp} pp szansy na rundę",
+      trade: "Brak trade'u kosztował drużynę {pp} pp szansy na rundę",
+      drop: "Brak dropu kosztował drużynę {pp} pp szansy na rundę",
+    },
+    deathUpperBound: "Cała wartość tej śmierci. Pojedynek mógł być przegrany także bez tego błędu, więc sam błąd kosztował co najwyżej tyle.",
     gainLong: "Dało teamowi +{pp} pp szansy na rundę",
     beforeAfter: "{before}% → {after}%",
     approx: "model wstępny, ≈",
