@@ -209,8 +209,14 @@ check("prior: 5v4 ≈ 70%", p54 > 0.62 && p54 < 0.8);
 check("prior: the plant helps T", predictT(PRIOR_MODEL, fPlant) > predictT(PRIOR_MODEL, { ...fPlant, planted: 0, defuse_margin: NaN, time_pressure: 0.2 }));
 check("prior: CT too far to defuse ≈ T wins", predictT(PRIOR_MODEL, { ...withAlive(1, 2), planted: 1, time_pressure: 0, defuse_margin: -8, defuse_short: 8 }) > 0.8);
 check("prior: a defuse under way helps CT", predictT(PRIOR_MODEL, { ...fPlant, defusing: 1 }) < predictT(PRIOR_MODEL, fPlant));
-check("prior: no time left before the plant ≈ lost for T", predictT(PRIOR_MODEL, { ...withAlive(5, 1), time_pressure: 1 }) < 0.5);
-check("prior: full buy vs eco", predictT(PRIOR_MODEL, { ...withAlive(5, 5), equip_avg_diff: 4.2 }) > 0.9);
+// Fitted on pro rounds (ml/fit_prior_esta.py): an even fight with the clock out and no plant is lost for T.
+check(
+  "prior: no time left before the plant ≈ lost for T",
+  predictT(PRIOR_MODEL, { ...withAlive(2, 2), time_left: 0, time_pressure: 1 }) < 0.15
+);
+// ESTA round starts with T ≥ $3k better equipped per player: T win ≈ 89%.
+check("prior: full buy vs eco", predictT(PRIOR_MODEL, { ...withAlive(5, 5), equip_avg_diff: 4.2 }) > 0.8);
+check("prior: eco vs full buy", predictT(PRIOR_MODEL, { ...withAlive(5, 5), equip_avg_diff: -4.2 }) < 0.2);
 
 const fixture = JSON.parse(readFileSync(path.join(process.cwd(), "scripts/fixtures/winprob-gbdt.json"), "utf8")) as {
   model: GbdtModel;
