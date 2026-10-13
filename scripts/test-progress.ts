@@ -47,6 +47,7 @@ import {
 } from "@/lib/sharing/share";
 import { newShareToken } from "@/lib/sharing/token";
 import { makeCanvasToWorld, makeWorldToCanvas } from "@/lib/canvas/radar";
+import { roundAllowed, type MatchAccess } from "@/lib/sharing/access";
 import { pl } from "@/lib/i18n/messages/pl";
 import { en } from "@/lib/i18n/messages/en";
 
@@ -273,6 +274,15 @@ const view = buildProgressView(goalMatches);
 check("view: one series per metric, points per match", view.series.length === PROGRESS_METRICS.length && view.series.every((s) => s.points.length === goalMatches.length));
 check("view: wins counted", view.wins === goalMatches.length && view.losses === 0);
 check("view: trend for moving first shots is better", view.series.find((s) => s.key === "moving_first")?.trend?.verdict === "better");
+
+// ─── Share access: a moment/clip link only reads its round ───
+{
+  const access = (round: number | null): MatchAccess => ({ ownerId: null, round, shareId: "s", uploaderId: "u" });
+  check("report/owner access reads every round", roundAllowed(access(null), 1) && roundAllowed(access(null), 30));
+  check("moment link reads only its round", roundAllowed(access(7), 7) && !roundAllowed(access(7), 8));
+  // getMatchAccess maps a moment link without a round to -1: nothing readable.
+  check("moment link without a round reads nothing", !roundAllowed(access(-1), 1) && !roundAllowed(access(-1), 0));
+}
 
 // ─── Report ────────────────────────────────────────────────
 

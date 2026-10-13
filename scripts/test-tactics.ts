@@ -36,6 +36,9 @@ import {
 import { FINDING_TYPES } from "@/lib/findings/catalog";
 import { applyRole, detectFindings, ROLE_RULES } from "@/lib/findings/detect";
 import { buildReport, playerMetrics } from "@/lib/findings/report";
+import { detectTradeKills } from "@/lib/utils/tradeKills";
+import { detectMultiKills, multiKillsByRound } from "@/lib/utils/multiKills";
+import { teamBuySyncScore } from "@/lib/utils/buySync";
 
 const checks: [string, boolean][] = [];
 const check = (label: string, ok: boolean) => checks.push([label, ok]);
@@ -482,6 +485,49 @@ check("predictable position reaches A1's top 3", a1Report.top.some((i) => i.type
     end?.variant === "match_end" && !end.detail.includes("zmianie stron"));
   const endDraft = detectFindings({ mechanics: [], aim: [], tactics: [{ steamId: B1, moments: end ? [end] : [] }] })[0];
   check("match-end money gets its own advice", !!endDraft && endDraft.advice.includes("meczu") && endDraft.severity === "medium");
+}
+
+// ─── Trade kills / multi-kills / buy sync (match page helpers) ───
+{
+  const team = new Map<string, "CT" | "T">([["a1", "CT"], ["a2", "CT"], ["b1", "T"], ["b2", "T"]]);
+  const k = (id: string, roundId: string, tick: number, attackerSteamId: string, victimSteamId: string) =>
+    ({ id, roundId, tick, attackerSteamId, victimSteamId });
+  const res = detectTradeKills({
+    tickRate: 64,
+    teamBySteamId: team,
+    kills: [
+      k("k2", "r1", 1000 + 64 * 5, "a2", "b1"), // trade at exactly 5 s (unsorted input)
+      k("k1", "r1", 1000, "b1", "a1"),
+      k("k3", "r2", 1000, "b2", "a1"),
+      k("k4", "r2", 1000 + 64 * 5 + 1, "a2", "b2"), // one tick too late
+      k("k5", "r3", 1000, "b1", "a1"),
+      k("k6", "r4", 1100, "a2", "b1"), // other round: never a trade
+    ],
+  });
+  check("trade: revenge within the window", res.tradedKillIds.has("k1") && res.tradeKillIds.has("k2"));
+  check("trade: one tick past the window is not a trade", !res.tradedKillIds.has("k3") && !res.tradeKillIds.has("k4"));
+  check("trade: a kill in another round never trades", !res.tradedKillIds.has("k5"));
+  const a1 = res.perPlayer.get("a1");
+  const a2 = res.perPlayer.get("a2");
+  check("trade: per-player counters", a1?.deaths === 3 && a1.deathsTraded === 1 && a2?.kills === 3 && a2.tradeKills === 1);
+
+  const kill = (attackerSteamId: string, opts: { hs?: boolean; teamKill?: boolean } = {}) => ({
+    attackerSteamId, attackerName: attackerSteamId, weapon: "ak47", headshot: !!opts.hs, teamKill: opts.teamKill,
+  });
+  const mks = detectMultiKills([
+    { number: 1, kills: [kill("a1", { hs: true }), kill("a1"), kill("a1"), kill("b1"), kill("b1")] },
+    { number: 2, kills: [kill("a1"), kill("a1"), kill("a1", { teamKill: true })] },
+    { number: 3, kills: [1, 2, 3, 4, 5].map(() => kill("b2")) },
+    { number: 4, kills: [1, 2, 3, 4].map(() => kill("a2")) },
+  ]);
+  check("multi-kill: 3k with headshots counted", mks.some((m) => m.roundNumber === 1 && m.steamId === "a1" && m.type === "3k" && m.headshots === 1));
+  check("multi-kill: 2 kills are not a multi-kill", !mks.some((m) => m.steamId === "b1"));
+  check("multi-kill: a team kill does not count", !mks.some((m) => m.roundNumber === 2));
+  check("multi-kill: ace and 4k", mks.some((m) => m.type === "ace" && m.count === 5) && mks.some((m) => m.type === "4k"));
+  check("multi-kill: indexed by round", multiKillsByRound(mks).get(3)?.[0].steamId === "b2" && !multiKillsByRound(mks).has(2));
+
+  check("buy sync: all the same → 100", teamBuySyncScore(["FULL_BUY", "FULL_BUY", "FULL_BUY"]) === 100);
+  check("buy sync: 3 of 5 → 60, empty → 0", teamBuySyncScore(["ECO", "ECO", "ECO", "FULL_BUY", "FORCE_BUY"]) === 60 && teamBuySyncScore([]) === 0);
 }
 
 // ─── Report ──────────────────────────────────────────────
