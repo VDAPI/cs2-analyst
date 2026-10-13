@@ -16,9 +16,11 @@ Ta instrukcja prowadzi krok po kroku od czystego komputera do działającej apli
 8. [Konto administratora](#8-konto-administratora)
 9. [Połączenie konta FACEIT (HTTPS) i Steam](#9-połączenie-konta-faceit-https-i-steam)
 10. [Płatności testowe (Stripe)](#10-płatności-testowe-stripe)
-11. [Lista rzeczy do sprawdzenia](#11-lista-rzeczy-do-sprawdzenia)
-12. [Codzienna obsługa](#12-codzienna-obsługa)
-13. [Gdy coś nie działa](#13-gdy-coś-nie-działa)
+11. [Bot Discord](#11-bot-discord)
+12. [Rozszerzenie przeglądarki (FACEIT)](#12-rozszerzenie-przeglądarki-faceit)
+13. [Lista rzeczy do sprawdzenia](#13-lista-rzeczy-do-sprawdzenia)
+14. [Codzienna obsługa](#14-codzienna-obsługa)
+15. [Gdy coś nie działa](#15-gdy-coś-nie-działa)
 
 ## 1. Czego potrzebujesz
 
@@ -60,6 +62,7 @@ Aplikacja działa bez żadnych kluczy: konto, wgrywanie dem, raport, replay 2D, 
 | `FACEIT_CLIENT_ID`, `FACEIT_CLIENT_SECRET` | Łączenie konta FACEIT w Ustawieniach (patrz [punkt 9](#9-połączenie-konta-faceit-https-i-steam)) | ta sama aplikacja w FACEIT Developers → Authentication |
 | `FACEIT_DOWNLOADS_API_KEY` | Pobieranie dem z FACEIT po kliknięciu „Analizuj zaznaczone” (bez klucza aplikacja kieruje do ręcznego uploadu) | FACEIT Developers, Downloads API |
 | `STEAM_API_KEY` | Logowanie przez Steam i historia meczów Premier | <https://steamcommunity.com/dev/apikey> |
+| `DISCORD_BOT_TOKEN` | Bot Discord: wiadomość „analiza gotowa”, `/stats`, `/ostatni-mecz` (patrz [punkt 11](#11-bot-discord)). Webhook kanału działa bez niego. | <https://discord.com/developers/applications> → twoja aplikacja → Bot → Reset Token |
 | `STRIPE_SECRET_KEY` | Testowe płatności za plan Pro i Drużyna (patrz [punkt 10](#10-płatności-testowe-stripe)). Tylko klucz testowy `sk_test_…`. | <https://dashboard.stripe.com/test/apikeys> |
 
 Jak wpisać klucze:
@@ -196,7 +199,43 @@ Inne karty testowe: `4000 0000 0000 9995` (odmowa, brak środków), `4000 0025 0
 
 Webhooki (opcjonalnie, dla programisty): bez nich wszystko działa, bo aplikacja synchronizuje się po powrocie ze Stripe i po „Odśwież status”. Żeby zmiany ze Stripe (np. anulowanie w panelu, odnowienie) przychodziły same, zainstaluj [Stripe CLI](https://docs.stripe.com/stripe-cli) i uruchom `stripe listen --forward-to localhost:3000/api/billing/webhook`, a wypisany sekret `whsec_…` wpisz w `.env` jako `STRIPE_WEBHOOK_SECRET`.
 
-## 11. Lista rzeczy do sprawdzenia
+## 11. Bot Discord
+
+Bot pisze do Ciebie na Discordzie, gdy analiza jest gotowa (z linkiem do raportu), i odpowiada na komendy `/stats` (statystyki z ostatnich meczów), `/ostatni-mecz` (wynik, statystyki, 3 rzeczy do poprawy, link do raportu), `/polacz` i `/rozlacz`. Niczego nie publikujemy: bot to Twoja prywatna aplikacja na Discordzie, widoczna tylko tam, gdzie ją dodasz.
+
+**Najprostsza droga, bez bota (tylko powiadomienia):** na swoim serwerze Discord wejdź w ustawienia kanału → „Integracje” → „Webhooki” → „Nowy webhook” → „Kopiuj adres URL webhooka”. W aplikacji: Ustawienia → Discord → wklej adres w „Webhook kanału” → „Zapisz webhook” → „Wyślij test”. Po każdej analizie na tym kanale pojawi się wiadomość.
+
+**Pełny bot (powiadomienia w wiadomości prywatnej i komendy):**
+
+1. Wejdź na <https://discord.com/developers/applications> → „New Application”, nazwij ją np. „CS2 Analyst”.
+2. Zakładka „Bot” → „Reset Token” → skopiuj token. Wpisz go w `.env` jako `DISCORD_BOT_TOKEN=...` ([punkt 3](#3-klucze-api-opcjonalnie)). Pola „Interactions Endpoint URL” w zakładce „General Information” **nie wypełniaj** (lokalnie bot odbiera komendy sam, bez publicznego adresu).
+3. Zakładka „Installation”: zaznacz „Guild Install” (i opcjonalnie „User Install”), w „Default Install Settings” dla Guild Install dodaj zakres `bot` (uprawnienia mogą zostać puste). Skopiuj „Install Link”, otwórz go i dodaj bota do swojego serwera (możesz założyć pusty serwer tylko dla siebie).
+4. Uruchom ponownie aplikację: `docker compose up -d`. W logach (`docker compose logs worker-discord`) zobaczysz „connected as …” i „registered 4 slash commands”. Komendy mogą pojawić się w Discordzie po minucie (czasem trzeba odświeżyć Discorda: Ctrl+R).
+5. W aplikacji: Ustawienia → Discord → „Połącz Discord”. Pojawi się komenda z kodem, np. `/polacz kod:ABCD-EFGH`. Wpisz ją na Discordzie (na serwerze z botem albo w wiadomości prywatnej do bota). Kod działa 10 minut i tylko raz.
+6. Kliknij „Sprawdź połączenie”, potem „Wyślij test”. Bot napisze do Ciebie prywatnie. Jeśli Discord nie pozwoli (komunikat w aplikacji), upewnij się, że jesteś na tym samym serwerze co bot i masz włączone „Wiadomości prywatne od członków serwera”.
+
+Z `npm run dev` bota uruchamia się osobno: `npm run worker:discord`. Na publicznym serwerze z https można zamiast tego wpisać w „Interactions Endpoint URL” adres `https://<twoja-domena>/api/discord/interactions`, w `.env` dodać `DISCORD_PUBLIC_KEY` (z „General Information”) i zarejestrować komendy raz: `npm run discord:register`. Linki w wiadomościach prowadzą pod `APP_URL` (domyślnie `NEXTAUTH_URL`, lokalnie http://localhost:3000).
+
+## 12. Rozszerzenie przeglądarki (FACEIT)
+
+Rozszerzenie dodaje na stronie meczu FACEIT przycisk „Analizuj w CS2 Analyst” (prawy dolny róg). Przycisk otwiera mecz w aplikacji: jeśli jest już przeanalizowany, od razu raport; jeśli jest w Twojej historii FACEIT, listę meczów z tym meczem zaznaczonym (analiza rusza dopiero po kliknięciu „Analizuj zaznaczone”, nic nie pobiera się samo). Rozszerzenie nie jest w sklepie Chrome ani Firefox; ładujesz je z folderu `extension` w repozytorium.
+
+**Chrome, Edge, Brave, Opera:**
+
+1. Otwórz `chrome://extensions` (Edge: `edge://extensions`).
+2. Włącz „Tryb dewelopera” (przełącznik w prawym górnym rogu).
+3. „Załaduj rozpakowane” → wskaż folder `extension` z repozytorium. Ostrzeżenie o nieznanym kluczu `browser_specific_settings` można zignorować (to ustawienie dla Firefoksa).
+4. Przypnij ikonę CS2 Analyst (puzzel na pasku) i kliknij ją: w polu „Adres aplikacji” zostaw `http://localhost:3000` albo wpisz adres, pod którym działa aplikacja (np. `https://localhost:3443`), i „Zapisz”.
+
+**Firefox:**
+
+1. Otwórz `about:debugging#/runtime/this-firefox`.
+2. „Załaduj tymczasowy dodatek…” → wskaż plik `extension/manifest.json`.
+3. Firefox usuwa taki dodatek po zamknięciu przeglądarki; po ponownym uruchomieniu załaduj go jeszcze raz. Adres aplikacji ustawiasz tak samo, klikając ikonę dodatku.
+
+Sprawdzenie: zaloguj się w aplikacji, połącz FACEIT ([punkt 9](#9-połączenie-konta-faceit-https)), otwórz na faceit.com stronę swojego meczu (np. z profilu → „Mecze”) i kliknij „Analizuj w CS2 Analyst”. Mecz cudzy albo niezakończony: aplikacja wyjaśni dlaczego i zaproponuje ręczny upload. Po zmianach w plikach rozszerzenia kliknij „Odśwież” przy nim na stronie rozszerzeń.
+
+## 13. Lista rzeczy do sprawdzenia
 
 Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zrób zrzut ekranu i opisz, co kliknąłeś.
 
@@ -240,6 +279,8 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 - [ ] Scouting: wklejenie linku do pokoju FACEIT, karta rywali i sugestia veto
 - [ ] Premier (z `STEAM_API_KEY`): kod udostępniania meczu, synchronizacja
 - [ ] Dzwonek powiadomień po zakończonej analizie
+- [ ] Discord ([punkt 11](#11-bot-discord)): połączenie kodem, wiadomość „Analiza gotowa” po analizie, `/stats` i `/ostatni-mecz` z linkiem do raportu, webhook kanału
+- [ ] Rozszerzenie ([punkt 12](#12-rozszerzenie-przeglądarki-faceit)): przycisk na stronie meczu FACEIT otwiera właściwy mecz (zaznaczony na liście albo raport)
 
 **Biblioteka i limity**
 
@@ -254,7 +295,7 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 - [ ] „Zarządzaj subskrypcją”: zmiana karty, anulowanie, faktura w PDF
 - [ ] Plan Drużyna u właściciela drużyny: członkowie drużyny widzą limity Pro w „Plan i płatności"
 
-## 12. Codzienna obsługa
+## 14. Codzienna obsługa
 
 | Co chcesz zrobić | Polecenie |
 | --- | --- |
@@ -266,7 +307,7 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 
 Uwaga: `docker compose down -v` kasuje bazę, analizy i konta bez pytania. Zwykłe zatrzymanie to `docker compose stop`.
 
-## 13. Gdy coś nie działa
+## 15. Gdy coś nie działa
 
 - **„port is already allocated” przy starcie:** port 3000, 3443, 5432, 6379 albo 9001 zajmuje inny program (np. drugi Postgres albo `npm run dev`). Zamknij go, albo w `docker-compose.yml` zmień lewą liczbę w `ports`, np. `"3001:3000"`, i otwieraj <http://localhost:3001>.
 - **`setup` ma `Exited (1)`:** zobacz `docker compose logs setup` i wklej końcówkę w wątku projektu.

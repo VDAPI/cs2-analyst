@@ -48,6 +48,10 @@ export const RATE_RULES = {
   avatar: { max: 10, windowMs: 10 * MIN },
   /** Stripe checkout / portal / status sync (each one calls the Stripe API). */
   billing: { max: 20, windowMs: 10 * MIN },
+  /** Discord (S26): /polacz attempts per Discord account (guessing link codes). */
+  discordLink: { max: 10, windowMs: 10 * MIN },
+  /** Discord test message (posts to the player's DM / channel webhook). */
+  discordTest: { max: 5, windowMs: 10 * MIN },
   /** Data export (a big query) and account deletion (asks for the password). */
   account: { max: 5, windowMs: HOUR },
 } as const satisfies Record<string, RateRule>;

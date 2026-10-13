@@ -75,5 +75,6 @@ export const config = {
     "/clips/:path*",
     "/friends/:path*",
     "/billing/:path*",
+    "/faceit/:path*",
   ],
 };

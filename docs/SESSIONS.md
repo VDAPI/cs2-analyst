@@ -88,8 +88,8 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Raport | Błędy oceniane według roli, „agresja na samotnej pozycji”, ręczna poprawka roli | ✅ | S31 |
 | Społeczność | Klipy 2D błędów i highlightów do pobrania (MP4/GIF) i udostępnienia | ✅ | S25 |
 | Społeczność | Ranking znajomych, wyzwania tygodniowe | ✅ | S25 |
-| Integracje | Bot Discord: powiadomienia i komenda /stats | 🆕 | S26 |
-| Integracje | Rozszerzenie przeglądarki: przycisk „Analizuj” na stronie meczu FACEIT | 🆕 | S26 |
+| Integracje | Bot Discord: powiadomienia i komenda /stats | ✅ | S26 |
+| Integracje | Rozszerzenie przeglądarki: przycisk „Analizuj” na stronie meczu FACEIT | ✅ | S26 |
 | Platforma | Panel admina, monitoring kolejki, błędy (Sentry), statystyki użycia | ✅ | S27 |
 | Platforma | Wydajność: szybsze parsowanie, cache, Lighthouse mobile ≥ 90 | ✅ | S28 |
 | Platforma | Bezpieczeństwo i RODO: usunięcie konta i danych, polityka prywatności, rate limiting | ✅ | S29 |
@@ -242,6 +242,7 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Wymaga:** S7, S16.
 - **Zakres:** bot Discord (powiadomienie „analiza gotowa”, `/stats`, `/ostatni-mecz`, link do raportu) z połączeniem konta. Rozszerzenie Chrome/Firefox dodające przycisk „Analizuj w CS2 Analyst” na stronie meczu FACEIT (otwiera nasz wybór meczu z zaznaczonym meczem; bez automatycznego pobierania).
 - **Gotowe, gdy:** po analizie przychodzi wiadomość na Discord, a przycisk na FACEIT otwiera właściwy mecz.
+- **Status:** ✅ zrobione. Bot Discord (`npm run worker:discord`, w Dockerze usługa `worker-discord`): łączenie konta jednorazowym kodem z Ustawienia → Discord i komendą `/polacz`, komendy `/stats`, `/ostatni-mecz` (z linkiem do raportu), `/rozlacz`, PL/EN według języka konta albo Discorda. Powiadomienie „analiza gotowa” w wiadomości prywatnej od bota i/lub przez webhook kanału (działa bez bota). Bot łączy się przez gateway, więc nie potrzebuje publicznego adresu; na serwerze z https komendy mogą też przychodzić na `/api/discord/interactions` (podpis Ed25519). Rozszerzenie Chrome/Firefox w folderze `extension/` (Manifest V3, tylko uprawnienie `storage`): przycisk „Analizuj w CS2 Analyst” na stronie meczu FACEIT otwiera `/faceit/room/<id>`, które pokazuje raport (gdy mecz jest przeanalizowany) albo listę meczów z zaznaczonym meczem z historii FACEIT (mecz spoza zsynchronizowanej historii jest dociągany z Data API, jeśli gracz w nim grał); nic nie pobiera się samo. Nic nie jest publikowane w sklepach ani na Discordzie. Instrukcja: `docs/TESTOWANIE.md`, punkty 11 i 12. Test: `npm run test:integrations`.
 
 ### S27. Panel admina i monitoring
 - **Wymaga:** S7.

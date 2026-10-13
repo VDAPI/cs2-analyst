@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CS2 Analyst</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-width: 300px;
+        padding: 16px;
+        background: #08070d;
+        color: #f3f0ff;
+        font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 16px;
+        color: #c6ff3d;
+      }
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+      }
+      input {
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 40px;
+        padding: 8px 10px;
+        border: 1px solid rgba(190, 160, 255, 0.24);
+        border-radius: 8px;
+        background: #181528;
+        color: #f3f0ff;
+        font: 13px ui-monospace, "Geist Mono", monospace;
+      }
+      input:focus {
+        outline: none;
+        border-color: #9b6bff;
+        box-shadow: 0 0 0 3px rgba(155, 107, 255, 0.3);
+      }
+      p {
+        margin: 6px 0 0;
+        color: rgba(243, 240, 255, 0.65);
+        font-size: 12px;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      button,
+      a.button {
+        min-height: 36px;
+        padding: 8px 14px;
+        border: 0;
+        border-radius: 8px;
+        font: 600 13px system-ui, sans-serif;
+        cursor: pointer;
+        text-decoration: none;
+      }
+      button {
+        background: #9b6bff;
+        color: #08070d;
+      }
+      a.button {
+        background: #181528;
+        color: #f3f0ff;
+        border: 1px solid rgba(190, 160, 255, 0.24);
+      }
+      #status {
+        min-height: 18px;
+      }
+      #status.ok {
+        color: #3df5a0;
+      }
+      #status.error {
+        color: #ff4d6a;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 data-i18n="optionsTitle">CS2 Analyst</h1>
+    <form id="form">
+      <label for="appUrl" data-i18n="optionsAppUrl">Adres aplikacji</label>
+      <input id="appUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" />
+      <p data-i18n="optionsAppUrlHint"></p>
+      <div class="row">
+        <button type="submit" data-i18n="optionsSave">Zapisz</button>
+        <a id="open" class="button" target="_blank" rel="noopener" data-i18n="optionsOpen">Otwórz aplikację</a>
+      </div>
+      <p id="status" role="status"></p>
+      <p data-i18n="optionsHow"></p>
+    </form>
+    <script src="lib/room.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

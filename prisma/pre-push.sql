@@ -15,3 +15,16 @@ BEGIN
       ON "DemoUpload" ("userId", "faceitMatchId");
   END IF;
 END $$;
+
+-- S26: Discord columns with unique indexes on User. db push refuses to add a
+-- unique constraint to an existing table without --accept-data-loss, so the
+-- columns and indexes are created here first (new columns are all NULL).
+DO $$
+BEGIN
+  IF to_regclass('"User"') IS NOT NULL THEN
+    ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "discordId" TEXT;
+    ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "discordLinkCode" TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS "User_discordId_key" ON "User" ("discordId");
+    CREATE UNIQUE INDEX IF NOT EXISTS "User_discordLinkCode_key" ON "User" ("discordLinkCode");
+  END IF;
+END $$;

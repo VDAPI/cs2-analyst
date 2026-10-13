@@ -3,7 +3,7 @@
 # a one-off setup (schema, test account with sample analyses, sample demo),
 # the app on http://localhost:3000 (and http://<computer's IP>:3000 from a
 # phone on the same Wi-Fi), https://localhost:3443 (for FACEIT linking) and
-# both workers. Guide: docs/TESTOWANIE.md.
+# the workers (parse, FACEIT, Discord bot). Guide: docs/TESTOWANIE.md.
 #
 # Working on the code with `npm run dev` instead? Start only the databases:
 #   docker compose up -d postgres redis
@@ -148,6 +148,16 @@ services:
   worker-faceit:
     <<: *app
     command: ["npx", "tsx", "--tsconfig", "tsconfig.json", "workers/faceit-demo-download.worker.ts"]
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+
+  # Discord bot (S26): answers /stats, /ostatni-mecz, /polacz over the
+  # gateway, so it needs no public address. Idles until DISCORD_BOT_TOKEN is
+  # set in .env (docs/TESTOWANIE.md, Discord).
+  worker-discord:
+    <<: *app
+    command: ["npx", "tsx", "--tsconfig", "tsconfig.json", "workers/discord-bot.worker.ts"]
     depends_on:
       setup:
         condition: service_completed_successfully

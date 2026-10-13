@@ -53,6 +53,7 @@ const SCREENS: Screen[] = [
   { name: "pro", path: () => "/pro", volatile: lastRefresh },
   { name: "graj-jak-pro", path: () => "/play-like-pro?map=de_mirage&side=T" },
   { name: "ustawienia", path: () => "/settings" },
+  { name: "faceit-pokoj", path: () => "/faceit/room/1-00000000-0000-4000-8000-000000000000" },
   // Clips and friends (S25). The weekly challenges change every Monday: masked.
   { name: "klipy", path: () => "/clips" },
   { name: "klipy-bledy", path: () => "/clips?tab=mistakes" },

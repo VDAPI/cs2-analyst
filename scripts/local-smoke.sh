@@ -38,7 +38,10 @@ for _ in $(seq 1 120); do
   sleep 5
 done
 [ "$(docker compose ps app --format '{{.Health}}')" = "healthy" ] || fail "app never became healthy"
-docker compose logs --no-color setup | grep -q "setup: gotowe" || fail "setup did not finish"
+# grep -q exits at the first match; under pipefail the writer's SIGPIPE would
+# fail the pipeline, so read the whole output first.
+SETUP_LOG="$(docker compose logs --no-color setup)"
+grep -q "setup: gotowe" <<<"$SETUP_LOG" || fail "setup did not finish"
 
 # The address a phone would use: the machine's own network IP, not localhost.
 IP="${LAN_IP:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
@@ -56,7 +59,8 @@ curl -fsS -o /dev/null -c "$JAR" -b "$JAR" -X POST "$BASE/api/auth/callback/cred
   --data-urlencode "csrfToken=$CSRF" --data-urlencode "email=$EMAIL" \
   --data-urlencode "password=$PASSWORD" --data-urlencode "callbackUrl=$BASE/matches" \
   --data-urlencode "json=true" || fail "credentials sign-in request"
-curl -fsS -b "$JAR" "$BASE/api/auth/session" | grep -q "\"$EMAIL\"" || fail "no session after sign-in"
+SESSION_JSON="$(curl -fsS -b "$JAR" "$BASE/api/auth/session")" || fail "no session after sign-in"
+grep -q "\"$EMAIL\"" <<<"$SESSION_JSON" || fail "no session after sign-in"
 STATUS="$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/matches")"
 [ "$STATUS" = "200" ] || fail "/matches returned $STATUS when signed in"
 
@@ -91,7 +95,8 @@ for _ in $(seq 1 60); do
   [ "$(docker compose ps -a setup --format '{{.State}}')" = "exited" ] && break
   sleep 2
 done
-docker compose logs --no-color setup | grep -q "już jest" || fail "setup re-ran the seed"
+SETUP_LOG="$(docker compose logs --no-color setup)"
+grep -q "już jest" <<<"$SETUP_LOG" || fail "setup re-ran the seed"
 AFTER="$(sql "SELECT count(*) FROM \"DemoUpload\" u JOIN \"User\" x ON x.id = u.\"userId\" WHERE x.email = '$EMAIL'")"
 [ "$AFTER" -ge 4 ] || fail "data lost after a second up ($AFTER uploads)"
 
