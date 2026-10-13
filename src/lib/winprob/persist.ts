@@ -6,7 +6,7 @@
  * findings; the parse worker backfills older matches on startup.
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { decodeRoundTicks } from "@/lib/replay/round-ticks";
+import { decodeRoundTicksCached } from "@/lib/replay/decode-cache";
 import { PLACE_CELL } from "@/lib/analysis/places";
 import {
   buildRoundContext,
@@ -116,7 +116,7 @@ export async function loadWinProbMatch(
       endTick: r.endTick,
       winner: r.winner === "T" ? "T" : "CT",
       winReason: r.winReason,
-      frames: r.ticks ? (decodeRoundTicks(r.ticks) as WpFrame[]) : [],
+      frames: r.ticks ? (decodeRoundTicksCached(r.ticks) as WpFrame[]) : [],
       kills: r.kills,
       bombs: r.bombs,
       grenades: r.grenades,

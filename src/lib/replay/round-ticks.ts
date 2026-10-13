@@ -243,7 +243,8 @@ export function encodeRoundTicks(
     frameCount,
     players,
     weapons,
-    data: gzipSync(raw, { level: 9 }),
+    // Level 6: 1% bigger than 9 and ~7× faster to write (S28).
+    data: gzipSync(raw, { level: 6 }),
   };
 }
 
@@ -275,18 +276,24 @@ export function decodeRoundTicks(rec: {
     );
   }
 
-  const values = new Int16Array(players.length * C * F);
+  // Undo the delta encoding in place; Int16Array wraps like wrapInt16.
+  const values = readInt16LE(raw);
   for (let run = 0; run < players.length * C; run++) {
-    let prev = 0;
-    for (let f = 0; f < F; f++) {
-      const i = run * F + f;
-      prev = wrapInt16(prev + raw.readInt16LE(i * 2));
-      values[i] = prev;
-    }
+    const base = run * F;
+    for (let f = 1; f < F; f++) values[base + f] += values[base + f - 1];
   }
 
-  const at = (p: number, key: ColumnKey, f: number) =>
-    values[(p * C + COL[key]!) * F + f] / COLUMNS[COL[key]!].scale;
+  // Column offsets and scales resolved once, not per sample.
+  const offset = {} as Record<ColumnKey, number>;
+  const scale = {} as Record<ColumnKey, number>;
+  for (const key of Object.keys(COL) as ColumnKey[]) {
+    offset[key] = COL[key]! * F;
+    scale[key] = COLUMNS[COL[key]!].scale;
+  }
+  const at = (p: number, key: ColumnKey, f: number) => {
+    const v = values[p * C * F + offset[key] + f];
+    return scale[key] === 1 ? v : v / scale[key];
+  };
 
   const frames: ReplayFrame[] = [];
   for (let f = 0; f < F; f++) {
@@ -369,6 +376,22 @@ export function spottedMask(raw: unknown, players: ReplayPlayer[]): number {
     if (idx >= 0 && idx < 2 * SPOT_BITS) mask |= 1 << idx;
   }
   return mask;
+}
+
+const LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
+
+/** A fresh Int16Array of `raw` read as little-endian Int16s. */
+function readInt16LE(raw: Buffer): Int16Array {
+  const n = raw.length >> 1;
+  if (LITTLE_ENDIAN) {
+    // Copy into an aligned buffer: gunzip output can start at an odd offset.
+    const out = new Int16Array(n);
+    new Uint8Array(out.buffer).set(raw.subarray(0, n * 2));
+    return out;
+  }
+  const out = new Int16Array(n);
+  for (let i = 0; i < n; i++) out[i] = raw.readInt16LE(i * 2);
+  return out;
 }
 
 function clampInt16(v: number): number {

@@ -5,7 +5,7 @@
  * analysed before S12 or with an older TACTICS_VERSION.
  */
 import type { PrismaClient } from "@prisma/client";
-import { decodeRoundTicks } from "@/lib/replay/round-ticks";
+import { decodeRoundTicksCached } from "@/lib/replay/decode-cache";
 import { analyzeTactics, TACTICS_VERSION, type TacticsFrame, type TacticsInput } from "./tactics";
 import { getMapPlaces } from "./persist-utility";
 import type { SiteCentres } from "./sites";
@@ -64,7 +64,7 @@ export async function loadTacticsInput(prisma: PrismaClient, matchId: string): P
       winReason: r.winReason,
       ctScore: r.ctScore,
       tScore: r.tScore,
-      frames: r.ticks ? (decodeRoundTicks(r.ticks) as TacticsFrame[]) : [],
+      frames: r.ticks ? (decodeRoundTicksCached(r.ticks) as TacticsFrame[]) : [],
     })),
     kills: match.rounds.flatMap((r) => r.kills.map((k) => ({ ...k, roundNumber: r.number }))),
     damages: match.rounds.flatMap((r) => r.damages.map((d) => ({ ...d, roundNumber: r.number }))),

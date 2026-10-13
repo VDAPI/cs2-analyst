@@ -66,6 +66,10 @@ export const fixtureParser = {
   parseEvent(path: string, eventName: string): Row[] {
     return (load(path).events.get(eventName) ?? []).map((e) => ({ ...e }));
   },
+  parseEvents(path: string, eventNames: string[]): Row[] {
+    const events = load(path).events;
+    return eventNames.flatMap((name) => (events.get(name) ?? []).map((e) => ({ ...e, event_name: name })));
+  },
   parseTicks(path: string, props: string[], ticks?: number[] | null): Row[] {
     const sim = load(path);
     for (const p of props) {

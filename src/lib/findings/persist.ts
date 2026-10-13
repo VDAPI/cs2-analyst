@@ -116,17 +116,49 @@ export async function getFindings(prisma: PrismaClient, matchId: string, steamId
     select: { findingsVersion: true, findingsWpModel: true },
   });
   if (!match) return [];
+  let changed = false;
   if (match.findingsVersion !== findingsStamp()) {
     await computeAndPersistFindings(prisma, matchId);
+    changed = true;
   } else {
     const model = await getActiveModel(prisma);
-    if (match.findingsWpModel !== model.id) await rescoreFindingImpacts(prisma, matchId);
+    if (match.findingsWpModel !== model.id) {
+      await rescoreFindingImpacts(prisma, matchId);
+      changed = true;
+    }
   }
-  return prisma.finding.findMany({
-    where: { matchId, ...(steamId ? { steamId } : {}) },
-    orderBy: [{ roundNumber: "asc" }, { tick: "asc" }, { id: "asc" }],
-  });
+  // S28: a match's findings only change when they are rebuilt or rescored, so
+  // reports read them from a small in-process cache. The key carries what any
+  // such write changes (stamp, model, row count, newest id), checked with one
+  // cheap aggregate, so a rebuild in the worker is never served stale.
+  const now = changed
+    ? await prisma.match.findUnique({ where: { id: matchId }, select: { findingsVersion: true, findingsWpModel: true } })
+    : match;
+  const agg = await prisma.finding.aggregate({ where: { matchId }, _count: { _all: true }, _max: { id: true } });
+  const key = [matchId, now?.findingsVersion, now?.findingsWpModel, agg._count._all, agg._max.id].join("|");
+  let rows = findingsCache.get(key);
+  if (rows) {
+    findingsCache.delete(key);
+  } else {
+    rows = await prisma.finding.findMany({
+      where: { matchId },
+      orderBy: [{ roundNumber: "asc" }, { tick: "asc" }, { id: "asc" }],
+    });
+  }
+  findingsCache.set(key, rows);
+  while (findingsCache.size > FINDINGS_CACHE_SIZE) {
+    const oldest = findingsCache.keys().next().value;
+    if (oldest === undefined) break;
+    findingsCache.delete(oldest);
+  }
+  return steamId ? rows.filter((f) => f.steamId === steamId) : [...rows];
 }
+
+type FindingRow = Awaited<ReturnType<PrismaClient["finding"]["findMany"]>>[number];
+
+/** Least recently used first (Map keeps insertion order). */
+const findingsCache = new Map<string, FindingRow[]>();
+const FINDINGS_CACHE_SIZE = 50;
 
 /** Re-score the stored findings' win-probability costs with the active model, keeping the rows. */
 async function rescoreFindingImpacts(prisma: PrismaClient, matchId: string): Promise<void> {

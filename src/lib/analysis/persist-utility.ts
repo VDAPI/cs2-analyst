@@ -9,7 +9,7 @@
  */
 import { siteCentresFromCells, type SiteCentres } from "./sites";
 import { Prisma, type PrismaClient } from "@prisma/client";
-import { decodeRoundTicks } from "@/lib/replay/round-ticks";
+import { decodeRoundTicksCached } from "@/lib/replay/decode-cache";
 import { analyzeUtility, UTILITY_VERSION, type GrenadeKind, type UtilityFrame, type UtilityInput, type UtilityThrow } from "./utility";
 import { buildLineups, type Lineup, type LineupThrow } from "./lineups";
 import { placeLookup, type PlaceCell } from "./places";
@@ -65,7 +65,7 @@ export async function loadUtilityInput(prisma: PrismaClient, matchId: string): P
       number: r.number,
       startTick: r.startTick,
       endTick: r.endTick,
-      frames: r.ticks ? (decodeRoundTicks(r.ticks) as UtilityFrame[]) : [],
+      frames: r.ticks ? (decodeRoundTicksCached(r.ticks) as UtilityFrame[]) : [],
     })),
     detonations: match.rounds.flatMap((r) =>
       r.grenades.map((g) => ({

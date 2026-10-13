@@ -5,7 +5,7 @@
  * for matches analysed before S9 or with an older AIM_VERSION.
  */
 import type { PrismaClient } from "@prisma/client";
-import { decodeRoundTicks } from "@/lib/replay/round-ticks";
+import { decodeRoundTicksCached } from "@/lib/replay/decode-cache";
 import { analyzeAim, AIM_VERSION, type AimFrame, type AimInput } from "./aim";
 
 /** The analysis input for one match from the DB, or null when there is nothing to analyse. */
@@ -36,7 +36,7 @@ export async function loadAimInput(prisma: PrismaClient, matchId: string): Promi
     rounds: match.rounds.map((r) => ({
       number: r.number,
       startTick: r.startTick,
-      frames: r.ticks ? (decodeRoundTicks(r.ticks) as AimFrame[]) : [],
+      frames: r.ticks ? (decodeRoundTicksCached(r.ticks) as AimFrame[]) : [],
     })),
     shots: match.rounds.flatMap((r) => r.shots.map((s) => ({ ...s, roundNumber: r.number }))),
     damages: match.rounds.flatMap((r) => r.damages.map((d) => ({ ...d, roundNumber: r.number }))),

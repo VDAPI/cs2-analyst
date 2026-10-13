@@ -19,7 +19,7 @@ import type {
 import { detectClutchesBySide, type ClutchInputKill } from "@/lib/utils/clutches";
 import { otherSide, ruleSideAtRound, sideInRound, type Side } from "@/lib/utils/sideSplit";
 import { parseRoundWinner, parseWinReason } from "@/lib/parsers/round-end";
-import { loadDemoParser } from "./load-parser";
+import { loadDemoParser, parseTickRows } from "./load-parser";
 
 /**
  * Weapons whose player_hurt damage counts as utility damage.
@@ -223,11 +223,12 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
   const liveTeamsByRound = new Map<number, Map<string, number>>();
   if (sampleTickToRound.size > 0) {
     try {
-      const tickData = parser.parseTicks(
+      const tickData = parseTickRows(
+        parser,
         filePath,
         ["team_num", "current_equip_value", "balance"],
         Array.from(sampleTickToRound.keys())
-      ) as Array<Record<string, unknown>>;
+      );
 
       // Group tick data by tick
       const byTick = new Map<number, Array<Record<string, unknown>>>();

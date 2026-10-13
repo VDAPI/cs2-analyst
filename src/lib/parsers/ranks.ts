@@ -4,7 +4,7 @@
  * rank (their levels come from the FACEIT match room, src/lib/norms/ranks.ts).
  */
 import type { RankType } from "@/lib/norms/norms";
-import { loadDemoParser } from "./load-parser";
+import { loadDemoParser, parseTickRows } from "./load-parser";
 
 /** m_iCompetitiveRankType values that carry a rank we can pool. */
 const RANK_TYPES: Record<number, RankType> = { 11: "premier", 12: "competitive" };
@@ -35,10 +35,8 @@ export async function parsePlayerRanks(filePath: string, ticks: number[]): Promi
   if (ticks.length === 0) return [];
   try {
     const parser = await loadDemoParser();
-    const rows = parser.parseTicks(filePath.replace(/\\/g, "/"), ["rank", "comp_rank_type"], ticks) as Array<
-      Record<string, unknown>
-    >;
-    return ranksFromTicks(rows ?? []);
+    const rows = parseTickRows(parser, filePath.replace(/\\/g, "/"), ["rank", "comp_rank_type"], ticks);
+    return ranksFromTicks(rows);
   } catch (err) {
     console.warn("[ranks] rank props unavailable:", err instanceof Error ? err.message : err);
     return [];

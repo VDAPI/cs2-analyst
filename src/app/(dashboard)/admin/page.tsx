@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AlertCircle, Hourglass, Radio } from "lucide-react";
 import { Badge, Card, CardHeader, PageHeader, StatCard } from "@/components/ui";
 import { AdminNav } from "@/components/admin/admin-nav";
-import { DailyAnalysesChart } from "@/components/admin/daily-analyses-chart";
+import { DailyAnalysesChart } from "@/components/charts/lazy-charts";
 import { AdminAnalysesList } from "@/components/admin/admin-analyses-list";
 import { countAdminUploads, getAdminOverview, getAdminUploads, METRIC_DAYS } from "@/lib/admin/data";
 import { getQueueStats } from "@/lib/admin/queue-stats";

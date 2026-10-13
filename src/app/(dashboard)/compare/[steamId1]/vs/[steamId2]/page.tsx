@@ -15,11 +15,11 @@ import {
 } from "@/components/ui";
 import { formatDate } from "@/lib/utils/formatters";
 import { PLAYER_COLORS, matchesLabel } from "../../../compare-ui";
-import { RadarComparisonChart } from "./radar-chart";
+import { RadarComparisonChart } from "@/components/charts/lazy-charts";
 import { StatComparison } from "./stat-comparison";
 import { HeadToHead } from "./head-to-head";
 import { MapBreakdown } from "./map-breakdown";
-import { RecentFormChart } from "./recent-form-chart";
+import { RecentFormChart } from "@/components/charts/lazy-charts";
 import type { RadarDataPoint, StatRow } from "../../../types";
 
 interface Props {

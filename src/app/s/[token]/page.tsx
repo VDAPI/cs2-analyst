@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getT } from "@/lib/i18n/server";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { PublicShell } from "@/components/share/public-shell";
-import { FindingClip } from "@/components/replay/finding-clip";
+import { LazyFindingClip } from "@/components/replay/finding-clip-lazy";
 import { getFindings } from "@/lib/findings/persist";
 import { loadPlayerReport, reportClipContext } from "@/lib/findings/player-report";
 import { fmtRoundTime, toFindingView } from "@/lib/findings/view";
@@ -114,7 +114,7 @@ export default async function SharedPage({ params }: Props) {
           }
         />
         <div className="mx-auto w-full max-w-[640px] space-y-2">
-          <FindingClip
+          <LazyFindingClip
             matchId={match.id}
             mapName={ctx.mapName}
             mapConfig={ctx.mapConfig}
@@ -166,7 +166,7 @@ export default async function SharedPage({ params }: Props) {
           }
         />
         <div className="grid gap-4 lg:grid-cols-[minmax(0,640px)_minmax(240px,1fr)] lg:items-start">
-          <FindingClip
+          <LazyFindingClip
             matchId={match.id}
             mapName={ctx.mapName}
             mapConfig={ctx.mapConfig}

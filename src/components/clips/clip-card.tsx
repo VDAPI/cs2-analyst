@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Play } from "lucide-react";
 import { Badge, buttonVariants } from "@/components/ui";
-import { FindingClip } from "@/components/replay/finding-clip";
+import { LazyFindingClip } from "@/components/replay/finding-clip-lazy";
 import { ShareButton } from "@/components/share/share-button";
 import type { RadarConfig } from "@/lib/canvas/radar";
 import type { ClipShare } from "@/lib/clips/clip";
@@ -42,7 +42,7 @@ export function ClipCard({ matchId, mapName, mapConfig, round, title, meta, play
           {badge.label}
         </Badge>
       </header>
-      <FindingClip
+      <LazyFindingClip
         matchId={matchId}
         mapName={mapName}
         mapConfig={mapConfig}
