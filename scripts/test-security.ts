@@ -190,6 +190,7 @@ async function main() {
     "api/billing/checkout/route.ts": "billing",
     "api/billing/portal/route.ts": "billing",
     "api/billing/sync/route.ts": "billing",
+    "api/matches/[matchId]/role/route.ts": "write",
   };
   const missing = Object.entries(LIMITED)
     .filter(([rel, rule]) => !readFileSync(join(root, rel), "utf8").includes(`rateLimit("${rule}"`))

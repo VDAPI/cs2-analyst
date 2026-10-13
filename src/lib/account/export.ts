@@ -33,6 +33,7 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
       publicProfile: true,
       publicSlug: true,
       friendCode: true,
+      roleDefaults: true,
       stripeCustomerId: true,
       createdAt: true,
       updatedAt: true,
@@ -63,6 +64,7 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     friendships,
     subscriptions,
     invoices,
+    roleOverrides,
   ] = await Promise.all([
     prisma.account.findMany({ where: { userId }, select: { provider: true, providerAccountId: true, type: true } }),
     prisma.demoUpload.findMany({
@@ -121,6 +123,11 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     }),
     prisma.billingSubscription.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
     prisma.billingInvoice.findMany({ where: { userId }, orderBy: { created: "asc" } }),
+    // Roles corrected by hand (S31).
+    prisma.roleOverride.findMany({
+      where: { userId },
+      select: { matchId: true, steamId: true, side: true, role: true, createdAt: true, updatedAt: true },
+    }),
   ]);
 
   // Findings about the player: in their own uploads, and wherever they
@@ -150,6 +157,7 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
             values: true,
             detail: true,
             advice: true,
+            role: true,
           },
         })
       : [];
@@ -181,6 +189,7 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     coachTexts,
     coachFeedback,
     lineupMastery,
+    roleOverrides,
     friends: friendships.map((f) => ({
       name: (f.requesterId === userId ? f.addressee.name : f.requester.name) ?? null,
       status: f.status,

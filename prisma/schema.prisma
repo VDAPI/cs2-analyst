@@ -71,6 +71,9 @@ model User {
   // "Play like a pro" (S24): the pro player (steamId from the pro pool) the
   // player compares themselves with; null = the pool's busiest player.
   favoriteProSteamId String?
+  // Usual roles per player (S31, src/lib/roles/effective.ts): { "<steamId>": { T?, CT? } },
+  // used in this user's matches for that SteamID where no per-match correction exists.
+  roleDefaults       Json?
   publicSlug         String?   @unique
   // Friends (S25): the code of the player's invite link (/friends/add/<code>);
   // null until they create one, rotated when they reset it.
@@ -107,6 +110,7 @@ model User {
   friendsAnswered   Friendship[]          @relation("FriendshipAddressee")
   subscriptions     BillingSubscription[]
   invoices          BillingInvoice[]
+  roleOverrides     RoleOverride[]
 }
 
 // Friends (S25): one row per pair. An invite link adds the friend at once
@@ -257,20 +261,21 @@ model Match {
   totalTicks Int
   createdAt  DateTime @default(now())
 
-  upload      DemoUpload?
-  rounds      Round[]
-  players     MatchPlayer[]
-  mechanics   MechanicsStats[]
-  aim         AimStats[]
-  utility     UtilityStats[]
-  tactics     TacticsStats[]
-  findings    Finding[]
-  normSamples NormSample[]
-  winProbData WinProbData?
-  situations  ProSituation[]
-  shares      Share[]
-  coachTexts  CoachText[]
-  mapNotes    MapNote[]
+  upload        DemoUpload?
+  rounds        Round[]
+  players       MatchPlayer[]
+  mechanics     MechanicsStats[]
+  aim           AimStats[]
+  utility       UtilityStats[]
+  tactics       TacticsStats[]
+  findings      Finding[]
+  normSamples   NormSample[]
+  roleOverrides RoleOverride[]
+  winProbData   WinProbData?
+  situations    ProSituation[]
+  shares        Share[]
+  coachTexts    CoachText[]
+  mapNotes      MapNote[]
 
   // FINDINGS_STAMP the stored findings were built with (null = never); a
   // different stamp makes the report rebuild them (src/lib/findings/persist.ts).
@@ -777,6 +782,9 @@ model Finding {
   wpBefore      Float?
   wpAfter       Float?
   wpKind        String?
+  // Role the severity and advice were adjusted for (S31, ROLE_RULES in
+  // src/lib/findings/detect.ts); null when the role changed nothing.
+  role          String?
 
   createdAt DateTime @default(now())
 
@@ -1028,6 +1036,26 @@ model NormSample {
   @@unique([matchId, steamId, side])
   @@index([pro, version])
   @@index([steamId, version])
+}
+
+/// A player's role in one match corrected by hand (S31): the uploader's
+/// correction wins over the detected role (src/lib/roles/roles.ts) in the
+/// report's role card and in the role-aware findings.
+model RoleOverride {
+  id        String   @id @default(cuid())
+  matchId   String
+  steamId   String
+  side      String // "T" | "CT"
+  role      String // Role (roles.ts)
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, steamId, side])
+  @@index([userId])
 }
 
 /// Percentiles of one metric in one pool, map, side and situation, rebuilt

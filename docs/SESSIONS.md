@@ -84,6 +84,8 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 | Przed meczem | Scouting rywali z linku do pokoju FACEIT, sugestia veto map | 🆕 | S23 |
 | Pro | „Graj jak pro”: porównanie z wybranym zawodowcem per mapa i rola | ✅ | S24 |
 | ML | Wykrywanie roli (entry, AWP, support, lurk, anchor) i rady pod rolę | ✅ | S24 |
+| ML | Role CT rotator i mid, konkretne pozycje (callout, strefa A/B/mid, droga) w każdej rundzie, aktywność | ✅ | S31 |
+| Raport | Błędy oceniane według roli, „agresja na samotnej pozycji”, ręczna poprawka roli | ✅ | S31 |
 | Społeczność | Klipy 2D błędów i highlightów do pobrania (MP4/GIF) i udostępnienia | ✅ | S25 |
 | Społeczność | Ranking znajomych, wyzwania tygodniowe | ✅ | S25 |
 | Integracje | Bot Discord: powiadomienia i komenda /stats | 🆕 | S26 |
@@ -262,6 +264,15 @@ Status: ✅ jest w kodzie · 🎨 jest, do przebudowy wyglądu · 🆕 nowe. Kol
 - **Gotowe, gdy:** testowa płatność w trybie test Stripe podnosi limit.
 - **Status:** ✅ zrobione (tryb testowy). Cennik `/pricing` (Free / Pro / Drużyna, miesięcznie lub rocznie, rocznie = 10 miesięcy), ekran „Plan i płatności” `/billing` (plan, status subskrypcji, wykorzystanie limitów, faktury z linkami do Stripe), Stripe Checkout i portal klienta (zmiana planu, karta, anulowanie, NIP na fakturze), webhooki z podpisem i bez powtórzeń, synchronizacja po powrocie ze Stripe i przyciskiem „Odśwież status” (lokalnie działa bez webhooków). Ceny w jednym miejscu: `src/lib/billing/prices.ts`. Klucz `sk_live_` jest odrzucany, dopóki właściciel nie ustawi `STRIPE_ALLOW_LIVE=1`. Plan Drużyna daje limity Pro 4 kolejnym członkom drużyny właściciela. Usunięcie konta anuluje subskrypcję. Instrukcja testu: `docs/TESTOWANIE.md`, punkt 10.
 
+## Sesje — etap 3 (dopisane 13.10.2026)
+
+### S31. Role i konkretne pozycje
+- **Wymaga:** S24.
+- **Ustalenia z właścicielem (13.10.2026):** pozycje przypisujemy do konkretnych miejsc (callouty). Błędy oceniamy trochę według roli, ale entry, które ginie bez trade'u, to dalej błąd. Rolę wykrywamy automatycznie, gracz może ją poprawić. Na CT dochodzą rotator i mid. Aktywność mierzymy wszystkimi sposobami (tempo, udział w walkach, ciche rundy), z zastrzeżeniem, że na odseparowanej pozycji (np. B na Mirage) mała aktywność jest dobra, a błędem jest agresja, która oddaje site.
+- **Zakres:** callout, strefa (A/B/mid) i droga gracza w każdej rundzie, samotna pozycja, rotacje; role CT rotator i mid; aktywność per strona; nowy błąd „agresja na samotnej pozycji”; waga i rada błędów taktycznych zależna od roli w danej rundzie; poprawka roli w raporcie (per mecz i jako stała rola gracza).
+- **Gotowe, gdy:** raport pokazuje rundę po rundzie, gdzie gracz stał, ocena błędów zmienia się z rolą, a poprawiona rola przelicza błędy.
+- **Status:** ✅ zrobione. Strefy z callout'ów mapy (`src/lib/analysis/sites.ts`: środki bombsite'ów z komórek „BombsiteA/B”, w zapasie z plantów meczu). Profil strony (`SideProfile`) ma teraz rundę po rundzie: callout 20 s po starcie, strefę, drogę callout'ów, „sam” (nikt z drużyny w 1200 u), rotację na drugi site, walkę w rundzie i czas śmierci, a także liczniki stref, rotacji i rund z walką. Role CT: anchor (bombsite), mid (callout z „Mid”), rotator (między site'ami albo częste rotacje), support. Nowy błąd `isolated_aggression`: CT sam na bombsicie wychodzi z pozycji, ginie bez trade'u przed plantem i zostawia site pusty; samo granie pasywnie na takiej pozycji nie jest oceniane. Błędy taktyczne zmieniają wagę o jeden stopień i dostają radę pod rolę z tej rundy (`ROLE_RULES` w `src/lib/findings/detect.ts`), np. support, który nie odegrał, to błąd poważniejszy, anchor bez trade'u na swojej pozycji łagodniejszy, a entry bez trade'u zostaje błędem z radą dla entry. Karta roli w raporcie: rola per strona (z „poprawione”), aktywność z opisem dla roli, najczęstsze callouty, strefy, „sam”, rotacje i lista runda po rundzie; „Popraw rolę” (per mecz, opcjonalnie jako stała rola gracza w moich meczach) przelicza błędy meczu. Test: `npm run test:roles`, `npm run test:tactics`.
+
 ## Kolejność
 
 ```
@@ -273,4 +284,5 @@ S12 → S17 · S7 → S18
 S10 → S19 → S20, S28, S29 · S10 → S21
 S11 + S15 → S22 · S7 → S23, S27 · S13 → S24
 S16 → S25 · S7 + S16 → S26 · S27 → S30
+S24 → S31
 ```

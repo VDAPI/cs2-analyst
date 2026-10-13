@@ -50,6 +50,7 @@ const DEATH_TYPES: FindingType[] = [
   "postplant_death",
   "retake_solo",
   "clutch_decision",
+  "isolated_aggression",
 ];
 
 export const IMPACT_RULE: Partial<Record<FindingType, ImpactKind>> = {

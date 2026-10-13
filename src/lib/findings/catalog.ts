@@ -488,6 +488,17 @@ export const FINDING_TYPES = {
     weight: 1,
     clip: { before: 3, after: 3 },
   },
+  isolated_aggression: {
+    category: "positioning",
+    label: "Agresja na samotnej pozycji",
+    title: "Sam na bombsicie wychodzisz na walkę",
+    why: "Na odseparowanym bombsicie nikt cię nie odegra: śmierć po wyjściu z pozycji oddaje site za darmo, zanim dojdzie rotacja.",
+    advice: "Sam na bombsicie graj na czas i info: molotov lub smoke na wejście, cofnięcie, call i czekanie na rotację. Mało akcji na takiej pozycji to nie błąd.",
+    drill: "Na swoich samotnych pozycjach CT (np. B na Mirage) przygotuj po 2 miejsca do grania na czas i 1 granat, który opóźnia wejście.",
+    pro: "pro: samotny anchor rzadko wychodzi na pojedynek przed rotacją, kupuje czas utility",
+    weight: 1.1,
+    clip: { before: 5, after: 2 },
+  },
   clutch_decision: {
     category: "positioning",
     label: "Decyzja w clutchu",

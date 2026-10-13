@@ -8,14 +8,27 @@
  * 3. role thresholds inside one team (assignTeamRoles),
  * 4. norm samples carry the roles and profiles; pro samples feed "pro/<role>",
  * 5. role norms, role comparisons and advice, profile medians, callouts,
- * 6. every role has PL/EN name, description, tips and advice per key metric.
+ * 6. every role has PL/EN name, description, tips and advice per key metric,
+ * 7. S31: bombsite zones, positions per round (callout, path, isolation,
+ *    rotation), activity, the CT roles rotator and mid, and roles corrected
+ *    by hand (per match, usual role, detected).
  *
  * No demo file or database required — everything here is pure.
  */
 import type { TacticsFrame, TacticsInput, TacticsKill, TacticsRound } from "@/lib/analysis/tactics";
 import { buildNormSamples } from "@/lib/norms/build";
 import { aggregateNorms, isRolePool, METRIC_DIRECTION, NormTable, rolePool, roleNorm, type NormSampleInput } from "@/lib/norms/norms";
-import { assignTeamRoles, detectRoles, matchRole, ROLES, type Role, type SideProfile } from "@/lib/roles/roles";
+import { anchorSite, assignTeamRoles, detectRoles, matchRole, ROLES, SIDE_ROLES, type Role, type SideProfile } from "@/lib/roles/roles";
+import { mergeSites, siteCentresFromCells, siteCentresFromPlants, siteOfPlace, zoneOf } from "@/lib/analysis/sites";
+import {
+  asRoleDefaults,
+  effectiveRoles,
+  isSideRole,
+  MAX_ROLE_DEFAULTS,
+  resolve,
+  roleOfRound,
+  updateRoleDefaults,
+} from "@/lib/roles/effective";
 import {
   asProfile,
   compareRoleMetrics,
@@ -27,6 +40,9 @@ import {
   roleAdvice,
   roleCounts,
   spotPlaces,
+  activityNoteKey,
+  activityOf,
+  sidePositions,
 } from "@/lib/roles/view";
 import { pl } from "@/lib/i18n/messages/pl";
 import { en } from "@/lib/i18n/messages/en";
@@ -136,7 +152,8 @@ const named = detectRoles(
   { placeOf: (p) => (p.x === 0 && p.y === 0 ? "BombsiteA" : "Mid") }
 );
 const namedRole = (id: string) => named.find((r) => r.steamId === id)?.sides.CT?.role;
-check("callout 'Bombsite' marks the anchor without plants", namedRole("b3") === "awp" && namedRole("b4") === "support" && namedRole("b1") === "support");
+check("callout 'Bombsite' marks the anchor without plants", namedRole("b3") === "awp" && namedRole("b4") === "support");
+check("a mid callout makes the CT a mid player (S31)", namedRole("b1") === "mid");
 
 // ─── 2. Match role ───────────────────────────────────────
 
@@ -250,6 +267,124 @@ const has = (dict: typeof pl | typeof en, role: Role) => {
 check("PL: name, description, tips and advice per role metric", ROLES.every((r) => has(pl, r)));
 check("EN: name, description, tips and advice per role metric", ROLES.every((r) => has(en, r)));
 check("PL/EN label per profile value", PROFILE_FIELDS.every((f) => f.key in pl.roles.profile && f.key in en.roles.profile));
+
+// ─── 7. Positions, activity, rotator / mid, corrections (S31) ──
+
+check("site letter from a callout", siteOfPlace("BombsiteB") === "B" && siteOfPlace("Bombsite A") === "A" && siteOfPlace("Mid") === null);
+const cellSites = siteCentresFromCells([
+  { cx: 10, cy: 10, cz: 0, place: "BombsiteA", count: 3 },
+  { cx: 12, cy: 10, cz: 0, place: "BombsiteA", count: 1 },
+  { cx: -10, cy: -10, cz: 0, place: "BombsiteB", count: 2 },
+  { cx: 0, cy: 0, cz: 0, place: "TopofMid", count: 9 },
+]);
+check("site centres from callout cells (sample-weighted)", Math.round(cellSites.A!.x) === 1408 && Math.round(cellSites.B!.x) === -1216);
+const plantSites = siteCentresFromPlants(tactics.bombs);
+check("site centres from plants", plantSites.A?.x === 1000 && plantSites.B?.y === -1000);
+check("callouts win over plants", mergeSites(cellSites, plantSites).A === cellSites.A && mergeSites({}, plantSites).B === plantSites.B);
+const S = { A: { x: 1000, y: 1000, z: 0 }, B: { x: -1000, y: -1000, z: 0 } };
+check("zone: on a site", zoneOf({ x: 900, y: 1100, z: 0 }, null, S) === "A" && zoneOf({ x: -1100, y: -900, z: 0 }, null, S) === "B");
+check("zone: between the sites is mid", zoneOf({ x: 60, y: 0, z: 0 }, null, S) === "mid");
+check("zone: a bombsite callout decides", zoneOf({ x: 0, y: 0, z: 0 }, "BombsiteB", S) === "B");
+check("zone: unknown without sites", zoneOf({ x: 0, y: 0, z: 0 }, null, {}) === null);
+check("zone: one known site tells only that site", zoneOf({ x: 900, y: 900, z: 0 }, null, { A: S.A }) === "A" && zoneOf({ x: -900, y: -900, z: 0 }, null, { A: S.A }) === null);
+
+const posRoles = new Map(detectRoles(tactics, { sites: S, placeOf: (p) => (p.x > 500 ? "BombsiteA" : p.x < -500 ? "BombsiteB" : "TopofMid") }).map((r) => [r.steamId, r]));
+const b1CT = posRoles.get("b1")!.sides.CT!.profile;
+check("one round spot per round with a spot", b1CT.roundSpots?.length === 12 && b1CT.roundSpots[0].round === 1);
+check("round spot: callout and zone", b1CT.roundSpots?.every((r) => r.place === "BombsiteA" && r.zone === "A") === true);
+check("round spot: the path keeps the callout once", b1CT.roundSpots?.[0].path.join() === "BombsiteA");
+check("A anchor is isolated (nearest alive CT 1400+ away)", b1CT.isolatedRounds === 12 && b1CT.roundSpots?.[0].isolated === true);
+check("zones counted", b1CT.zones?.A === 12 && b1CT.zones?.B === 0 && anchorSite(b1CT) === "A" && anchorSite(posRoles.get("b2")!.sides.CT!.profile) === "B");
+check("no rotations when standing still", b1CT.rotations === 0);
+const a1Tp = posRoles.get("a1")!.sides.T!.profile;
+check("activity: contact rounds", a1Tp.contactRounds === 12);
+const act = activityOf(a1Tp)!;
+check("activity: tempo, first contacts, involvement, quiet rounds", act.tempoS === 10 && act.firstContactShare === 100 && act.contactShare === 100 && act.quietShare === 0);
+check("no activity for profiles stored before S31", activityOf({ ...a1Tp, contactRounds: undefined }) === null);
+const pos = sidePositions(b1CT)!;
+check("positions: top callouts, zone shares, isolation", pos.top[0].place === "BombsiteA" && pos.top[0].share === 100 && pos.zones?.A === 100 && pos.isolatedShare === 100 && pos.site === "A");
+check("no positions for profiles stored before S31", sidePositions({ ...b1CT, roundSpots: undefined }) === null);
+check("lone anchor: quiet rounds are the job", activityNoteKey("anchor", pos) === "roles.activity.note.anchorIsolated" &&
+  activityNoteKey("anchor", { ...pos, isolatedShare: 20 }) === "roles.activity.note.anchor" && activityNoteKey("entry", null) === "roles.activity.note.entry");
+
+// A CT who walks from A to B every round: rotation and the path.
+{
+  const ids = ["c1", "c2", "c3", "c4", "c5", "t1", "t2", "t3", "t4", "t5"];
+  const rr: typeof rounds = [];
+  for (let n = 1; n <= 4; n++) {
+    const fr: TacticsFrame[] = [];
+    for (let tick = 0; tick <= 60 * TICK; tick += 32) {
+      const s = tick / TICK;
+      fr.push({
+        tick,
+        players: ids.map((id, i) => {
+          const ct = id.startsWith("c");
+          // c1: A until 40 s (setup spot at 35 s), mid until 44 s, then B.
+          const x = id === "c1" ? (s < 40 ? 1000 : s < 44 ? 0 : -1000) : ct ? 200 * i : 3000;
+          const y = id === "c1" ? (s < 40 ? 1000 : s < 44 ? 0 : -1000) : ct ? 0 : 3000;
+          return { steamId: id, team: ct ? ("CT" as Side) : ("T" as Side), x, y, z: 0, velX: s >= 15 ? 100 : 0, velY: 0, isAlive: true };
+        }),
+      });
+    }
+    rr.push({ number: n, startTick: 0, endTick: 60 * TICK, winner: "CT", winReason: "TIME_RAN_OUT", ctScore: n, tScore: 0, frames: fr });
+  }
+  const rot = detectRoles(
+    { tickRate: TICK, rounds: rr, kills: [], damages: [], bombs: [], economy: [], players: ids.map((id) => ({ steamId: id, name: id, team: id.startsWith("c") ? ("CT" as Side) : ("T" as Side) })) },
+    { sites: S, placeOf: (p) => (p.x > 500 ? "BombsiteA" : p.x < -500 ? "BombsiteB" : "Connector") }
+  );
+  const c1 = rot.find((r) => r.steamId === "c1")!.sides.CT!.profile;
+  check("rotation: from A to B while alive", c1.rotations === 4 && c1.roundSpots?.every((r) => r.rotated) === true);
+  check("rotation: the path of callouts", c1.roundSpots?.[0].path.join(" → ") === "BombsiteA → Connector → BombsiteB");
+  check("quiet rounds: no fight", c1.contactRounds === 0 && c1.roundSpots?.[0].contact === false && c1.roundSpots?.[0].diedS === null);
+}
+
+const ctProf = (p: Partial<SideProfile>) => prof({ side: "CT", spotRounds: 10, siteRounds: 0, zones: { A: 0, B: 0, mid: 0 }, midRounds: 0, rotations: 0, ...p });
+const ctRoles = assignTeamRoles("CT", [
+  { id: "m1", prof: ctProf({ midRounds: 6, zones: { A: 0, B: 0, mid: 6 } }) },
+  { id: "r1", prof: ctProf({ zones: { A: 2, B: 2, mid: 6 } }) },
+  { id: "r2", prof: ctProf({ siteRounds: 4, rotations: 3, zones: { A: 4, B: 3, mid: 3 } }) },
+  { id: "s1", prof: ctProf({ siteRounds: 4, rotations: 1, zones: { A: 4, B: 0, mid: 0 } }) },
+  { id: "k1", prof: ctProf({ siteRounds: 6, midRounds: 6 }) },
+]);
+check("CT mid: set up on a mid callout", ctRoles.get("m1") === "mid");
+check("CT rotator: set up between the sites", ctRoles.get("r1") === "rotator");
+check("CT rotator: moved to the other site often", ctRoles.get("r2") === "rotator");
+check("CT support otherwise, anchor first", ctRoles.get("s1") === "support" && ctRoles.get("k1") === "anchor");
+check("match role: rotator / mid from the CT side", matchRole({ T: { role: "support" }, CT: { role: "rotator" } }) === "rotator" &&
+  matchRole({ T: { role: "entry" }, CT: { role: "mid" } }) === "entry");
+check("side roles: entry/lurk only T, anchor/rotator/mid only CT, AWP both",
+  SIDE_ROLES.T.includes("entry") && !SIDE_ROLES.CT.includes("entry") && SIDE_ROLES.CT.includes("mid") && SIDE_ROLES.T.includes("awp") && SIDE_ROLES.CT.includes("awp"));
+check("isSideRole", isSideRole("CT", "anchor") && !isSideRole("T", "anchor") && !isSideRole("T", "ninja"));
+
+// Corrections: the match's own > the usual role > detected.
+const det = { T: "support" as Role, CT: "anchor" as Role };
+const none = resolve("p1", det, [], null);
+check("no correction → detected", none.sides.T === "support" && none.source.T === null && none.role === "anchor");
+const usual = resolve("p1", det, [], { p1: { T: "entry" } });
+check("usual role applies to that SteamID", usual.sides.T === "entry" && usual.source.T === "default" && usual.role === "entry" && usual.sides.CT === "anchor");
+check("usual role of another SteamID is ignored", resolve("p2", det, [], { p1: { T: "entry" } }).sides.T === "support");
+const own = resolve("p1", det, [{ steamId: "p1", side: "T", role: "lurk" }], { p1: { T: "entry" } });
+check("the match's own correction wins", own.sides.T === "lurk" && own.source.T === "match" && own.detected.T === "support");
+check("a correction invalid for the side is ignored", resolve("p1", det, [{ steamId: "p1", side: "CT", role: "entry" }], null).sides.CT === "anchor");
+check("usual roles: parse drops junk", asRoleDefaults({ "761": { T: "anchor", CT: "mid" } })?.["761"]?.CT === "mid" &&
+  asRoleDefaults({ "761": { T: "anchor" } }) === null && asRoleDefaults({ x: { T: "entry" } }) === null && asRoleDefaults("x") === null &&
+  asRoleDefaults([]) === null);
+const two = updateRoleDefaults(updateRoleDefaults(null, "761", "T", "entry"), "762", "CT", "awp");
+check("usual roles: several players, set and clear", two?.["761"]?.T === "entry" && two?.["762"]?.CT === "awp" &&
+  updateRoleDefaults({ "761": { T: "entry" } }, "761", "T", null) === null);
+let many: ReturnType<typeof updateRoleDefaults> = null;
+for (let i = 0; i < MAX_ROLE_DEFAULTS + 5; i++) many = updateRoleDefaults(many, String(1000 + i), "T", "entry");
+check("usual roles: capped, oldest dropped", Object.keys(many ?? {}).length === MAX_ROLE_DEFAULTS && !("1000" in (many ?? {})) && String(1000 + MAX_ROLE_DEFAULTS + 4) in (many ?? {}));
+const eff = effectiveRoles(detectRoles(tactics), [{ steamId: "a4", side: "T", role: "lurk" }], null);
+const roleOf = roleOfRound(tactics, eff);
+check("round role follows the side of the round", roleOf("a1", 1) === "entry" && roleOf("a1", 14) === "anchor");
+check("round role uses the correction", roleOf("a4", 2) === "lurk" && roleOf("a4", 14) === eff.get("a4")!.detected.CT);
+
+const r = pl.roles as unknown as { activity: { note: Record<string, string> }; correct: Record<string, string> };
+const e = en.roles as unknown as typeof r;
+check("PL/EN activity note for every role and the lone anchor",
+  [...ROLES, "anchorIsolated"].every((k) => !!r.activity.note[k] && !!e.activity.note[k]));
+check("PL/EN correction copy in step", Object.keys(r.correct).every((k) => !!e.correct[k]));
 
 // ─── Report ──────────────────────────────────────────────
 

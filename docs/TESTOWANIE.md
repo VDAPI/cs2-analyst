@@ -214,6 +214,7 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 - [ ] Wgranie przykładowego dema z `data/przyklad`, postęp w kolejce, gotowa analiza
 - [ ] Mecz: scoreboard, rundy, oś czasu, clutche, trade'y, multi-kille
 - [ ] Raport (`Raport` przy meczu): przewodnik przy pierwszym raporcie (i z przycisku „Jak czytać raport”), 3 najważniejsze błędy, karty błędów z klipem 2D, „Ty vs pro”
+- [ ] Raport, karta „Twoja rola w meczu”: rola na T i CT, aktywność, pozycje runda po rundzie (callout, strefa, „sam”, rotacja), „Popraw rolę” (po zapisaniu błędy w raporcie przeliczają się, przy błędach taktycznych widać „Oceniono dla roli …”)
 - [ ] Replay 2D: odtwarzanie, przewijanie, zoom i przesuwanie palcami na telefonie, znaczniki błędów, notatki na mapie
 - [ ] Mechanika: strzały w ruchu, counter-strafe, celowanie, reakcja, spray
 - [ ] Granaty, lineupy (kopiowanie `setpos`), heatmapy, ekonomia

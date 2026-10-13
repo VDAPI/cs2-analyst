@@ -319,6 +319,14 @@ export const FINDING_TYPES_EN: Record<FindingType, FindingTypeCopy> = {
     drill: "For every bombsite on your map, prepare 3 CT positions and rotate through them during the half.",
     pro: "pro: about 45–75% of CT rounds in the same spot, but with different timing and utility",
   },
+  isolated_aggression: {
+    label: "Aggression on an isolated spot",
+    title: "Alone on a bombsite, you go looking for fights",
+    why: "On an isolated bombsite nobody can trade you: dying after leaving your spot gives the site away for free before the rotation arrives.",
+    advice: "Alone on a bombsite, play for time and info: a molotov or smoke on the entrance, fall back, call and wait for the rotation. Little action on such a spot is not a mistake.",
+    drill: "For your isolated CT spots (e.g. B on Mirage), prepare 2 places to play for time and 1 grenade that delays the push.",
+    pro: "pro: a lone anchor rarely takes a duel before the rotation; they buy time with utility",
+  },
   clutch_decision: {
     label: "Clutch decision",
     title: "Bad decisions in clutches",

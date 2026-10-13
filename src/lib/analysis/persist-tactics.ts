@@ -7,6 +7,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { decodeRoundTicks } from "@/lib/replay/round-ticks";
 import { analyzeTactics, TACTICS_VERSION, type TacticsFrame, type TacticsInput } from "./tactics";
+import { getMapPlaces } from "./persist-utility";
+import type { SiteCentres } from "./sites";
 
 /** The analysis input for one match from the DB, or null when there is nothing to analyse. */
 export async function loadTacticsInput(prisma: PrismaClient, matchId: string): Promise<TacticsInput | null> {
@@ -76,7 +78,15 @@ export async function computeAndPersistTactics(prisma: PrismaClient, matchId: st
   const input = await loadTacticsInput(prisma, matchId);
   if (!input) return 0;
 
-  const results = analyzeTactics(input);
+  // Bombsite centres from the map's callouts (S31); without them the plants of this match stand in.
+  let sites: SiteCentres | undefined;
+  try {
+    const match = await prisma.match.findUnique({ where: { id: matchId }, select: { map: true } });
+    if (match) sites = (await getMapPlaces(prisma, match.map)).sites;
+  } catch (error) {
+    console.error(`[tactics] callouts unavailable match=${matchId}:`, error);
+  }
+  const results = analyzeTactics(input, { sites });
 
   // Serialised per match (like findings): two first views after a version
   // bump would otherwise interleave delete+insert and hit @@unique([matchId, steamId]).
