@@ -16,6 +16,7 @@
 import {
   assignGrenadeDamage,
   bombSiteLetter,
+  pistolRoundNumbers,
   resolveTeamASides,
   scoreRounds,
 } from "@/lib/parsers/demo-parser";
@@ -195,6 +196,30 @@ const live = (aTeamNum: number) =>
 check("site entity index + place name → letter", bombSiteLetter(184, "BombsiteA") === "A");
 check("letter passes through", bombSiteLetter("B", undefined) === "B");
 check("unknown index without place → undefined", bombSiteLetter(185, "CTSpawn") === undefined);
+
+// ─── Pistol rounds follow the match format ───────────────────
+
+{
+  const sidesOf = (half: number, last: number) =>
+    new Map(
+      Array.from({ length: last }, (_, i): [number, Side] => [i + 1, i + 1 <= half ? "T" : "CT"])
+    );
+  const set = (s: Set<number>) => [...s].sort((a, b) => a - b).join(",");
+  check("MR12: pistols 1 and 13", set(pistolRoundNumbers(sidesOf(12, 24))) === "1,13");
+  check("wingman MR8: pistols 1 and 9", set(pistolRoundNumbers(sidesOf(8, 16))) === "1,9");
+  check("short match without halftime: only round 1", set(pistolRoundNumbers(sidesOf(10, 10))) === "1");
+  check("empty match: no pistols", pistolRoundNumbers(new Map()).size === 0);
+  // Overtime halves swap too but start with full money: not pistol rounds.
+  const ot = resolveTeamASides({
+    roundNumbers: Array.from({ length: 30 }, (_, i) => i + 1),
+    liveTeamsByRound: new Map(),
+    playerRoster: roster,
+  });
+  check("OT 30 rounds (rule fallback): pistols 1 and 13 only", set(pistolRoundNumbers(ot)) === "1,13");
+  // A gap in the round list never fakes a swap.
+  const gap = new Map<number, Side>([[1, "T"], [2, "T"], [4, "CT"], [5, "CT"]]);
+  check("gap in rounds is not a swap", set(pistolRoundNumbers(gap)) === "1");
+}
 
 // ─── Report ──────────────────────────────────────────────────
 
