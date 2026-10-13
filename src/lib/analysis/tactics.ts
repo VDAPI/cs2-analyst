@@ -32,7 +32,7 @@
 import { distToSite, mergeSites, siteCentresFromPlants, zoneOf, type SiteCentres } from "./sites";
 
 /** Bump when detection or summary numbers change; stored rows are recomputed. */
-export const TACTICS_VERSION = 2;
+export const TACTICS_VERSION = 3;
 
 /** A kill of the killer within this many seconds trades the death. */
 export const TRADE_WINDOW_S = 3;
@@ -558,7 +558,9 @@ export function analyzeTactics(input: TacticsInput, opts: TacticsOptions = {}): 
       const plant = c.plant && c.plant.tick < k.tick ? c.plant : null;
 
       if (plant && side === "CT") {
-        if (nearest && nearest.d >= RETAKE_GROUP_RANGE) {
+        // After the explosion there is no retake: a CT hunted while saving is not one.
+        const exploded = k.tick - plant.tick >= BOMB_TIMER_S * tickRate;
+        if (!exploded && nearest && nearest.d >= RETAKE_GROUP_RANGE) {
           push(victim, {
             ...base,
             type: "retake_solo",
@@ -665,7 +667,8 @@ export function analyzeTactics(input: TacticsInput, opts: TacticsOptions = {}): 
         const left = BOMB_TIMER_S - (soloDeath - plant.tick) / tickRate;
         const enemies = enemiesAt(soloDeath - 1);
         const killer = c.kills.find((k) => k.victimSteamId === solo);
-        if (left < 10 && enemies >= 1 && killer) {
+        // left <= 0: killed after the bomb went off (hunted while saving) — he did save.
+        if (left > 0 && left < 10 && enemies >= 1 && killer) {
           push(solo, {
             type: "clutch_decision",
             variant: "save",

@@ -404,6 +404,46 @@ check("predictable position reaches A1's top 3", a1Report.top.some((i) => i.type
   check("every role rule has advice text", Object.values(ROLE_RULES).every((r) => Object.values(r ?? {}).every((x) => (x?.advice ?? "").length > 30)));
 }
 
+// ─── 11. After the explosion: CTs hunted while saving ───
+{
+  // Round 2: A on T, B on CT. Plant at 2000, explosion at 2000 + 40 s.
+  const plantTick = 2000;
+  const boom = plantTick + 40 * TICK_RATE;
+  const pk: TacticsKill[] = [];
+  const pkill = (rn: number, tick: number, attacker: string, victim: string, vx = 0) =>
+    pk.push({
+      tick, roundNumber: rn, attackerSteamId: attacker, victimSteamId: victim,
+      attackerPosX: 0, attackerPosY: 0, attackerPosZ: 0, victimPosX: vx, victimPosY: 0, victimPosZ: 0,
+    });
+  // Round 2: B1 left alone before the explosion, hunted 3 s after it (exit frag).
+  pkill(2, 2500, A1, B2);
+  pkill(2, 2600, A1, B3);
+  pkill(2, boom + 3 * TICK_RATE, A2, B1);
+  // Round 3: B1 killed 3 s after the explosion, B3 alive 3000 u away (no retake possible).
+  pkill(3, boom + 3 * TICK_RATE, A2, B1);
+  const pos: Record<string, number> = { [B1]: 0, [B2]: 2500, [B3]: 3000, [A1]: 9000, [A2]: 200, [A3]: 9000 };
+  const still3: TacticsFrame[] = [0, boom + 10 * TICK_RATE].map((tick) => ({
+    tick,
+    players: [...A, ...B].map((id) => ({
+      steamId: id, team: A.includes(id) ? ("T" as const) : ("CT" as const),
+      x: pos[id], y: 0, z: 0, velX: 0, velY: 0, isAlive: true,
+    })),
+  }));
+  const pb = (rn: number): TacticsBomb => ({ tick: plantTick, roundNumber: rn, type: "PLANTED", playerSteamId: A1, posX: 0, posY: 0, posZ: 0, site: "A" });
+  const post = analyzeTactics({
+    tickRate: TICK_RATE,
+    rounds: [
+      { number: 2, startTick: 0, endTick: boom, winner: "T", winReason: "BOMB_EXPLODED", ctScore: 0, tScore: 2, frames: [] },
+      { number: 3, startTick: 0, endTick: boom, winner: "T", winReason: "BOMB_EXPLODED", ctScore: 0, tScore: 3, frames: still3 },
+    ],
+    kills: pk, damages: [], bombs: [pb(2), pb(3)], economy: [], players, totalRounds: 24,
+  });
+  const b1 = post.find((p) => p.steamId === B1)!;
+  check("hunted after the explosion while saving → no clutch 'save' (no negative time)",
+    !b1.moments.some((m) => m.type === "clutch_decision"));
+  check("killed after the explosion → no solo retake", !b1.moments.some((m) => m.type === "retake_solo"));
+}
+
 // ─── Report ──────────────────────────────────────────────
 
 let failed = 0;
