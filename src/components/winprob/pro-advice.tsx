@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Play, Users } from "lucide-react";
 import { buttonVariants } from "@/components/ui";
-import { FindingClip } from "@/components/replay/finding-clip";
+import { LazyFindingClip } from "@/components/replay/finding-clip-lazy";
 import type { RadarConfig } from "@/lib/canvas/radar";
 import { useLocale, useT } from "@/lib/i18n/client";
 import { fmtPp } from "@/lib/winprob/format";
@@ -154,7 +154,7 @@ export function ProAdvicePanel({
               </div>
               {clipOf != null && a.examples[clipOf] && (
                 <div className="space-y-1">
-                  <FindingClip
+                  <LazyFindingClip
                     key={clipOf}
                     matchId={a.examples[clipOf].matchId}
                     mapName={mapName}

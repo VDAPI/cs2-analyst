@@ -40,6 +40,14 @@ def test_dataset_keeps_newest_version_only():
     assert d.n_matches == 3 and d.version == 1
 
 
+def test_same_demo_twice_counts_once():
+    ms = synthetic_matches(3, rounds=4, seed=5)
+    twin = MatchRows("copy", ms[0].features, ms[0].rows, ms[0].pro, ms[0].version)
+    ds = build_dataset([*ms, twin])
+    assert ds.n_matches == 3
+    assert "copy" not in ds.match_ids
+
+
 def test_bad_row_width_is_rejected():
     with pytest.raises(ValueError):
         build_dataset([MatchRows("x", ["a", "b"], [[1, 64, 1, 0.5]])])

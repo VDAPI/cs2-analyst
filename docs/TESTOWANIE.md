@@ -190,7 +190,7 @@ Płatności działają w **trybie testowym** Stripe: nikt nie płaci prawdziwych
 2. Przełącz panel na „Test mode” (przełącznik w prawym górnym rogu), wejdź w „Developers” → „API keys” i skopiuj „Secret key” (`sk_test_…`).
 3. Wpisz go w `.env` jako `STRIPE_SECRET_KEY=sk_test_...` ([punkt 3](#3-klucze-api-opcjonalnie)) i uruchom `docker compose up -d`.
 4. Jednorazowo w panelu Stripe (tryb testowy): „Settings” → „Billing” → „Customer portal” → „Activate test link”. Bez tego przycisk „Zarządzaj subskrypcją” zwróci błąd.
-5. W aplikacji wejdź w „Plan i płatności” (menu „Pro i drużyna” albo Ustawienia → „Plan i płatności”) i wybierz Pro lub Drużyna. Na stronie Stripe wpisz kartę testową `4242 4242 4242 4242`, dowolną przyszłą datę (np. 12/34), dowolny CVC i dowolne dane.
+5. W aplikacji wejdź w „Plan i płatności” (menu „Pro i plan” albo Ustawienia → „Plan i płatności”) i wybierz Pro lub Drużyna. Na stronie Stripe wpisz kartę testową `4242 4242 4242 4242`, dowolną przyszłą datę (np. 12/34), dowolny CVC i dowolne dane.
 6. Po powrocie plan i limity zmieniają się od razu (aplikacja sama pyta Stripe o wynik). Faktura pojawi się na liście po kliknięciu „Odśwież status”.
 
 Ceny produktów (Pro 6 USD/mies., Drużyna 15 USD/mies., rocznie 10 miesięcy) aplikacja zakłada w Stripe sama przy pierwszej płatności. Zmienia się je w jednym miejscu: `src/lib/billing/prices.ts`.

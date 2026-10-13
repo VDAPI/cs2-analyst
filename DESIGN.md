@@ -165,7 +165,7 @@ All: radius `8px`, padding `10px 18px`, font Geist 14px/600, min touch target `4
 - **Mobile:** tables scroll horizontally *inside* their card (`overflow-x: auto`) with the player name column sticky; the page itself never scrolls horizontally
 
 ### Navigation
-- **Sidebar (≥1024px)**: `--surface-1`, width `240px` (collapsible to `64px`), border-right `--border`. Groups: **Analiza**, **Narzędzia**, **Pro i drużyna**. Item padding `8px 12px`, radius `6px`; active `--accent-muted` bg + `--accent` text + 2px violet left bar; icons 18px.
+- **Sidebar (≥1024px)**: `--surface-1`, width `240px` (collapsible to `64px`), border-right `--border`. Expandable categories (header: category icon, Chakra Petch uppercase label, chevron; active category icon lime; items indented under a 1px `--border` guide line): **Mecze**, **Rozwój**, **Mapa i taktyka**, **Gracze**, **Drużyna**, **Pro i plan**. Open state is remembered; the current screen's category opens by itself; a closed category holding the current screen shows a lime dot. Collapsed (64px) shows every screen icon, categories separated by a line. The mobile drawer uses the same categories. Item padding `8px 12px`, radius `6px`; active `--accent-muted` bg + `--accent` text + 2px violet left bar; icons 18px.
 - **Top bar**: glass, height `56px`, sticky, border-bottom `--border`
 - **Mobile (<768px)**: bottom bar (glass, `64px` + safe-area inset) with 4–5 main destinations and a "Więcej" drawer for the rest; sidebar hidden
 

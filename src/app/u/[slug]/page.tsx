@@ -7,7 +7,7 @@ import { getT } from "@/lib/i18n/server";
 import { EmptyState, SectionTitle, UserAvatar } from "@/components/ui";
 import { MapThumb, ResultBadge } from "@/components/match";
 import { PublicShell } from "@/components/share/public-shell";
-import { MetricTrendCard } from "@/components/progress/metric-trend-card";
+import { MetricTrendCard } from "@/components/charts/lazy-charts";
 import { BadgeGrid } from "@/components/progress/badge-grid";
 import { loadProgress } from "@/lib/progress/load";
 import { buildProgressView } from "@/lib/progress/view";

@@ -21,7 +21,7 @@
  */
 import { normalizeWeapon } from "@/lib/analysis/movement";
 
-export const WP_FEATURES_VERSION = 1;
+export const WP_FEATURES_VERSION = 2;
 
 /** CS2 round clock after freeze time, seconds. */
 export const ROUND_TIME_S = 115;
@@ -427,6 +427,32 @@ export function usableRound(ctx: RoundContext): boolean {
   return sides.has("CT") && sides.has("T") && ctx.decided > ctx.freezeEnd;
 }
 
+/**
+ * Can this round teach the model? Its result must follow from the game state:
+ * a surrender, a vote or a demo cut short is stored as ELIMINATION (round-end.ts)
+ * with the "losers" still alive, and would label any state as a win.
+ * The replay strip and WPA still use such rounds (usableRound): their kills are real.
+ */
+export function trainableRound(ctx: RoundContext): boolean {
+  if (!usableRound(ctx)) return false;
+  const { winner, winReason } = ctx.round;
+  switch (winReason) {
+    case "ELIMINATION": {
+      const loser = otherSide(winner);
+      return !playersAt(ctx, ctx.decided).some((p) => p.side === loser && p.alive);
+    }
+    case "BOMB_EXPLODED":
+      return winner === "T" && ctx.plant != null;
+    case "BOMB_DEFUSED":
+      return winner === "CT" && ctx.plant != null;
+    case "TIME_RAN_OUT":
+    case "TARGET_SAVED":
+      return winner === "CT" && ctx.plant == null;
+    default:
+      return false;
+  }
+}
+
 /** Snapshot ticks of a round: a regular grid plus right after every kill and the plant. */
 export function snapshotTicks(ctx: RoundContext): number[] {
   const step = Math.max(1, Math.round(SNAPSHOT_STEP_S * ctx.tickRate));
@@ -437,12 +463,12 @@ export function snapshotTicks(ctx: RoundContext): number[] {
   return [...ticks].sort((a, b) => a - b);
 }
 
-/** Training snapshots of a whole match. Rounds without frames are skipped. */
+/** Training snapshots of a whole match. Rounds without frames or with a result the state can't explain are skipped. */
 export function matchSnapshots(match: WpMatch): Snapshot[] {
   const out: Snapshot[] = [];
   for (const round of match.rounds) {
     const ctx = buildRoundContext(round, match.tickRate, match.sites);
-    if (!usableRound(ctx)) continue;
+    if (!trainableRound(ctx)) continue;
     const tWin = round.winner === "T" ? 1 : 0;
     for (const tick of snapshotTicks(ctx)) {
       out.push({ roundNumber: round.number, tick, tWin, features: featureVector(stateAt(ctx, tick)) });

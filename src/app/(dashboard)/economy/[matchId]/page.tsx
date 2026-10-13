@@ -6,7 +6,7 @@ import { mapDisplayName } from "@/lib/utils/mapNames";
 import { createSideResolver } from "@/lib/utils/sideSplit";
 import { teamBuySyncScore } from "@/lib/utils/buySync";
 import type { BuyTypeKey } from "@/lib/utils/buyType";
-import { EconomyChart } from "./economy-chart";
+import { EconomyChart } from "@/components/charts/lazy-charts";
 import {
   BuyCoordinationGrid,
   type PlayerRow,

@@ -5,7 +5,7 @@
  * before this existed or with an older MECHANICS_VERSION.
  */
 import type { PrismaClient } from "@prisma/client";
-import { decodeRoundTicks } from "@/lib/replay/round-ticks";
+import { decodeRoundTicksCached } from "@/lib/replay/decode-cache";
 import { analyzeMovement, MECHANICS_VERSION, type FrameInput, type MovementInput } from "./movement";
 
 /** The analysis input for one match from the DB, or null when there is nothing to analyse. */
@@ -43,7 +43,7 @@ export async function loadMechanicsInput(prisma: PrismaClient, matchId: string):
     rounds: match.rounds.map((r) => ({
       number: r.number,
       startTick: r.startTick,
-      frames: r.ticks ? (decodeRoundTicks(r.ticks) as FrameInput[]) : [],
+      frames: r.ticks ? (decodeRoundTicksCached(r.ticks) as FrameInput[]) : [],
     })),
     shots: match.rounds.flatMap((r) => r.shots.map((s) => ({ ...s, roundNumber: r.number }))),
     damages: match.rounds.flatMap((r) => r.damages.map((d) => ({ ...d, roundNumber: r.number }))),

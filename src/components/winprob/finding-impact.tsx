@@ -11,7 +11,7 @@ export const MIN_IMPACT_PP = 0.5;
 
 export const ppOf = (wp: { before: number; after: number }) => Math.round((wp.after - wp.before) * 1000) / 10;
 
-/** "Kosztowało team −14 pp szansy na rundę (54% → 40%, śmierć po tym błędzie)" on a finding card. */
+/** "Ta śmierć kosztowała drużynę −14 pp szansy na rundę (54% → 40%)" on a finding card. */
 export function FindingImpact({ wp }: { wp: { before: number; after: number; kind: string } }) {
   const t = useT();
   const locale = useLocale();
@@ -19,9 +19,14 @@ export function FindingImpact({ wp }: { wp: { before: number; after: number; kin
   if (Math.abs(pp) < MIN_IMPACT_PP) return null;
   const cost = pp < 0;
   const Icon = cost ? TrendingDown : TrendingUp;
+  const known = ["death", "mate_death", "trade", "drop"].includes(wp.kind);
+  const costKey = (known ? `winprob.costByKind.${wp.kind}` : "winprob.costLong") as MessageKey;
   const kindKey = `winprob.kind.${wp.kind}` as MessageKey;
+  // A death's whole value is an upper bound for the mistake before it (the duel may have been lost anyway).
+  const hint = cost && (wp.kind === "death" || wp.kind === "mate_death") ? t("winprob.deathUpperBound") : undefined;
   return (
     <p
+      title={hint}
       className={cn(
         "flex items-start gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs",
         cost
@@ -33,7 +38,7 @@ export function FindingImpact({ wp }: { wp: { before: number; after: number; kin
       <span className="min-w-0">
         <span className="font-semibold text-[var(--text-primary)]">
           {cost
-            ? t("winprob.costLong", { pp: fmtPp(pp, locale) })
+            ? t(costKey, { pp: fmtPp(pp, locale) })
             : t("winprob.gainLong", { pp: fmtPpAbs(pp, locale) })}
         </span>
         <span className="text-[var(--text-tertiary)]">
@@ -42,7 +47,7 @@ export function FindingImpact({ wp }: { wp: { before: number; after: number; kin
           <span className="font-mono">
             {t("winprob.beforeAfter", { before: Math.round(wp.before * 100), after: Math.round(wp.after * 100) })}
           </span>
-          , {t(kindKey)})
+          {!(cost && known) && <>, {t(kindKey)}</>})
         </span>
       </span>
     </p>

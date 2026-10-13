@@ -9,7 +9,7 @@ import type { GoalStatus } from "@/lib/progress/goals";
 import { useT } from "@/lib/i18n/client";
 import { formatDate } from "@/lib/utils/formatters";
 import { cn } from "@/lib/utils/cn";
-import { metricLabel } from "./metric-trend-card";
+import { metricLabel } from "@/lib/progress/labels";
 
 export interface GoalMetricOption {
   key: string;

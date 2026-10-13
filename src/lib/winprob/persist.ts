@@ -6,7 +6,7 @@
  * findings; the parse worker backfills older matches on startup.
  */
 import type { Prisma, PrismaClient } from "@prisma/client";
-import { decodeRoundTicks } from "@/lib/replay/round-ticks";
+import { decodeRoundTicksCached } from "@/lib/replay/decode-cache";
 import { PLACE_CELL } from "@/lib/analysis/places";
 import {
   buildRoundContext,
@@ -23,7 +23,7 @@ import {
 import { FINDING_TYPES, isFindingType } from "@/lib/findings/catalog";
 import { findingImpact, type Impact, type ImpactTarget } from "./impact";
 import { isModelSpec, predictSide, type WinProbModelSpec } from "./model";
-import { PRIOR_MODEL } from "./prior";
+import { PRIOR_ID, PRIOR_MODEL } from "./prior";
 import { matchWpa, type PlayerWpa } from "./series";
 import {
   ACTION_HORIZON_S,
@@ -116,7 +116,7 @@ export async function loadWinProbMatch(
       endTick: r.endTick,
       winner: r.winner === "T" ? "T" : "CT",
       winReason: r.winReason,
-      frames: r.ticks ? (decodeRoundTicks(r.ticks) as WpFrame[]) : [],
+      frames: r.ticks ? (decodeRoundTicksCached(r.ticks) as WpFrame[]) : [],
       kills: r.kills,
       bombs: r.bombs,
       grenades: r.grenades,
@@ -128,7 +128,7 @@ export async function loadWinProbMatch(
 // ─── Model ───────────────────────────────────────────────
 
 export interface ActiveModel {
-  /** WinProbModel id, or "prior". */
+  /** WinProbModel id, or PRIOR_ID ("prior-<hash>"). */
   id: string;
   kind: string;
   spec: WinProbModelSpec;
@@ -140,7 +140,7 @@ export interface ActiveModel {
 const MODEL_TTL_MS = 60_000;
 let modelCache: { at: number; model: ActiveModel } | null = null;
 
-export const PRIOR: ActiveModel = { id: "prior", kind: "prior", spec: PRIOR_MODEL, trained: false, nMatches: 0 };
+export const PRIOR: ActiveModel = { id: PRIOR_ID, kind: "prior", spec: PRIOR_MODEL, trained: false, nMatches: 0 };
 
 /** The newest active trained model for the current features, or the prior. Cached for a minute. */
 export async function getActiveModel(prisma: PrismaClient): Promise<ActiveModel> {

@@ -13,16 +13,31 @@ import {
   sampleTickList,
   type EncodedRoundTicks,
 } from "@/lib/replay/round-ticks";
-import { loadDemoParser } from "./load-parser";
+import { loadDemoParser, parseTickRows } from "./load-parser";
 
 // demoparser2 (native bindings), or the E2E fixture parser.
 const getParser = loadDemoParser;
 
 /**
  * parseTicks returns one JS object per player per tick, so a whole match at
- * 4-tick sampling is ~400k objects. Parse a few rounds per pass to bound memory.
+ * 4-tick sampling is ~400k objects. Parse a few rounds per pass to bound memory
+ * (every pass also costs one read of the demo, ~0.2 s, hence not fewer).
  */
-const ROUNDS_PER_PASS = 4;
+const ROUNDS_PER_PASS = 8;
+
+/**
+ * demoparser2 derives velocity from the previous *requested* tick, so the
+ * first two samples of a round hold either nothing (first round of a pass) or
+ * the jump from the last round's end to the spawn (~100k u/s), which read as
+ * jumps and early movement. Players are frozen there anyway: store 0.
+ */
+const VELOCITY_WARMUP_SAMPLES = 2;
+
+function clearVelocity(row: Record<string, unknown>) {
+  row.velocity_X = null;
+  row.velocity_Y = null;
+  row.velocity_Z = null;
+}
 
 export interface ReplayRoundWindow {
   number: number;
@@ -105,24 +120,28 @@ export async function parseReplayData(
     let rows: Record<string, unknown>[] | null = null;
     if (withExtras) {
       try {
-        rows = (parser.parseTicks(filePath, [...REPLAY_TICK_PROPS, ...REPLAY_EXTRA_PROPS], wanted) ??
-          []) as Record<string, unknown>[];
+        rows = parseTickRows(parser, filePath, [...REPLAY_TICK_PROPS, ...REPLAY_EXTRA_PROPS], wanted);
       } catch (err) {
         console.warn("[replay-data] visibility/ammo props unavailable, storing format v1:", err);
         withExtras = false;
       }
     }
     if (!rows) {
-      rows = (parser.parseTicks(filePath, REPLAY_TICK_PROPS, wanted) ?? []) as Record<
-        string,
-        unknown
-      >[];
+      rows = parseTickRows(parser, filePath, REPLAY_TICK_PROPS, wanted);
     }
+    const byRound = new Map<number, Record<string, unknown>[]>(batch.map((r) => [r.number, []]));
+    for (const row of rows) {
+      const t = Number(row.tick);
+      for (const r of batch) {
+        if (t < r.startTick || t > r.endTick) continue;
+        if (t < r.startTick + VELOCITY_WARMUP_SAMPLES * REPLAY_SAMPLE_INTERVAL) clearVelocity(row);
+        byRound.get(r.number)?.push(row);
+      }
+    }
+    rows = null;
     for (const r of batch) {
-      const inRound = rows.filter((row) => {
-        const t = Number(row.tick);
-        return t >= r.startTick && t <= r.endTick;
-      });
+      const inRound = byRound.get(r.number) ?? [];
+      byRound.delete(r.number);
       roundTicks.set(
         r.number,
         encodeRoundTicks(inRound, r.startTick, r.endTick, REPLAY_SAMPLE_INTERVAL, withExtras)
@@ -294,10 +313,7 @@ export async function parsePlaceSamples(
   const wanted = rounds.flatMap((r) => sampleTickList(r.startTick, r.endTick, step));
   if (wanted.length === 0) return [];
   try {
-    const rows = (parser.parseTicks(filePath, ["X", "Y", "Z", "last_place_name"], wanted) ?? []) as Record<
-      string,
-      unknown
-    >[];
+    const rows = parseTickRows(parser, filePath, ["X", "Y", "Z", "last_place_name"], wanted);
     return rows
       .map((r) => ({ x: num(r.X), y: num(r.Y), z: num(r.Z), place: str(r.last_place_name) }))
       .filter((s) => s.place !== "");

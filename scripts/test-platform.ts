@@ -30,6 +30,7 @@ import { resolveLocale } from "@/lib/i18n/config";
 import { createT, pluralForm, translate } from "@/lib/i18n/translate";
 import { notificationView } from "@/lib/notifications/text";
 import { isAllowedPushEndpoint } from "@/lib/notifications/push-endpoint";
+import { navGroups, activeGroupId, mobilePrimaryHrefs } from "@/components/layout/nav-items";
 
 const checks: [string, boolean][] = [];
 const check = (label: string, ok: boolean) => checks.push([label, ok]);
@@ -161,6 +162,21 @@ async function main() {
   check("lookalike host rejected", !isAllowedPushEndpoint("https://fcm.googleapis.com.evil.example/x"));
   check("suffix without dot rejected", !isAllowedPushEndpoint("https://evilpush.apple.com/x"));
   check("garbage rejected", !isAllowedPushEndpoint("not a url"));
+  // ─── 7. Navigation categories ──────────────────────────
+  {
+    const hrefs = navGroups.flatMap((g) => g.items.map((i) => i.href));
+    const screens = ["/matches", "/report", "/upload", "/queue", "/library", "/premier", "/progress", "/coach", "/training", "/clips", "/replay", "/heatmaps", "/grenades", "/lineups", "/economy", "/players", "/compare", "/friends", "/team", "/scouting", "/pro", "/play-like-pro", "/billing"];
+    const missing = screens.filter((h) => !hrefs.includes(h));
+    check(`every screen is in a nav category${missing.length ? `: missing ${missing.join(", ")}` : ""}`, missing.length === 0);
+    check("no screen is in two nav categories", new Set(hrefs).size === hrefs.length);
+    check("nav category ids are unique", new Set(navGroups.map((g) => g.id)).size === navGroups.length);
+    check("no nav category is empty", navGroups.every((g) => g.items.length > 0));
+    check("mobile bottom bar items exist in the menu", mobilePrimaryHrefs.every((h) => hrefs.includes(h)));
+    check("a nested page opens its category", activeGroupId("/lineups/abc") === navGroups.find((g) => g.items.some((i) => i.href === "/lineups"))?.id);
+    check("a page outside the menu opens no category", activeGroupId("/settings") === undefined);
+    const groupKeys = navGroups.map((g) => g.labelKey.split(".")[1] as keyof typeof pl.nav);
+    check("every nav category has PL and EN labels", groupKeys.every((k) => !!pl.nav[k] && !!en.nav[k]));
+  }
 }
 
 main().then(() => {
