@@ -25,7 +25,7 @@
 import { normalizeWeapon, WEAPON_MAX_SPEED } from "./movement";
 
 /** Bump when the analysis changes, so stored stats are recomputed. */
-export const AIM_VERSION = 3;
+export const AIM_VERSION = 4;
 
 // ─── Tunables ────────────────────────────────────────────
 
@@ -842,24 +842,30 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
     for (const id of ids) {
       let runStart = -1;
       let runEnemy = "";
+      // First frame of the run at which the team already knew the enemy: a run
+      // is judged by what was known while running, not by spotting that only
+      // happened later in it (the part before that was not a mistake).
+      let runKnown = -1;
       const flushRun = (endIdx: number) => {
         if (runStart === -1) return;
         const startTick = r.frames[runStart].tick;
         const endTick = r.frames[endIdx].tick;
         if (endTick - startTick >= s2t(NOISE_MIN_S)) {
-          const me = r.index[runStart].get(id)!;
-          const knew = teamKnew(r, endIdx, me.team, runEnemy);
+          const knownTick = runKnown !== -1 && runKnown <= endIdx ? r.frames[runKnown].tick : null;
+          const knew = knownTick != null && endTick - knownTick >= s2t(NOISE_MIN_S);
           const costly = anyIn(damageTakenTicks.get(id), startTick, endTick + s2t(COSTLY_AFTER_S));
-          if (knew === true || costly) {
+          if (knew || costly) {
+            // A costly run counts from its start; a known-enemy run from the moment it was known.
+            const from = costly ? startTick : knownTick!;
             const p = out(id);
             p.noiseEpisodes++;
             if (costly) p.noiseCostly++;
             addMoment(id, {
               type: "noise",
               roundNumber: r.number,
-              tick: startTick,
-              roundTime: roundTime(r.number, startTick),
-              value: Math.round(((endTick - startTick) / tickRate) * 10) / 10,
+              tick: from,
+              roundTime: roundTime(r.number, from),
+              value: Math.round(((endTick - from) / tickRate) * 10) / 10,
               detail: costly ? "bieg słyszalny dla wroga, potem trafienie" : "bieg w zasięgu słuchu znanego wroga",
               costly,
               enemy: runEnemy,
@@ -867,6 +873,7 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
           }
         }
         runStart = -1;
+        runKnown = -1;
       };
       for (let k = 0; k < r.frames.length; k++) {
         const me = r.index[k].get(id);
@@ -886,6 +893,7 @@ export function analyzeAim(input: AimInput): PlayerAim[] {
             runStart = k;
             runEnemy = near!.steamId;
           }
+          if (runKnown === -1 && teamKnew(r, k, me!.team, runEnemy) === true) runKnown = k;
         } else flushRun(Math.max(0, k - 1));
 
         // Jump take-off.
