@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getMatchAccess, roundAllowed } from "@/lib/sharing/access";
 import { prisma } from "@/lib/db/prisma";
+import { parseRoundParam } from "@/lib/sharing/share";
 
 interface Props {
   params: Promise<{ matchId: string }>;
@@ -19,7 +20,8 @@ export async function GET(req: Request, { params }: Props) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   const url = new URL(req.url);
-  const roundNum = parseInt(url.searchParams.get("round") ?? "1", 10);
+  const roundNum = parseRoundParam(url.searchParams.get("round"));
+  if (roundNum == null) return NextResponse.json({ error: "Invalid round" }, { status: 400 });
   if (!roundAllowed(access, roundNum)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

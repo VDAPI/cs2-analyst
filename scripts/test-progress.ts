@@ -37,6 +37,7 @@ import { resolvePlayer } from "@/lib/progress/identity";
 import { buildProgressView } from "@/lib/progress/view";
 import {
   isShareToken,
+  parseRoundParam,
   isValidSlug,
   momentReplayPath,
   normalizeSlug,
@@ -243,6 +244,12 @@ check("tie → ambiguous", resolvePlayer({ appearances: [ap("A", "x", 1), ap("B"
 const tok = newShareToken();
 check("share token: 22 url-safe chars, random", isShareToken(tok) && tok !== newShareToken());
 check("bad tokens rejected", !isShareToken("abc") && !isShareToken("../../etc/passwd/xxxxxx") && !isShareToken(null));
+check(
+  "replay ?round=: 1-999, default when absent, null when malformed (no NaN or Int overflow reaches Prisma)",
+  parseRoundParam(null) === 1 && parseRoundParam("") === 1 && parseRoundParam("12") === 12 && parseRoundParam("999") === 999 &&
+    parseRoundParam("0") === null && parseRoundParam("abc") === null && parseRoundParam("3abc") === null &&
+    parseRoundParam("-1") === null && parseRoundParam("99999999999") === null && parseRoundParam("1e2") === null
+);
 check("slug normalised (Polish letters, spaces)", normalizeSlug("  Łukasz Żółw!! ") === "lukasz-zolw");
 check("valid slugs", isValidSlug("lukasz-zolw") && isValidSlug("abc") && !isValidSlug("ab") && !isValidSlug("-abc") && !isValidSlug("a--b") && !isValidSlug("admin") && !isValidSlug("ABC"));
 check("suggested slug is valid", isValidSlug(suggestSlug("Żółty Gracz", "ab12")) && isValidSlug(suggestSlug(null, "ab12")) && isValidSlug(suggestSlug("x", "ab12")));
