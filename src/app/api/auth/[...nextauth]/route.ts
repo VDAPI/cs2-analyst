@@ -4,6 +4,7 @@ import { authOptions, isSteamLoginEnabled } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
+import { requestOrigin } from "@/lib/request-origin";
 
 async function handler(
   req: NextRequest,
@@ -19,7 +20,17 @@ async function handler(
     providers: [
       ...authOptions.providers,
       // Steam is optional: without a key the provider throws on every auth request.
-      ...(isSteamLoginEnabled() ? [Steam(req, { clientSecret: process.env.STEAM_API_KEY! })] : []),
+      // Steam OpenID returns to the address the sign-in started on, not to
+      // NEXTAUTH_URL: the local Docker setup (S20) is also opened from a phone
+      // at the computer's Wi-Fi IP, where "localhost" would be the phone.
+      ...(isSteamLoginEnabled()
+        ? [
+            Steam(req, {
+              clientSecret: process.env.STEAM_API_KEY as string,
+              callbackUrl: `${requestOrigin(req.headers, req.url)}/api/auth/callback`,
+            }),
+          ]
+        : []),
     ],
     callbacks: {
       ...authOptions.callbacks,
