@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
-import { useSession } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -33,6 +33,12 @@ interface SettingsContentProps {
     faceitId: string | null;
     faceitNickname: string | null;
   };
+  /**
+   * Which links the server can do (Steam needs STEAM_API_KEY, FACEIT its
+   * OAuth client) and the origin FACEIT returns to (FACEIT_OAUTH_BASE_URL),
+   * which may be another port than this page (S20: :3443 vs :3000).
+   */
+  integrations: { steam: boolean; faceit: boolean; faceitOrigin: string | null };
   /** The account has a password (account deletion asks for it). */
   hasPassword: boolean;
   /** Discord bot link, notifications and channel webhook (S26). */
@@ -85,7 +91,16 @@ function Notice({ tone, children }: { tone: "good" | "mistake"; children: React.
   );
 }
 
-export function SettingsContent({ user, hasPassword, discord, premierHistory, publicProfile, shares, usage }: SettingsContentProps) {
+export function SettingsContent({
+  user,
+  integrations,
+  hasPassword,
+  discord,
+  premierHistory,
+  publicProfile,
+  shares,
+  usage,
+}: SettingsContentProps) {
   const t = useT();
   const { update } = useSession();
   const toast = useToast();
@@ -104,6 +119,11 @@ export function SettingsContent({ user, hasPassword, discord, premierHistory, pu
     id: user.faceitId,
     nickname: user.faceitNickname,
   });
+  // router.refresh() after a link brings new props; local state alone would
+  // keep showing "not connected" until a full reload.
+  useEffect(() => {
+    setFaceitState({ id: user.faceitId, nickname: user.faceitNickname });
+  }, [user.faceitId, user.faceitNickname]);
 
   useEffect(() => {
     if ((linked === "steam" || linked === "faceit") && !didRefresh.current) {
@@ -112,17 +132,33 @@ export function SettingsContent({ user, hasPassword, discord, premierHistory, pu
     }
   }, [linked, update]);
 
+  // The popup's callback can live on another port of this host (S20:
+  // Settings on http://localhost:3000, FACEIT returns to :3443).
+  const faceitOrigin = integrations.faceitOrigin;
   const handleMessage = useCallback(
     async (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
+      if (event.origin !== window.location.origin && event.origin !== faceitOrigin) return;
       if (event.data?.type === "faceit-linked") {
         await update();
         router.replace("/settings?linked=faceit");
         router.refresh();
       }
     },
-    [update, router]
+    [update, router, faceitOrigin]
   );
+
+  // FACEIT can only come back to faceitOrigin. Opened from another host (a
+  // phone at the computer's Wi-Fi IP while that is https://localhost:3443),
+  // the flow can't finish there: say so instead of failing at the end.
+  const [faceitElsewhere, setFaceitElsewhere] = useState(false);
+  useEffect(() => {
+    if (!faceitOrigin) return;
+    try {
+      setFaceitElsewhere(new URL(faceitOrigin).hostname !== window.location.hostname);
+    } catch {
+      setFaceitElsewhere(false);
+    }
+  }, [faceitOrigin]);
 
   useEffect(() => {
     window.addEventListener("message", handleMessage);
@@ -247,15 +283,50 @@ export function SettingsContent({ user, hasPassword, discord, premierHistory, pu
   const nameChanged = displayName.trim() !== (user.name ?? "") && displayName.trim().length > 0;
 
   function openFaceitLinkPopup() {
+    if (!integrations.faceit) {
+      toast({ title: t("settings.faceitOff"), variant: "warning" });
+      return;
+    }
     const w = 500;
     const h = 700;
     const left = window.screenX + (window.outerWidth - w) / 2;
     const top = window.screenY + (window.outerHeight - h) / 2;
-    window.open(
+    const popup = window.open(
       "/api/faceit/link",
       "faceit-link",
       `width=${w},height=${h},left=${left},top=${top},popup=yes`
     );
+    if (!popup) {
+      // Popup blocked: run the flow in this tab, it comes back to /settings.
+      window.location.href = "/api/faceit/link";
+      return;
+    }
+    // When the popup closes, re-read the account even if its message never
+    // arrived (a browser that cut the opener link on the way through faceit.com).
+    const timer = window.setInterval(() => {
+      if (!popup.closed) return;
+      window.clearInterval(timer);
+      void update().then(() => router.refresh());
+    }, 700);
+  }
+
+  const [steamStarting, setSteamStarting] = useState(false);
+  async function startSteamLink() {
+    if (!integrations.steam) {
+      toast({ title: t("settings.steamOff"), variant: "warning" });
+      return;
+    }
+    setSteamStarting(true);
+    try {
+      // Marks the next Steam sign-in as "link to this account", then the
+      // regular NextAuth Steam sign-in (POST + CSRF) sends us to Steam.
+      const res = await fetch("/api/auth/link-steam", { method: "POST" });
+      if (!res.ok) throw new Error(String(res.status));
+      await signIn("steam", { callbackUrl: "/settings?linked=steam" });
+    } catch {
+      setSteamStarting(false);
+      toast({ title: t("settings.linkStartFailed"), variant: "error" });
+    }
   }
 
   return (
@@ -384,6 +455,13 @@ export function SettingsContent({ user, hasPassword, discord, premierHistory, pu
           {(error === "faceit-link-failed" || error === "faceit-denied") && (
             <Notice tone="mistake">{t("settings.faceitFailed")}</Notice>
           )}
+          {error === "faceit-session-lost" && (
+            <Notice tone="mistake">{t("settings.faceitSessionLost")}</Notice>
+          )}
+          {error === "faceit-not-configured" && <Notice tone="mistake">{t("settings.faceitOff")}</Notice>}
+          {!hasFaceit && integrations.faceit && faceitElsewhere && faceitOrigin && (
+            <Notice tone="mistake">{t("settings.faceitLocalOnly", { origin: faceitOrigin })}</Notice>
+          )}
         </div>
 
         <ul className="mt-2 divide-y divide-[var(--divider)]">
@@ -427,9 +505,8 @@ export function SettingsContent({ user, hasPassword, discord, premierHistory, pu
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => {
-                  window.location.href = "/api/auth/link-steam";
-                }}
+                onClick={startSteamLink}
+                disabled={steamStarting}
               >
                 <Link2 className="h-3.5 w-3.5" aria-hidden />
                 {t("common.connect")}

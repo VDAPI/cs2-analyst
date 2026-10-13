@@ -20,7 +20,8 @@ import {
   type Situation,
 } from "@/lib/norms/norms";
 import { METRIC_UNIT } from "@/lib/norms/view";
-import { isRole, type Role, type SideProfile } from "./roles";
+import type { Zone } from "@/lib/analysis/sites";
+import { anchorSite, isRole, type Role, type RoundSpot, type SideProfile } from "./roles";
 
 export interface RoleMetric {
   metric: string;
@@ -36,6 +37,8 @@ export const ROLE_METRICS: Record<Role, RoleMetric[]> = {
   lurk: [m("noise"), m("opening"), m("crosshair"), m("reaction"), m("unused_utility"), m("jump")],
   anchor: [m("same_spot"), m("crosshair"), m("preaim"), m("molotov_damage"), m("unused_utility"), m("reaction")],
   support: [m("flash_blind"), m("flash_follow"), m("team_flash"), m("trades"), m("he_damage"), m("smoke_wasted")],
+  rotator: [m("trades"), m("crosshair"), m("reaction"), m("noise"), m("unused_utility"), m("smoke_wasted")],
+  mid: [m("opening"), m("crosshair"), m("reaction"), m("trades"), m("flash_blind"), m("unused_utility")],
 };
 
 export const roleKey = (role: Role): MessageKey => `roles.name.${role}` as MessageKey;
@@ -51,6 +54,8 @@ export const ROLE_TONE: Record<Role, string> = {
   awp: "var(--accent-2)",
   lurk: "var(--t-gold)",
   anchor: "var(--ct-blue)",
+  rotator: "var(--ct-blue)",
+  mid: "var(--accent-2)",
   support: "var(--accent)",
 };
 
@@ -184,4 +189,78 @@ export function spotPlaces(
     .sort((a, b) => b[1] - a[1])
     .slice(0, max)
     .map(([place, n]) => ({ place, share: Math.round((n / spots.length) * 100) }));
+}
+
+// ─── Positions and activity (S31) ────────────────────────
+
+export interface SidePositions {
+  /** Callouts of the setup spots, most used first, with their share (0–100). */
+  top: Array<{ place: string; share: number }>;
+  /** Share (0–100) of setup spots per zone, null when the map's sites are unknown. */
+  zones: Record<Zone, number> | null;
+  /** The site the player stood on most (CT), from the zones. */
+  site: "A" | "B" | null;
+  /** Share (0–100) of rounds with an isolated setup spot. */
+  isolatedShare: number | null;
+  /** Rounds in which the player moved to another site. */
+  rotations: number;
+  /** One entry per round with a spot. */
+  rounds: RoundSpot[];
+}
+
+/** Where the player stood on one side, from the stored profile (null for profiles stored before S31). */
+export function sidePositions(p: SideProfile | null | undefined, max = 3): SidePositions | null {
+  if (!p?.roundSpots) return null;
+  const rounds = p.roundSpots;
+  const counts = new Map<string, number>();
+  for (const r of rounds) if (r.place) counts.set(r.place, (counts.get(r.place) ?? 0) + 1);
+  const zoned = p.zones ? p.zones.A + p.zones.B + p.zones.mid : 0;
+  return {
+    top: [...counts]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, max)
+      .map(([place, n]) => ({ place, share: Math.round((n / rounds.length) * 100) })),
+    zones:
+      p.zones && zoned > 0
+        ? { A: pct(p.zones.A, zoned)!, B: pct(p.zones.B, zoned)!, mid: pct(p.zones.mid, zoned)! }
+        : null,
+    site: anchorSite(p),
+    isolatedShare: pct(p.isolatedRounds ?? 0, p.spotRounds),
+    rotations: p.rotations ?? 0,
+    rounds,
+  };
+}
+
+export interface Activity {
+  /** Median seconds from freeze end to the first fight. */
+  tempoS: number | null;
+  /** Share (0–100) of rounds the player made the team's first contact. */
+  firstContactShare: number | null;
+  /** Share (0–100) of rounds with any fight. */
+  contactShare: number | null;
+  /** Share (0–100) of rounds without a single fight. */
+  quietShare: number | null;
+}
+
+/** Tempo, involvement and quiet rounds on one side (null for profiles stored before S31). */
+export function activityOf(p: SideProfile | null | undefined): Activity | null {
+  if (!p || p.contactRounds == null || p.rounds === 0) return null;
+  return {
+    tempoS: p.contactTimeS,
+    firstContactShare: pct(p.firstContacts, p.rounds),
+    contactShare: pct(p.contactRounds, p.rounds),
+    quietShare: pct(p.rounds - p.contactRounds, p.rounds),
+  };
+}
+
+/** Isolated in at least this share of rounds: quiet rounds are the job, not a problem. */
+export const ISOLATED_NOTE_SHARE = 50;
+
+/**
+ * How to read the activity numbers for a role. An anchor alone on a site
+ * (B on Mirage) is meant to be quiet: holding the site matters, not fights.
+ */
+export function activityNoteKey(role: Role, positions: SidePositions | null): MessageKey {
+  if (role === "anchor" && (positions?.isolatedShare ?? 0) >= ISOLATED_NOTE_SHARE) return "roles.activity.note.anchorIsolated";
+  return `roles.activity.note.${role}` as MessageKey;
 }

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Card, PageHeader, buttonVariants } from "@/components/ui";
 import { MapThumb } from "@/components/match";
 import Link from "next/link";
-import { ClipboardCheck, Crosshair, DollarSign, Flame, Footprints, Play } from "lucide-react";
+import { ClipboardCheck, Crosshair, DollarSign, Flame, Footprints, Play, Clapperboard } from "lucide-react";
 import { RoundTimeline } from "./round-timeline";
 import { ScoreboardLegend, ScoreboardTable } from "./scoreboard-table";
 import { formatDate } from "@/lib/utils/formatters";
@@ -165,6 +165,7 @@ export default async function MatchDetailPage({ params }: Props) {
     { href: `/replay/${matchId}`, label: "Replay 2D", icon: Play },
     { href: `/grenades/${matchId}`, label: "Granaty", icon: Crosshair },
     { href: `/mechanics/${matchId}`, label: "Mechanika", icon: Footprints },
+    { href: `/clips?match=${matchId}`, label: "Klipy", icon: Clapperboard },
   ];
 
   const meta = [

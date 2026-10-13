@@ -414,6 +414,12 @@ function TopIssue({
             share={ctx.share}
             autoLoad
             label={`${issue.def.label}, runda ${worst.roundNumber}`}
+            exportInfo={{
+              title: issue.def.label,
+              subtitle: `${ctx.mapName} · R${worst.roundNumber} · ${fmtRoundTime(worst.roundTime)}`,
+              map: ctx.mapName,
+              round: worst.roundNumber,
+            }}
           />
           <p className="text-xs text-[var(--text-tertiary)]">
             <span className="font-mono text-[var(--text-secondary)]">

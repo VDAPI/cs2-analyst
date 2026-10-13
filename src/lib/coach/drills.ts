@@ -259,7 +259,7 @@ export const DRILLS: Record<DrillId, DrillDef> = {
     where: "app",
     appPath: "/heatmaps",
     minutes: 10,
-    types: ["predictable_position", "early_rotation", "clutch_decision"],
+    types: ["predictable_position", "early_rotation", "clutch_decision", "isolated_aggression"],
     pl: {
       name: "Heatmapa i pozycje",
       how: "Sprawdź heatmapę swoich pozycji CT i przygotuj 2–3 warianty na każdą stronę bombsite'u, które zmieniasz co kilka rund.",

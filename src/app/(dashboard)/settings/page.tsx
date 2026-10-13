@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions, isSteamLoginEnabled } from "@/lib/auth";
+import { faceitOAuthBaseUrl, isFaceitLinkConfigured } from "@/lib/faceit/oauth";
 import { prisma } from "@/lib/db/prisma";
 import { redirect } from "next/navigation";
 import { getPlanUsage } from "@/lib/limits";
@@ -64,6 +65,11 @@ export default async function SettingsPage() {
           faceitId: dbUser.faceitId,
           faceitNickname: dbUser.faceitNickname,
         }}
+        integrations={{
+          steam: isSteamLoginEnabled(),
+          faceit: isFaceitLinkConfigured(),
+          faceitOrigin: faceitOrigin(),
+        }}
         hasPassword={Boolean(dbUser.password)}
         discord={{
           username: dbUser.discordId ? (dbUser.discordUsername ?? dbUser.discordId) : null,
@@ -96,4 +102,12 @@ export default async function SettingsPage() {
       />
     </Suspense>
   );
+}
+
+function faceitOrigin(): string | null {
+  try {
+    return new URL(faceitOAuthBaseUrl()).origin;
+  } catch {
+    return null;
+  }
 }

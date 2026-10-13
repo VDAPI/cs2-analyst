@@ -16,10 +16,12 @@ import { fmtClock, type GrenadeKind, type Point3, type UtilityMoment, type Utili
 import { lineupName, setposCommand, suggestLineup, type Lineup } from "@/lib/analysis/lineups";
 import type { TacticsMoment } from "@/lib/analysis/tactics";
 import { weaponLabel } from "@/lib/utils/weapons";
+import type { Role } from "@/lib/roles/roles";
+import type { RoleOf } from "@/lib/roles/effective";
 import { FINDING_TYPES, type FindingCategory, type FindingSeverity, type FindingType } from "./catalog";
 
 /** Bump when detectors or severities change, so stored findings are rebuilt. */
-export const FINDINGS_VERSION = 3;
+export const FINDINGS_VERSION = 4;
 
 /** One number on a finding card ("Prędkość 180 u/s, próg 73"). */
 export interface FindingValue {
@@ -48,6 +50,8 @@ export interface FindingDraft {
   detail: string;
   /** The one piece of advice for this moment. */
   advice: string;
+  /** Role the severity / advice were adjusted for (S31, ROLE_RULES); null when the role changed nothing. */
+  role: Role | null;
 }
 
 export interface MechanicsInput {
@@ -79,6 +83,7 @@ function draft(
     ...base,
     targetSteamId: base.targetSteamId ?? null,
     advice: base.advice ?? def.advice,
+    role: null,
   };
 }
 
@@ -488,6 +493,7 @@ const TACTICS_SEVERITY: Record<TacticsMoment["type"], (m: TacticsMoment) => Find
   no_drop: (m) => (m.lost ? "medium" : "low"),
   death_with_money: (m) => (m.variant === "last_round" && m.lost ? "medium" : "low"),
   predictable_position: (m) => (m.costly ? "medium" : "low"),
+  isolated_aggression: (m) => (m.lost ? "high" : "medium"),
 };
 
 export function fromTactics(rows: TacticsInput[]): FindingDraft[] {
@@ -514,6 +520,75 @@ export function fromTactics(rows: TacticsInput[]): FindingDraft[] {
   return out;
 }
 
+// ─── Roles (S31) ─────────────────────────────────────────
+
+export interface RoleRule {
+  /** Severity one step up (+1) or down (-1) for this role. */
+  shift?: 1 | -1;
+  /** Advice for this role instead of the catalog's. */
+  advice?: string;
+}
+
+/**
+ * How a player's role in that round changes a finding. A role never hides a
+ * mistake (an entry who dies untraded still made one); it moves the severity
+ * a step where the role makes the moment more or less expected, and gives the
+ * advice in the role's terms.
+ */
+export const ROLE_RULES: Partial<Record<FindingType, Partial<Record<Role, RoleRule>>>> = {
+  entry_death: {
+    entry:
+      { advice: "Jako entry wchodzisz pierwszy, ale nie sam: poczekaj, aż support stanie 1–2 m za tobą z flashem, i dopiero wtedy bierz kontakt." },
+    awp: {
+      shift: 1,
+      advice: "Z AWP nie bierz pierwszego kontaktu bez wsparcia: strata AWP (4750 $) boli podwójnie. Zostaw wejście entry i graj zza niego.",
+    },
+    support: { advice: "Nie jesteś entry tej drużyny: zanim wejdziesz pierwszy, upewnij się, że ktoś idzie tuż za tobą, albo oddaj wejście entry." },
+    lurk: { advice: "Lurk nie otwiera rundy: twoja śmierć jako pierwsza zabiera drużynie info z flanki. Bierz walkę, gdy team zaczyna wejście." },
+  },
+  untraded_death: {
+    anchor: {
+      shift: -1,
+      advice: "Na samotnej pozycji anchor często nie ma trade'u. Liczy się, czy kupiłeś czas: utility na wejście i cofnięcie zamiast walki do końca.",
+    },
+    lurk: {
+      shift: -1,
+      advice: "Na lurku grasz z dala od teamu z założenia: śmierć ma sens tylko z info albo fragiem. Podaj call przed walką i bij w momencie wejścia drużyny.",
+    },
+    entry: { advice: "Jako entry potrzebujesz tradera tuż za sobą: bez niego twoja śmierć to tylko gra w osłabieniu. Poczekaj na supportera." },
+    awp: { advice: "Z AWP graj tak, żeby kolega mógł odegrać i podnieść broń: nie bierz pojedynku daleko od drużyny." },
+  },
+  missed_trade: {
+    support: { shift: 1, advice: "Trade to twoja praca jako support: stój 400–700 u za wchodzącym i wychodź na zabójcę od razu, z innego kąta." },
+    awp: { shift: -1, advice: "Z AWP trade z bliska nie jest twoją główną pracą, ale trzymaj linię na miejsce, z którego wróg zabił kolegę." },
+  },
+  early_rotation: {
+    anchor: { shift: 1, advice: "Jako anchor nie schodzisz z bombsite'u bez info: rotują rotator i mid, ty kupujesz czas na swoim sicie." },
+    rotator: { advice: "Jako rotator ruszasz na info, nie na dźwięk: poczekaj na call 3+ wrogów, bombę albo kontakt na drugim bombsicie." },
+    mid: { advice: "Z midu rotuj, gdy wiesz, gdzie idą T: jedno info to za mało, żeby zostawić środek mapy pusty." },
+  },
+  predictable_position: {
+    anchor: {
+      advice: "Jako anchor zostań na bombsicie, ale co 2–3 rundy zmieniaj kąt i timing w jego obrębie: inna osłona, cofnięta pozycja, molotov zamiast peeka.",
+    },
+  },
+  lurk_death: {
+    entry: { advice: "Zostałeś daleko od drużyny, choć grasz entry: twoje miejsce jest na czele wejścia, a nie na flance." },
+    support: { advice: "Zostałeś daleko od drużyny, choć nie grasz lurka: trzymaj się bliżej teamu albo podaj call, zanim weźmiesz walkę sam." },
+    awp: { advice: "Z AWP zostałeś daleko od drużyny: nikt nie odegra ani nie podniesie broni. Trzymaj linię, którą team może wspierać." },
+  },
+};
+
+const SEVERITY_STEPS: FindingSeverity[] = ["low", "medium", "high"];
+
+/** The draft adjusted for the player's role in that round (unchanged when no rule applies). */
+export function applyRole(d: FindingDraft, role: Role | null): FindingDraft {
+  const rule = role ? ROLE_RULES[d.type]?.[role] : undefined;
+  if (!role || !rule) return d;
+  const step = Math.min(2, Math.max(0, SEVERITY_STEPS.indexOf(d.severity) + (rule.shift ?? 0)));
+  return { ...d, severity: SEVERITY_STEPS[step], advice: rule.advice ?? d.advice, role };
+}
+
 /** Every detector, in one place. */
 export function detectFindings(input: {
   mechanics: MechanicsInput[];
@@ -521,13 +596,17 @@ export function detectFindings(input: {
   tactics?: TacticsInput[];
   utility?: UtilityInput[];
   utilityContext?: UtilityContext;
+  /** The player's role in a round (S31); without it findings ignore roles. */
+  roleOf?: RoleOf;
 }): FindingDraft[] {
-  return [
+  const drafts = [
     ...fromMechanics(input.mechanics),
     ...fromAim(input.aim),
     ...fromTactics(input.tactics ?? []),
     ...fromUtility(input.utility ?? [], input.utilityContext),
-  ].sort(
+  ];
+  const roleOf = input.roleOf;
+  return (roleOf ? drafts.map((d) => applyRole(d, roleOf(d.steamId, d.roundNumber))) : drafts).sort(
     (a, b) => a.roundNumber - b.roundNumber || a.tick - b.tick || a.steamId.localeCompare(b.steamId)
   );
 }

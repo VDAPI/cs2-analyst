@@ -11,7 +11,10 @@
  * 5. post-plant death, solo retake, clutch decisions (save, no plant),
  * 6. economy: bad force (with the loss-bonus estimate), no drop, death with money,
  * 7. predictable CT position,
- * 8. findings: one type each, with advice, values and report metrics.
+ * 8. findings: one type each, with advice, values and report metrics,
+ * 9. isolated aggression (S31): a lone CT on a bombsite who left the spot to
+ *    fight, against one who held it and one with a teammate close,
+ * 10. role-aware findings (S31): severity steps and advice per role.
  *
  * No demo file or database required — everything here is pure.
  */
@@ -31,7 +34,7 @@ import {
   type TacticsRound,
 } from "@/lib/analysis/tactics";
 import { FINDING_TYPES } from "@/lib/findings/catalog";
-import { detectFindings } from "@/lib/findings/detect";
+import { applyRole, detectFindings, ROLE_RULES } from "@/lib/findings/detect";
 import { buildReport, playerMetrics } from "@/lib/findings/report";
 
 const checks: [string, boolean][] = [];
@@ -314,6 +317,92 @@ check("trade rate over 1 chance is not judged", metrics.find((m) => m.key === "t
 const a1Report = buildReport(drafts.filter((d) => d.steamId === A1), metrics);
 check("A1 report has positioning issues", a1Report.byCategory.find((c) => c.category.key === "positioning")!.issues.length > 0);
 check("predictable position reaches A1's top 3", a1Report.top.some((i) => i.type === "predictable_position"));
+
+// ─── 9. Isolated aggression (S31) ────────────────────────
+
+{
+  const SITES = { A: { x: 2000, y: 2000, z: 0 }, B: { x: -2000, y: -2000, z: 0 } };
+  const iKills: TacticsKill[] = [];
+  const iRounds: TacticsRound[] = [];
+  const at = (x: number, y: number): Pos => ({ x, y });
+  // A1 anchors B alone (A2, A3 in mid); B1 kills A1 at tick 3000 (setup spot: tick 2240).
+  const scenario = (n: number, a1: Track, a2: Track) => {
+    const deathPos = a1(3000);
+    iKills.push({
+      tick: 3000, roundNumber: n, attackerSteamId: B1, victimSteamId: A1,
+      attackerPosX: -2000, attackerPosY: 0, attackerPosZ: 0, victimPosX: deathPos.x, victimPosY: deathPos.y, victimPosZ: 0,
+    });
+    const fr: TacticsFrame[] = [];
+    for (let t = 0; t <= 4000; t += 4) {
+      const tracks: Record<string, Track> = { [A1]: a1, [A2]: a2, [A3]: () => at(200, 0), [B1]: () => at(-2000, 500), [B2]: () => at(3000, 0), [B3]: () => at(3200, 0) };
+      fr.push({
+        tick: t,
+        players: [...A, ...B].map((id) => ({
+          steamId: id, team: A.includes(id) ? ("CT" as const) : ("T" as const),
+          x: tracks[id](t).x, y: tracks[id](t).y, z: 0,
+          velX: t >= FREEZE && id === B1 ? 100 : 0, velY: 0,
+          isAlive: !(id === A1 && t >= 3000),
+          spottedBy: [],
+        })),
+      });
+    }
+    iRounds.push({ number: n, startTick: 0, endTick: 4000, winner: "T", winReason: "ELIMINATION", ctScore: 0, tScore: n, frames: fr });
+  };
+  scenario(1, (t) => (t < 2600 ? at(-2000, -2000) : at(-2000, -1000)), () => at(0, 0)); // pushed out of B
+  scenario(2, () => at(-2000, -2000), () => at(0, 0)); // held the spot
+  scenario(3, (t) => (t < 2600 ? at(-2000, -2000) : at(-2000, -1000)), () => at(-1800, -1700)); // a teammate close
+  const input = { tickRate: TICK_RATE, rounds: iRounds, kills: iKills, damages: [], bombs: [], economy: [], players };
+  const iso = analyzeTactics(input, { sites: SITES });
+  const a1 = iso.find((p) => p.steamId === A1)!;
+  const agg = a1.moments.filter((m) => m.type === "isolated_aggression");
+  check("lone B anchor pushed out of the site and died → isolated aggression", agg.length === 1 && agg[0].roundNumber === 1);
+  check("isolated aggression: distance from the spot and the nearest teammate", agg[0]?.values[0].value === 1000 && agg[0]?.values[1].value >= 1200);
+  check("…and says the site was left empty", agg[0]?.detail.includes("nie został nikt") === true);
+  check("isolated aggression is not also an untraded death", !a1.moments.some((m) => m.roundNumber === 1 && m.type === "untraded_death"));
+  check("holding the spot alone is not aggression (untraded at most)", !agg.some((m) => m.roundNumber === 2) &&
+    a1.moments.some((m) => m.roundNumber === 2 && m.type === "untraded_death"));
+  check("with a teammate close it is not isolated", !agg.some((m) => m.roundNumber === 3));
+  const noSites = analyzeTactics(input);
+  check("unknown sites (no callouts, no plants) → not judged", !noSites.some((p) => p.moments.some((m) => m.type === "isolated_aggression")));
+  const withPlant = analyzeTactics({
+    ...input,
+    bombs: [{ tick: 3900, roundNumber: 1, type: "PLANTED", playerSteamId: B1, posX: -2000, posY: -2000, posZ: 0, site: "B" }],
+  });
+  const planted = withPlant.find((p) => p.steamId === A1)!.moments.find((m) => m.type === "isolated_aggression");
+  check("plants stand in for unknown sites; a plant there is mentioned", planted?.detail.includes("podłożyli") === true);
+  const isoDrafts = detectFindings({ mechanics: [], aim: [], tactics: [{ steamId: A1, moments: agg }] });
+  check("isolated aggression finding: positioning, high in a lost round, passive play is fine in the advice",
+    isoDrafts.length === 1 && isoDrafts[0].category === "positioning" && isoDrafts[0].severity === "high" &&
+    isoDrafts[0].advice.includes("nie błąd"));
+}
+
+// ─── 10. Role-aware findings (S31) ───────────────────────
+
+{
+  const entryDraft = drafts.find((d) => d.type === "entry_death")!;
+  const untradedDraft = drafts.find((d) => d.type === "untraded_death")!;
+  const asEntry = applyRole(entryDraft, "entry");
+  check("entry who dies untraded still gets the finding, same severity, entry advice",
+    asEntry.severity === entryDraft.severity && asEntry.role === "entry" && asEntry.advice.includes("entry"));
+  const asAwp = applyRole({ ...entryDraft, severity: "medium" }, "awp");
+  check("AWP taking the first contact alone: one step more severe", asAwp.severity === "high" && asAwp.advice.includes("AWP"));
+  check("severity never goes past high", applyRole({ ...entryDraft, severity: "high" }, "awp").severity === "high");
+  const asAnchor = applyRole({ ...untradedDraft, severity: "high" }, "anchor");
+  check("anchor dying untraded on his spot: one step milder", asAnchor.severity === "medium" && asAnchor.role === "anchor");
+  check("severity never goes below low", applyRole({ ...untradedDraft, severity: "low" }, "anchor").severity === "low");
+  const supportTrade = applyRole({ ...drafts.find((d) => d.type === "missed_trade")!, severity: "medium" }, "support");
+  check("support missing a trade: more severe (it's the job)", supportTrade.severity === "high");
+  const plain = drafts.find((d) => d.type === "bad_force")!;
+  check("no rule for the type → unchanged, no role stored", applyRole(plain, "entry") === plain && plain.role === null);
+  check("no role → unchanged", applyRole(entryDraft, null) === entryDraft);
+  const roleDrafts = detectFindings({
+    mechanics: [], aim: [], tactics: result.map((p) => ({ steamId: p.steamId, moments: p.moments })),
+    roleOf: (id) => (id === A1 ? "awp" : null),
+  });
+  const a1Entry = roleDrafts.find((d) => d.steamId === A1 && d.type === "entry_death")!;
+  check("detectFindings applies the round's role", a1Entry.role === "awp" && roleDrafts.length === drafts.length);
+  check("every role rule has advice text", Object.values(ROLE_RULES).every((r) => Object.values(r ?? {}).every((x) => (x?.advice ?? "").length > 30)));
+}
 
 // ─── Report ──────────────────────────────────────────────
 

@@ -17,12 +17,15 @@ import { detectFindings, FINDINGS_VERSION } from "./detect";
 import { findingImpacts, getActiveModel } from "@/lib/winprob/persist";
 import { WP_FEATURES_VERSION } from "@/lib/winprob/features";
 import { IMPACT_VERSION } from "@/lib/winprob/impact";
+import { ROLES_VERSION } from "@/lib/roles/roles";
+import { loadMatchRoleOf } from "@/lib/roles/corrections";
+import type { RoleOf } from "@/lib/roles/effective";
 
 /**
  * Stored findings are valid while detectors and the analyses they read are
  * unchanged; any version bump rebuilds them on next view.
  */
-export const FINDINGS_STAMP = `f${FINDINGS_VERSION}.m${MECHANICS_VERSION}.a${AIM_VERSION}.t${TACTICS_VERSION}.u${UTILITY_VERSION}`;
+export const FINDINGS_STAMP = `f${FINDINGS_VERSION}.m${MECHANICS_VERSION}.a${AIM_VERSION}.t${TACTICS_VERSION}.u${UTILITY_VERSION}.r${ROLES_VERSION}`;
 
 /**
  * The stamp also covers how the win-probability impacts are measured (S14).
@@ -50,6 +53,15 @@ export async function computeAndPersistFindings(prisma: PrismaClient, matchId: s
       console.error(`[findings] lineups/callouts unavailable match=${matchId}:`, error);
     }
   }
+  // Roles per round (S31): severity and advice follow the role. A failure only loses that.
+  let roleOf: RoleOf | undefined;
+  if (match) {
+    try {
+      roleOf = (await loadMatchRoleOf(prisma, matchId, match.map)) ?? undefined;
+    } catch (error) {
+      console.error(`[findings] roles unavailable match=${matchId}:`, error);
+    }
+  }
   const drafts = detectFindings({
     mechanics: mechanics.map((m) => ({ steamId: m.steamId, moments: m.moments as unknown as MovementMoment[] })),
     aim: aim.map((a) => ({ steamId: a.steamId, moments: a.moments as unknown as AimMoment[] })),
@@ -60,6 +72,7 @@ export async function computeAndPersistFindings(prisma: PrismaClient, matchId: s
       throws: u.throws as unknown as UtilityThrow[],
     })),
     utilityContext,
+    roleOf,
   });
 
   // What each mistake cost the team (S14). A failure only loses the numbers.
