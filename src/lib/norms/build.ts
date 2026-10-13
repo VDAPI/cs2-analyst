@@ -15,6 +15,7 @@ import { analyzeTactics, type PlayerTactics, type TacticsInput } from "@/lib/ana
 import { analyzeUtility, type PlayerUtility, type UtilityInput } from "@/lib/analysis/utility";
 import { playerMetrics } from "@/lib/findings/report";
 import { placeLookup, type PlaceCell } from "@/lib/analysis/places";
+import { siteCentresFromCells } from "@/lib/analysis/sites";
 import { detectRoles, type Role, type SideProfile } from "@/lib/roles/roles";
 import { metricsToSample, type NormSide, type NormSampleInput, type SampleMetrics } from "./norms";
 
@@ -155,8 +156,9 @@ function framesInput(input: NormMatchInput): SideRoundsInput["rounds"] {
 export function buildNormSamples(input: NormMatchInput): BuiltNormSample[] {
   const out: BuiltNormSample[] = [];
   const places = input.places?.length ? placeLookup(input.places) : undefined;
+  const sites = input.places?.length ? siteCentresFromCells(input.places) : undefined;
   const roles = new Map(
-    (input.tactics ? detectRoles(input.tactics, { placeOf: places }) : []).map((r) => [r.steamId, r] as const)
+    (input.tactics ? detectRoles(input.tactics, { placeOf: places, sites }) : []).map((r) => [r.steamId, r] as const)
   );
   const push = (steamId: string, side: NormSide, metrics: SampleMetrics) => {
     const r = roles.get(steamId);

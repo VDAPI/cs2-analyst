@@ -6,6 +6,8 @@ import { prisma } from "@/lib/db/prisma";
 import { sharePath } from "@/lib/sharing/share";
 import { newShareToken } from "@/lib/sharing/token";
 import { rateLimit } from "@/lib/security/rate-limit-http";
+import { clipShareSchema } from "@/lib/clips/clip";
+import { isFindingType } from "@/lib/findings/catalog";
 
 const schema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("report"), matchId: z.string().min(1), steamId: z.string().min(1) }),
@@ -16,12 +18,23 @@ const schema = z.discriminatedUnion("kind", [
     round: z.number().int().min(1),
     tick: z.number().int().min(0),
   }),
+  z.object({
+    kind: z.literal("clip"),
+    matchId: z.string().min(1),
+    steamId: z.string().min(1),
+    round: z.number().int().min(1),
+    clip: clipShareSchema,
+  }),
 ]);
+
+/** A clip may start this long before its round and end this long after it. */
+const CLIP_SLACK_TICKS = 5 * 64;
 
 /**
  * POST /api/shares — a public link to one player's report of the user's match,
- * or to one moment of its replay. Sharing the same report twice returns the
- * live link instead of a new one.
+ * to one moment of its replay, or to a 2D clip (a highlight or a mistake,
+ * S25). Sharing the same report or clip twice returns the live link instead
+ * of a new one.
  */
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -36,7 +49,11 @@ export async function POST(req: Request) {
 
   const match = await prisma.match.findFirst({
     where: { id: data.matchId, upload: { userId, deletedAt: null } },
-    select: { id: true, players: { select: { steamId: true } }, rounds: { select: { number: true } } },
+    select: {
+      id: true,
+      players: { select: { steamId: true } },
+      rounds: { select: { number: true, startTick: true, endTick: true } },
+    },
   });
   if (!match) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const steamId = data.steamId ?? null;
@@ -55,9 +72,41 @@ export async function POST(req: Request) {
     return NextResponse.json({ token: share.token, path: sharePath(share.token) });
   }
 
-  if (!match.rounds.some((r) => r.number === data.round)) {
+  const round = match.rounds.find((r) => r.number === data.round);
+  if (!round) {
     return NextResponse.json({ error: "Round not found" }, { status: 400 });
   }
+
+  if (data.kind === "clip") {
+    const c = data.clip;
+    if (c.from < round.startTick - CLIP_SLACK_TICKS || c.to > round.endTick + CLIP_SLACK_TICKS) {
+      return NextResponse.json({ error: "Clip outside round" }, { status: 400 });
+    }
+    if (c.kind === "finding" && (!c.findingType || !isFindingType(c.findingType))) {
+      return NextResponse.json({ error: "Unknown finding type" }, { status: 400 });
+    }
+    if (c.target && !match.players.some((p) => p.steamId === c.target)) {
+      return NextResponse.json({ error: "Player not in match" }, { status: 400 });
+    }
+    const live = await prisma.share.findFirst({
+      where: { userId, matchId: match.id, kind: "clip", steamId, roundNumber: data.round, tick: c.focus, revokedAt: null },
+    });
+    if (live) return NextResponse.json({ token: live.token, path: sharePath(live.token) });
+    const share = await prisma.share.create({
+      data: {
+        token: newShareToken(),
+        userId,
+        matchId: match.id,
+        kind: "clip",
+        steamId,
+        roundNumber: data.round,
+        tick: c.focus,
+        clip: c,
+      },
+    });
+    return NextResponse.json({ token: share.token, path: sharePath(share.token) });
+  }
+
   const share = await prisma.share.create({
     data: {
       token: newShareToken(),

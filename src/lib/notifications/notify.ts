@@ -55,3 +55,20 @@ export async function notifyUploadFinished(prisma: PrismaClient, uploadId: strin
     console.error(`[notify] failed uploadId=${uploadId}`, err);
   }
 }
+
+/** "X wants to be your friend" / "X accepted" (S25): the bell plus Web Push. Never throws. */
+export async function notifyFriend(
+  prisma: PrismaClient,
+  n: { userId: string; type: "FRIEND_REQUEST" | "FRIEND_ACCEPTED"; name: string }
+): Promise<void> {
+  try {
+    const data: NotificationData = { name: n.name };
+    await prisma.notification.create({ data: { userId: n.userId, type: n.type, data: { ...data } } });
+    const user = await prisma.user.findUnique({ where: { id: n.userId }, select: { locale: true } });
+    const locale = user && isLocale(user.locale) ? user.locale : DEFAULT_LOCALE;
+    const view = notificationView(createT(locale), { type: n.type, matchId: null, data });
+    await sendPushToUser(prisma, n.userId, { ...view, tag: `friend-${n.type}` });
+  } catch (err) {
+    console.error(`[notify] friend notification failed userId=${n.userId}`, err);
+  }
+}

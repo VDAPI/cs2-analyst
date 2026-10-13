@@ -130,9 +130,17 @@ jobs:
         if: ${{ !cancelled() }}
         run: npm run test:roles
 
+      - name: Clips, highlights, friends ranking and weekly challenges regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:social
+
       - name: Example analysis and onboarding regression tests
         if: ${{ !cancelled() }}
         run: npm run test:onboarding
+
+      - name: Payments (Stripe test mode, webhooks, plans, Team seats) regression tests
+        if: ${{ !cancelled() }}
+        run: npm run test:billing
 
       - name: Parser checks on the E2E fixture demo
         if: ${{ !cancelled() }}

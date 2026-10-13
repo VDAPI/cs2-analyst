@@ -10,13 +10,18 @@
  * - awp: most of the player's kills on that side are AWP kills (one per team),
  * - T side: entry = first of the team into contact most often; lurk = plays
  *   farthest from the rest of the team; the others are support,
- * - CT side: anchor = set up on a bombsite in most rounds; the others
- *   (mid, rotators) are support.
+ * - CT side: anchor = set up on a bombsite in most rounds; mid = set up on
+ *   a mid callout in most rounds; rotator = set up between the sites or moved
+ *   to the other site often (S31); the others are support.
  * The match role is AWP when the player AWPed, otherwise the T role when it
- * is entry or lurk, otherwise anchor when they anchored, otherwise support.
+ * is entry or lurk, otherwise the CT role when it is anchor, rotator or mid,
+ * otherwise support.
  *
  * Positions are sampled the way the S12 analysis does it: the setup spot is
- * where the player stands ANCHOR_DELAY_S after freeze end.
+ * where the player stands ANCHOR_DELAY_S after freeze end. Since S31 every
+ * round also keeps its callout, zone (A / B / mid, sites.ts), the path of
+ * callouts the player went through, whether the spot was isolated from the
+ * team and whether the player took part in any fight (activity).
  */
 import {
   ANCHOR_DELAY_S,
@@ -28,14 +33,17 @@ import {
   type TacticsInput,
   type TacticsRound,
 } from "@/lib/analysis/tactics";
+import { mergeSites, siteCentresFromPlants, zoneOf, type SiteCentres, type Zone } from "@/lib/analysis/sites";
 
 /** Bump when detection or the stored profile changes; it is part of NORMS_STAMP. */
-export const ROLES_VERSION = 1;
+export const ROLES_VERSION = 2;
 
-export type Role = "entry" | "awp" | "support" | "lurk" | "anchor";
-export const ROLES: Role[] = ["entry", "awp", "lurk", "anchor", "support"];
+export type Role = "entry" | "awp" | "support" | "lurk" | "anchor" | "rotator" | "mid";
+export const ROLES: Role[] = ["entry", "awp", "lurk", "anchor", "rotator", "mid", "support"];
 export const T_ROLES: Role[] = ["entry", "awp", "lurk", "support"];
-export const CT_ROLES: Role[] = ["awp", "anchor", "support"];
+export const CT_ROLES: Role[] = ["awp", "anchor", "rotator", "mid", "support"];
+/** Roles a side can have (what the report's "correct your role" picker offers). */
+export const SIDE_ROLES: Record<Side, Role[]> = { T: T_ROLES, CT: CT_ROLES };
 export const isRole = (x: unknown): x is Role => typeof x === "string" && (ROLES as string[]).includes(x);
 
 type Side = "CT" | "T";
@@ -58,6 +66,38 @@ export const SPACING_STEP_S = 2;
 export const SPACING_WINDOW_S = 40;
 /** Setup spots are stored rounded to this grid (units). */
 export const SPOT_GRID = 16;
+/** Mid: set up on a mid callout in at least this share of rounds with a spot. */
+export const MID_SHARE = 0.5;
+/** Rotator: set up between the sites, or moved to another site, in at least this share of rounds. */
+export const ROTATOR_SHARE = 0.3;
+/** A setup spot this far from every alive teammate is isolated (S31). */
+export const ISOLATED_RANGE = 1200;
+/** The round's path is sampled this often from freeze end… */
+export const PATH_STEP_S = 2;
+/** …for at most this long, and keeps at most this many callouts. */
+export const PATH_WINDOW_S = 90;
+export const PATH_MAX = 6;
+/** Callouts that name the middle of the map ("TopofMid", "Middle", "MidDoors"). */
+export const MID_PLACE = /mid/i;
+
+/** Where one player was in one round (S31). */
+export interface RoundSpot {
+  round: number;
+  /** Callout of the setup spot (ANCHOR_DELAY_S after freeze end), when the map has names. */
+  place: string | null;
+  /** Zone of the setup spot, when the map's sites are known. */
+  zone: Zone | null;
+  /** Callouts the player went through from freeze end, in order (consecutive repeats dropped). */
+  path: string[];
+  /** No alive teammate within ISOLATED_RANGE at the setup spot. */
+  isolated: boolean;
+  /** Dealt or took damage from an enemy this round. */
+  contact: boolean;
+  /** Went from the setup zone to another site while alive. */
+  rotated: boolean;
+  /** Seconds after freeze end the player died, null when they survived. */
+  diedS: number | null;
+}
 
 /** One player's numbers on one side, the basis of the role and of the "play like a pro" comparison. */
 export interface SideProfile {
@@ -79,6 +119,19 @@ export interface SideProfile {
   siteRounds: number;
   /** Setup spots ([x, y, z], rounded to SPOT_GRID), one per round with a spot. */
   spots: Array<[number, number, number]>;
+  // S31 (missing on profiles stored before ROLES_VERSION 2):
+  /** Rounds with any fight (damage dealt or taken). */
+  contactRounds?: number;
+  /** Setup zones over the rounds with a spot. */
+  zones?: Record<Zone, number>;
+  /** Rounds with a spot on a mid callout. */
+  midRounds?: number;
+  /** Rounds with an isolated setup spot. */
+  isolatedRounds?: number;
+  /** Rounds in which the player moved to another site. */
+  rotations?: number;
+  /** One entry per round with a spot, in round order. */
+  roundSpots?: RoundSpot[];
 }
 
 export interface PlayerRoles {
@@ -91,6 +144,8 @@ export interface PlayerRoles {
 export interface RoleOptions {
   /** Callout of a position (MapPlaceCell, places.ts); a name with "Bombsite" counts as on a site. */
   placeOf?: (p: { x: number; y: number; z: number }) => string | null;
+  /** Bombsite centres of the map (sites.ts); this match's plants fill in a missing one. */
+  sites?: SiteCentres;
 }
 
 const median = (xs: number[]): number | null => {
@@ -117,6 +172,12 @@ function emptyProfile(side: Side): SideProfile {
     spotRounds: 0,
     siteRounds: 0,
     spots: [],
+    contactRounds: 0,
+    zones: { A: 0, B: 0, mid: 0 },
+    midRounds: 0,
+    isolatedRounds: 0,
+    rotations: 0,
+    roundSpots: [],
   };
 }
 
@@ -151,6 +212,7 @@ export function detectRoles(input: TacticsInput, opts: RoleOptions = {}): Player
   const rounds = [...input.rounds].sort((a, b) => a.number - b.number);
   const totalRounds = input.totalRounds ?? rounds.at(-1)?.number ?? 0;
   const sites = siteCentres(input);
+  const zoneSites = mergeSites(opts.sites, siteCentresFromPlants(input.bombs));
   const onSite = (p: { x: number; y: number; z: number }) => {
     const name = opts.placeOf?.(p);
     if (name && SITE_NAME.test(name)) return true;
@@ -220,21 +282,31 @@ export function detectRoles(input: TacticsInput, opts: RoleOptions = {}): Player
         if (!teamFirst.has(side)) teamFirst.set(side, id);
       }
     }
-    for (const [id, tick] of firstOf) acc(id, sideOf.get(id)!).contactTimes.push(since(tick));
+    for (const [id, tick] of firstOf) {
+      const a = acc(id, sideOf.get(id)!);
+      a.contactTimes.push(since(tick));
+      a.profile.contactRounds = (a.profile.contactRounds ?? 0) + 1;
+    }
     for (const [side, id] of teamFirst) acc(id, side).profile.firstContacts++;
 
-    const died = new Set<string>();
+    const died = new Map<string, number>();
     for (const k of (killsBy.get(round.number) ?? []).sort((a, b) => a.tick - b.tick)) {
       const side = sideOf.get(k.victimSteamId);
       if (!side || !ids.has(k.victimSteamId) || died.has(k.victimSteamId)) continue;
-      died.add(k.victimSteamId);
+      died.set(k.victimSteamId, k.tick);
       acc(k.victimSteamId, side).deathTimes.push(since(k.tick));
     }
 
-    if (round.frames.length > 0) sampleFrames(round, freezeEnd, kills[0]?.tick ?? null);
+    if (round.frames.length > 0) sampleFrames(round, freezeEnd, kills[0]?.tick ?? null, firstOf, died);
   }
 
-  function sampleFrames(round: TacticsRound, freezeEnd: number, firstKill: number | null) {
+  function sampleFrames(
+    round: TacticsRound,
+    freezeEnd: number,
+    firstKill: number | null,
+    contacted: Map<string, number>,
+    died: Map<string, number>
+  ) {
     // Team spacing before the first kill: nearest alive teammate, every SPACING_STEP_S.
     const until = Math.min(firstKill ?? Infinity, freezeEnd + SPACING_WINDOW_S * tickRate, round.endTick);
     for (let tick = freezeEnd; tick <= until; tick += SPACING_STEP_S * tickRate) {
@@ -258,7 +330,59 @@ export function detectRoles(input: TacticsInput, opts: RoleOptions = {}): Player
       prof.spotRounds++;
       if (onSite(p)) prof.siteRounds++;
       prof.spots.push([snap(p.x), snap(p.y), snap(p.z)]);
+
+      // S31: callout, zone, isolation and the round's path.
+      const place = opts.placeOf?.(p) ?? null;
+      const zone = zoneOf(p, place, zoneSites);
+      let nearest = Infinity;
+      for (const q of f.players) {
+        if (q !== p && q.isAlive && q.team === p.team && ids.has(q.steamId)) nearest = Math.min(nearest, dist(p, q));
+      }
+      const isolated = nearest >= ISOLATED_RANGE;
+      const deathTick = died.get(p.steamId) ?? null;
+      const { path, rotated } = roundPath(round, p.steamId, freezeEnd, deathTick, zone);
+      if (zone) prof.zones![zone]++;
+      if (place ? MID_PLACE.test(place) : zone === "mid") prof.midRounds!++;
+      if (isolated) prof.isolatedRounds!++;
+      if (rotated) prof.rotations!++;
+      prof.roundSpots!.push({
+        round: round.number,
+        place,
+        zone,
+        path,
+        isolated,
+        contact: contacted.has(p.steamId),
+        rotated,
+        diedS: deathTick == null ? null : r1(Math.max(0, (deathTick - freezeEnd) / tickRate)),
+      });
     }
+  }
+
+  /** Callouts the player went through, and whether they reached another site than their setup zone. */
+  function roundPath(
+    round: TacticsRound,
+    steamId: string,
+    freezeEnd: number,
+    deathTick: number | null,
+    setupZone: Zone | null
+  ): { path: string[]; rotated: boolean } {
+    const path: string[] = [];
+    let rotated = false;
+    const until = Math.min(deathTick ?? Infinity, round.endTick, freezeEnd + PATH_WINDOW_S * tickRate);
+    const setupAt = freezeEnd + ANCHOR_DELAY_S * tickRate;
+    for (let tick = freezeEnd; tick <= until; tick += PATH_STEP_S * tickRate) {
+      const f = frameAt(round.frames, tick);
+      if (!f) break;
+      const p = f.players.find((q) => q.steamId === steamId);
+      if (!p || !p.isAlive) break;
+      const place = opts.placeOf?.(p) ?? null;
+      if (place && path.at(-1) !== place && path.length < PATH_MAX) path.push(place);
+      if (tick > setupAt && setupZone && !rotated) {
+        const zone = zoneOf(p, place, zoneSites);
+        if (zone && zone !== "mid" && zone !== setupZone) rotated = true;
+      }
+    }
+    return { path, rotated };
   }
 
   for (const a of accs.values()) {
@@ -316,8 +440,15 @@ export function assignTeamRoles(side: Side, members: Array<{ id: string; prof: S
     if (lurk) out.set(lurk.id, "lurk");
   } else {
     for (const m of rest) {
-      if (m.prof.spotRounds >= MIN_SIDE_ROUNDS / 2 && share(m.prof.siteRounds, m.prof.spotRounds) >= ANCHOR_SHARE) {
-        out.set(m.id, "anchor");
+      const p = m.prof;
+      if (p.spotRounds < MIN_SIDE_ROUNDS / 2) continue;
+      if (share(p.siteRounds, p.spotRounds) >= ANCHOR_SHARE) out.set(m.id, "anchor");
+      else if (share(p.midRounds ?? 0, p.spotRounds) >= MID_SHARE) out.set(m.id, "mid");
+      else if (
+        share(p.zones?.mid ?? 0, p.spotRounds) >= MID_SHARE ||
+        share(p.rotations ?? 0, p.spotRounds) >= ROTATOR_SHARE
+      ) {
+        out.set(m.id, "rotator");
       }
     }
   }
@@ -326,11 +457,18 @@ export function assignTeamRoles(side: Side, members: Array<{ id: string; prof: S
 }
 
 /** The one role a match is summed up with. */
-export function matchRole(sides: PlayerRoles["sides"]): Role | null {
+export function matchRole(sides: Partial<Record<Side, { role: Role | null; profile?: SideProfile }>>): Role | null {
   const t = sides.T?.role ?? null;
   const ct = sides.CT?.role ?? null;
   if (t === "awp" || ct === "awp") return "awp";
   if (t === "entry" || t === "lurk") return t;
-  if (ct === "anchor") return "anchor";
+  if (ct === "anchor" || ct === "rotator" || ct === "mid") return ct;
   return t ?? ct;
+}
+
+/** The site a CT anchored most (from the setup zones), or null. */
+export function anchorSite(p: SideProfile | null | undefined): "A" | "B" | null {
+  const z = p?.zones;
+  if (!z || z.A + z.B === 0) return null;
+  return z.A >= z.B ? "A" : "B";
 }

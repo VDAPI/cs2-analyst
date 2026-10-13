@@ -23,6 +23,8 @@ export interface FindingView {
   advice: string;
   /** What it cost the team (S14): round win probability before / after, 0–1. */
   wp?: { before: number; after: number; kind: string } | null;
+  /** Role the severity / advice were adjusted for (S31). */
+  role?: string | null;
 }
 
 export function toFindingView(f: Finding): FindingView {
@@ -45,6 +47,7 @@ export function toFindingView(f: Finding): FindingView {
       f.wpBefore != null && f.wpAfter != null
         ? { before: f.wpBefore, after: f.wpAfter, kind: f.wpKind ?? "death" }
         : null,
+    role: f.role,
   };
 }
 

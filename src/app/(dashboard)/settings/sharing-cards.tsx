@@ -170,7 +170,9 @@ export function SharesCard({ shares: initial }: { shares: ShareRow[] }) {
                 <Link href={sharePath(s.token)} target="_blank" className="block truncate text-sm font-medium text-[var(--text-primary)] hover:underline">
                   {s.kind === "moment"
                     ? t("shares.moment", { map: mapDisplayName(s.map), round: s.round ?? 1 })
-                    : t("shares.report", { map: mapDisplayName(s.map) })}
+                    : s.kind === "clip"
+                      ? t("shares.clip", { map: mapDisplayName(s.map), round: s.round ?? 1 })
+                      : t("shares.report", { map: mapDisplayName(s.map) })}
                 </Link>
                 <p className="text-xs text-[var(--text-tertiary)]">
                   <span className="font-mono">{t("shares.views", { n: s.views })}</span> ·{" "}

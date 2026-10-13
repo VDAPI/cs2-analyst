@@ -7,6 +7,7 @@
  * Also the map-wide data utility findings and the lineups screen read: callout
  * cells (MapPlaceCell) and the lineup base built from every match's throws.
  */
+import { siteCentresFromCells, type SiteCentres } from "./sites";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { decodeRoundTicksCached } from "@/lib/replay/decode-cache";
 import { analyzeUtility, UTILITY_VERSION, type GrenadeKind, type UtilityFrame, type UtilityInput, type UtilityThrow } from "./utility";
@@ -141,11 +142,19 @@ export async function persistPlaceCells(prisma: PrismaClient, map: string, cells
 
 /** Callout lookup for a map (returns null for every position until a demo of it was parsed since S11). */
 export async function getPlaceLookup(prisma: PrismaClient, map: string): Promise<(p: Point3) => string | null> {
+  return (await getMapPlaces(prisma, map)).placeOf;
+}
+
+/** A map's callout lookup and bombsite centres (S31), both from its MapPlaceCell rows. */
+export async function getMapPlaces(
+  prisma: PrismaClient,
+  map: string
+): Promise<{ placeOf: (p: Point3) => string | null; sites: SiteCentres; named: boolean }> {
   const cells = await prisma.mapPlaceCell.findMany({
     where: { map },
     select: { cx: true, cy: true, cz: true, place: true, count: true },
   });
-  return placeLookup(cells);
+  return { placeOf: placeLookup(cells), sites: siteCentresFromCells(cells), named: cells.length > 0 };
 }
 
 // ─── Lineup base ─────────────────────────────────────────

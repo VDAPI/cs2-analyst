@@ -53,6 +53,12 @@ const SCREENS: Screen[] = [
   { name: "pro", path: () => "/pro", volatile: lastRefresh },
   { name: "graj-jak-pro", path: () => "/play-like-pro?map=de_mirage&side=T" },
   { name: "ustawienia", path: () => "/settings" },
+  // Clips and friends (S25). The weekly challenges change every Monday: masked.
+  { name: "klipy", path: () => "/clips" },
+  { name: "klipy-bledy", path: () => "/clips?tab=mistakes" },
+  { name: "klipy-meczu", path: (s) => `/clips?match=${s.matchIds[0]}` },
+  { name: "znajomi", path: () => "/friends", volatile: (page) => [page.locator('section[aria-labelledby="challenges"]')] },
+  { name: "platnosci", path: () => "/billing", volatile: monthlyLimit },
   // Team (S17). /team opens the only team's dashboard.
   { name: "druzyna", path: () => "/team", heading: /Przegląd drużyny/ },
   { name: "druzyny-lista", path: () => "/team?all=1" },

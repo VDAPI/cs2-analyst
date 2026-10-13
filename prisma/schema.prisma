@@ -71,10 +71,20 @@ model User {
   // "Play like a pro" (S24): the pro player (steamId from the pro pool) the
   // player compares themselves with; null = the pool's busiest player.
   favoriteProSteamId String?
+  // Usual roles per player (S31, src/lib/roles/effective.ts): { "<steamId>": { T?, CT? } },
+  // used in this user's matches for that SteamID where no per-match correction exists.
+  roleDefaults       Json?
   publicSlug         String?   @unique
+  // Friends (S25): the code of the player's invite link (/friends/add/<code>);
+  // null until they create one, rotated when they reset it.
+  friendCode         String?   @unique
   // Onboarding (S21): when the player finished or skipped the report guide;
   // null = show it on the next report they open.
   reportTourAt       DateTime?
+  // Payments (S30): the Stripe customer of this account, created on the
+  // first checkout. The plan itself stays in `plan`, set from the
+  // subscriptions by src/lib/billing/persist.ts.
+  stripeCustomerId   String?   @unique
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -96,6 +106,31 @@ model User {
   lineupMastery     LineupMastery[]
   teamRivals        TeamRival[]
   tacticBoards      TacticBoard[]
+  friendsAsked      Friendship[]          @relation("FriendshipRequester")
+  friendsAnswered   Friendship[]          @relation("FriendshipAddressee")
+  subscriptions     BillingSubscription[]
+  invoices          BillingInvoice[]
+  roleOverrides     RoleOverride[]
+}
+
+// Friends (S25): one row per pair. An invite link adds the friend at once
+// (status "accepted"); a request from the FACEIT friends list or a shared
+// match waits for the other player ("pending"). Friends see each other's
+// averages in the ranking and the weekly challenges, never matches or demos.
+model Friendship {
+  id          String    @id @default(cuid())
+  requesterId String
+  addresseeId String
+  status      String // "pending" | "accepted"
+  source      String // "invite" | "faceit" | "match"
+  createdAt   DateTime  @default(now())
+  acceptedAt  DateTime?
+
+  requester User @relation("FriendshipRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("FriendshipAddressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([addresseeId])
 }
 
 enum UserRole {
@@ -107,6 +142,54 @@ enum Plan {
   FREE
   PRO
   TEAM
+}
+
+// ─── Payments (S30, Stripe) ──────────────────────────────
+
+// A Stripe subscription, mirrored from webhooks and from syncs after a
+// checkout. User.plan is derived from these rows (src/lib/billing/state.ts).
+model BillingSubscription {
+  id                String    @id // Stripe subscription id (sub_…)
+  userId            String
+  customerId        String
+  plan              Plan
+  interval          String // "month" | "year"
+  status            String // Stripe status: active, trialing, past_due, canceled, …
+  priceId           String?
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// A Stripe invoice of a subscription (the player's "faktury" list).
+model BillingInvoice {
+  id             String   @id // Stripe invoice id (in_…)
+  userId         String
+  subscriptionId String?
+  number         String?
+  status         String // draft, open, paid, void, uncollectible
+  amountDue      Int // smallest currency unit
+  amountPaid     Int
+  currency       String
+  hostedUrl      String?
+  pdfUrl         String?
+  created        DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, created])
+}
+
+// Stripe webhook events already applied (Stripe retries and may deliver twice).
+model BillingEvent {
+  id          String   @id // evt_…
+  type        String
+  processedAt DateTime @default(now())
 }
 
 // ─── Demo & Match ────────────────────────────────────────
@@ -178,20 +261,21 @@ model Match {
   totalTicks Int
   createdAt  DateTime @default(now())
 
-  upload      DemoUpload?
-  rounds      Round[]
-  players     MatchPlayer[]
-  mechanics   MechanicsStats[]
-  aim         AimStats[]
-  utility     UtilityStats[]
-  tactics     TacticsStats[]
-  findings    Finding[]
-  normSamples NormSample[]
-  winProbData WinProbData?
-  situations  ProSituation[]
-  shares      Share[]
-  coachTexts  CoachText[]
-  mapNotes    MapNote[]
+  upload        DemoUpload?
+  rounds        Round[]
+  players       MatchPlayer[]
+  mechanics     MechanicsStats[]
+  aim           AimStats[]
+  utility       UtilityStats[]
+  tactics       TacticsStats[]
+  findings      Finding[]
+  normSamples   NormSample[]
+  roleOverrides RoleOverride[]
+  winProbData   WinProbData?
+  situations    ProSituation[]
+  shares        Share[]
+  coachTexts    CoachText[]
+  mapNotes      MapNote[]
 
   // FINDINGS_STAMP the stored findings were built with (null = never); a
   // different stamp makes the report rebuild them (src/lib/findings/persist.ts).
@@ -698,6 +782,9 @@ model Finding {
   wpBefore      Float?
   wpAfter       Float?
   wpKind        String?
+  // Role the severity and advice were adjusted for (S31, ROLE_RULES in
+  // src/lib/findings/detect.ts); null when the role changed nothing.
+  role          String?
 
   createdAt DateTime @default(now())
 
@@ -775,6 +862,8 @@ model SteamMatch {
 enum NotificationType {
   ANALYSIS_DONE
   ANALYSIS_FAILED
+  FRIEND_REQUEST
+  FRIEND_ACCEPTED
 }
 
 // In-app notification (bell in the top bar). Text is rendered at display time
@@ -949,6 +1038,26 @@ model NormSample {
   @@index([steamId, version])
 }
 
+/// A player's role in one match corrected by hand (S31): the uploader's
+/// correction wins over the detected role (src/lib/roles/roles.ts) in the
+/// report's role card and in the role-aware findings.
+model RoleOverride {
+  id        String   @id @default(cuid())
+  matchId   String
+  steamId   String
+  side      String // "T" | "CT"
+  role      String // Role (roles.ts)
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, steamId, side])
+  @@index([userId])
+}
+
 /// Percentiles of one metric in one pool, map, side and situation, rebuilt
 /// from NormSample by refreshNorms() (src/lib/norms/persist.ts). Pool is
 /// "pro", "all" (every analysed player) or a rank bucket ("faceit:7",
@@ -997,10 +1106,13 @@ model Share {
   token       String    @unique
   userId      String
   matchId     String
-  kind        String // "report" | "moment"
-  steamId     String? // player the report / moment is about
-  roundNumber Int? // moment only
-  tick        Int? // moment only
+  kind        String // "report" | "moment" | "clip"
+  steamId     String? // player the report / moment / clip is about
+  roundNumber Int? // moment and clip
+  tick        Int? // moment and clip (the clip's focus tick)
+  // Clip only (S25): ClipShare from src/lib/clips/clip.ts (tick range,
+  // highlight or finding, marks), validated on write and on read.
+  clip        Json?
   views       Int       @default(0)
   createdAt   DateTime  @default(now())
   revokedAt   DateTime?

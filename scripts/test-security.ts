@@ -7,6 +7,9 @@
  * 3. Request body limits per API path.
  * 4. Security headers: CSP blocks framing/plugins, no eval in production, HSTS only on https.
  * 5. Account deletion confirmation words; legal texts PL/EN in step.
+ * 5b. Account linking (FACEIT / Steam): redirects follow the address the
+ *    browser used (phone on a Wi-Fi IP) and the FACEIT return cookie can't
+ *    become an open redirect.
  * 6. Endpoint permissions (static): every API route authenticates or is a
  *    known public route, every admin route and admin page checks the role
  *    itself, and the expensive / abusable routes are rate-limited.
@@ -22,6 +25,8 @@ import { contentSecurityPolicy, securityHeaders } from "@/lib/security/headers";
 import { isDeleteConfirmation } from "@/lib/account/delete";
 import { legalDoc } from "@/lib/legal/content";
 import { fixtureDemoText } from "@/lib/parsers/fixture-demo";
+import { requestOrigin } from "@/lib/request-origin";
+import { faceitReturnOrigin } from "@/lib/faceit/oauth";
 
 const checks: [string, boolean][] = [];
 const check = (label: string, ok: boolean) => checks.push([label, ok]);
@@ -103,6 +108,26 @@ async function main() {
     check(`${kind}: PL and EN have the same sections`, pl.sections.length === en.sections.length && pl.sections.length > 5);
   }
 
+  // ─── 5b. Account linking origins ─────────────────────────
+  const envBefore = { trust: process.env.AUTH_TRUST_HOST, url: process.env.NEXTAUTH_URL };
+  process.env.NEXTAUTH_URL = "http://localhost:3000";
+  process.env.AUTH_TRUST_HOST = "true";
+  const hdr = (h: Record<string, string>) => new Headers(h);
+  check("origin: phone on the Wi-Fi IP", requestOrigin(hdr({ host: "192.168.1.23:3000", "x-forwarded-proto": "http" })) === "http://192.168.1.23:3000");
+  check("origin: https proxy (S20 Caddy)", requestOrigin(hdr({ "x-forwarded-host": "localhost:3443", host: "app:3000", "x-forwarded-proto": "https" })) === "https://localhost:3443");
+  check("origin: scheme from the URL without a forwarded proto", requestOrigin(hdr({ host: "localhost:3000" }), "http://localhost:3000/x") === "http://localhost:3000");
+  check("origin: garbage host falls back", requestOrigin(hdr({ host: "a b/<" })) === "http://localhost:3000");
+  delete process.env.AUTH_TRUST_HOST;
+  check("origin: NEXTAUTH_URL without AUTH_TRUST_HOST", requestOrigin(hdr({ host: "evil.example" })) === "http://localhost:3000");
+  process.env.AUTH_TRUST_HOST = envBefore.trust;
+  process.env.NEXTAUTH_URL = envBefore.url;
+  if (envBefore.trust === undefined) delete process.env.AUTH_TRUST_HOST;
+  if (envBefore.url === undefined) delete process.env.NEXTAUTH_URL;
+  check("FACEIT return: another port of the same host", faceitReturnOrigin("http://localhost:3000", "https://localhost:3443") === "http://localhost:3000");
+  check("FACEIT return: another host is refused", faceitReturnOrigin("https://evil.example", "https://localhost:3443") === "https://localhost:3443");
+  check("FACEIT return: javascript: refused", faceitReturnOrigin("javascript:alert(1)", "https://localhost:3443") === "https://localhost:3443");
+  check("FACEIT return: no cookie", faceitReturnOrigin(undefined, "https://localhost:3443") === "https://localhost:3443");
+
   // ─── 6. Endpoint permissions (static review) ─────────────
   const root = join(process.cwd(), "src/app");
   const files = (dir: string): string[] =>
@@ -116,8 +141,9 @@ async function main() {
     "api/auth/register/route.ts": /rateLimit\("register"/, // per-IP limit
     "api/faceit/webhooks/demo-ready/route.ts": /timingSafeEqual/, // shared secret
     "api/auth/[...nextauth]/route.ts": /NextAuth/,
+    "api/billing/webhook/route.ts": /verifyStripeSignature\(/, // Stripe-Signature HMAC
   };
-  const AUTH = /getServerSession|getAdminUser|getMatchAccess|ownMatchWhere/;
+  const AUTH = /getServerSession|sessionUserId|getAdminUser|getMatchAccess|ownMatchWhere/;
   const unguarded: string[] = [];
   for (const f of routes) {
     const rel = relative(root, f).replace(/\\/g, "/");
@@ -157,6 +183,14 @@ async function main() {
     "api/teams/[teamId]/rivals/[rivalId]/route.ts": "write",
     "api/teams/[teamId]/boards/route.ts": "write",
     "api/teams/[teamId]/boards/[boardId]/route.ts": "write",
+    "api/friends/route.ts": "friendAdd",
+    "api/friends/add/route.ts": "friendAdd",
+    "api/friends/code/route.ts": "write",
+    "api/friends/[id]/route.ts": "write",
+    "api/billing/checkout/route.ts": "billing",
+    "api/billing/portal/route.ts": "billing",
+    "api/billing/sync/route.ts": "billing",
+    "api/matches/[matchId]/role/route.ts": "write",
   };
   const missing = Object.entries(LIMITED)
     .filter(([rel, rule]) => !readFileSync(join(root, rel), "utf8").includes(`rateLimit("${rule}"`))

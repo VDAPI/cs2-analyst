@@ -32,6 +32,9 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
       lastSteamSync: true,
       publicProfile: true,
       publicSlug: true,
+      friendCode: true,
+      roleDefaults: true,
+      stripeCustomerId: true,
       createdAt: true,
       updatedAt: true,
       password: true,
@@ -58,6 +61,10 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     teams,
     tacticBoards,
     teamRivals,
+    friendships,
+    subscriptions,
+    invoices,
+    roleOverrides,
   ] = await Promise.all([
     prisma.account.findMany({ where: { userId }, select: { provider: true, providerAccountId: true, type: true } }),
     prisma.demoUpload.findMany({
@@ -101,6 +108,26 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     prisma.teamMember.findMany({ where: { userId }, include: { team: { select: { id: true, name: true } } } }),
     prisma.tacticBoard.findMany({ where: { createdById: userId } }),
     prisma.teamRival.findMany({ where: { createdById: userId }, select: { id: true, teamId: true, name: true, steamIds: true, notes: true, createdAt: true } }),
+    // Friends (S25): who, since when; never the other player's data.
+    prisma.friendship.findMany({
+      where: { OR: [{ requesterId: userId }, { addresseeId: userId }] },
+      select: {
+        status: true,
+        source: true,
+        createdAt: true,
+        acceptedAt: true,
+        requesterId: true,
+        requester: { select: { name: true } },
+        addressee: { select: { name: true } },
+      },
+    }),
+    prisma.billingSubscription.findMany({ where: { userId }, orderBy: { createdAt: "asc" } }),
+    prisma.billingInvoice.findMany({ where: { userId }, orderBy: { created: "asc" } }),
+    // Roles corrected by hand (S31).
+    prisma.roleOverride.findMany({
+      where: { userId },
+      select: { matchId: true, steamId: true, side: true, role: true, createdAt: true, updatedAt: true },
+    }),
   ]);
 
   // Findings about the player: in their own uploads, and wherever they
@@ -130,6 +157,7 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
             values: true,
             detail: true,
             advice: true,
+            role: true,
           },
         })
       : [];
@@ -161,5 +189,15 @@ export async function buildAccountExport(prisma: PrismaClient, userId: string) {
     coachTexts,
     coachFeedback,
     lineupMastery,
+    roleOverrides,
+    friends: friendships.map((f) => ({
+      name: (f.requesterId === userId ? f.addressee.name : f.requester.name) ?? null,
+      status: f.status,
+      source: f.source,
+      sentByMe: f.requesterId === userId,
+      createdAt: f.createdAt,
+      acceptedAt: f.acceptedAt,
+    })),
+    billing: { subscriptions, invoices },
   };
 }

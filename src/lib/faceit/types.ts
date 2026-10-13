@@ -109,6 +109,8 @@ export interface FaceitPlayer {
   avatar?: string;
   country?: string;
   games?: { cs2?: { skill_level?: number; faceit_elo?: number } };
+  /** FACEIT friends' player ids (S25 friend suggestions). */
+  friends_ids?: string[];
 }
 
 /** FACEIT sends every stat as a string ("52", "1.12"). */

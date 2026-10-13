@@ -4,10 +4,12 @@ import { useState } from "react";
 import { Loader2, Share2 } from "lucide-react";
 import { Button, useToast } from "@/components/ui";
 import { useT } from "@/lib/i18n/client";
+import type { ClipShare } from "@/lib/clips/clip";
 
 export type ShareRequest =
   | { kind: "report"; matchId: string; steamId: string }
-  | { kind: "moment"; matchId: string; steamId?: string | null; round: number; tick: number };
+  | { kind: "moment"; matchId: string; steamId?: string | null; round: number; tick: number }
+  | { kind: "clip"; matchId: string; steamId: string; round: number; clip: ClipShare };
 
 /** Creates (or reuses) a public link and returns its full URL. */
 export async function createShareLink(body: ShareRequest): Promise<string> {
@@ -44,7 +46,18 @@ export async function shareOrCopy(url: string, title: string): Promise<boolean> 
 }
 
 /** "Share" button for a report: public link, share sheet or clipboard, then a toast. */
-export function ShareButton({ request, label }: { request: ShareRequest; label?: string }) {
+export function ShareButton({
+  request,
+  label,
+  hint,
+  variant = "secondary",
+}: {
+  request: ShareRequest;
+  label?: string;
+  /** Toast text after the link is copied. */
+  hint?: string;
+  variant?: "secondary" | "ghost";
+}) {
   const t = useT();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -56,7 +69,7 @@ export function ShareButton({ request, label }: { request: ShareRequest; label?:
       const ok = await shareOrCopy(url, t("share.shareSheetTitle"));
       toast(
         ok
-          ? { title: t("share.copied"), description: t("share.reportHint"), variant: "success" }
+          ? { title: t("share.copied"), description: hint ?? t("share.reportHint"), variant: "success" }
           : { title: t("share.copyFailed", { url }), variant: "info", duration: 15000 }
       );
     } catch {
@@ -67,7 +80,7 @@ export function ShareButton({ request, label }: { request: ShareRequest; label?:
   }
 
   return (
-    <Button type="button" variant="secondary" size="sm" onClick={onClick} disabled={busy}>
+    <Button type="button" variant={variant} size="sm" onClick={onClick} disabled={busy}>
       {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Share2 className="h-3.5 w-3.5" aria-hidden />}
       {busy ? t("share.creating") : label ?? t("share.button")}
     </Button>

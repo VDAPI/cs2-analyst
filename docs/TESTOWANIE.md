@@ -14,10 +14,11 @@ Ta instrukcja prowadzi krok po kroku od czystego komputera do działającej apli
 6. [Telefon w tej samej sieci Wi-Fi](#6-telefon-w-tej-samej-sieci-wi-fi)
 7. [Wgrywanie dem](#7-wgrywanie-dem)
 8. [Konto administratora](#8-konto-administratora)
-9. [Połączenie konta FACEIT (HTTPS)](#9-połączenie-konta-faceit-https)
-10. [Lista rzeczy do sprawdzenia](#10-lista-rzeczy-do-sprawdzenia)
-11. [Codzienna obsługa](#11-codzienna-obsługa)
-12. [Gdy coś nie działa](#12-gdy-coś-nie-działa)
+9. [Połączenie konta FACEIT (HTTPS) i Steam](#9-połączenie-konta-faceit-https-i-steam)
+10. [Płatności testowe (Stripe)](#10-płatności-testowe-stripe)
+11. [Lista rzeczy do sprawdzenia](#11-lista-rzeczy-do-sprawdzenia)
+12. [Codzienna obsługa](#12-codzienna-obsługa)
+13. [Gdy coś nie działa](#13-gdy-coś-nie-działa)
 
 ## 1. Czego potrzebujesz
 
@@ -56,9 +57,10 @@ Aplikacja działa bez żadnych kluczy: konto, wgrywanie dem, raport, replay 2D, 
 | --- | --- | --- |
 | `ANTHROPIC_API_KEY` | Teksty Trenera AI (plan tygodnia i karta „Trener AI” w raporcie). Bez klucza trener pokazuje standardowe rady. | <https://console.anthropic.com/> → API Keys |
 | `FACEIT_API_KEY` | Scouting rywali, rangi z pokoju FACEIT, historia meczów FACEIT | <https://developers.faceit.com/> → App Studio → twoja aplikacja → API Keys (Server side) |
-| `FACEIT_CLIENT_ID`, `FACEIT_CLIENT_SECRET` | Łączenie konta FACEIT w Ustawieniach (patrz [punkt 9](#9-połączenie-konta-faceit-https)) | ta sama aplikacja w FACEIT Developers → Authentication |
+| `FACEIT_CLIENT_ID`, `FACEIT_CLIENT_SECRET` | Łączenie konta FACEIT w Ustawieniach (patrz [punkt 9](#9-połączenie-konta-faceit-https-i-steam)) | ta sama aplikacja w FACEIT Developers → Authentication |
 | `FACEIT_DOWNLOADS_API_KEY` | Pobieranie dem z FACEIT po kliknięciu „Analizuj zaznaczone” (bez klucza aplikacja kieruje do ręcznego uploadu) | FACEIT Developers, Downloads API |
 | `STEAM_API_KEY` | Logowanie przez Steam i historia meczów Premier | <https://steamcommunity.com/dev/apikey> |
+| `STRIPE_SECRET_KEY` | Testowe płatności za plan Pro i Drużyna (patrz [punkt 10](#10-płatności-testowe-stripe)). Tylko klucz testowy `sk_test_…`. | <https://dashboard.stripe.com/test/apikeys> |
 
 Jak wpisać klucze:
 
@@ -159,19 +161,42 @@ Panel admina jest pod <http://localhost:3000/admin> (przegląd, analizy, użytko
 
 3. Odśwież stronę. Polecenie wypisze konto (id, data założenia), żebyś mógł sprawdzić, że to twoje.
 
-## 9. Połączenie konta FACEIT (HTTPS)
+## 9. Połączenie konta FACEIT (HTTPS) i Steam
 
-FACEIT przyjmuje logowanie (OAuth) tylko na zarejestrowane adresy `https://`. Dlatego Docker udostępnia aplikację także pod <https://localhost:3443>. Jednorazowo:
+### FACEIT
 
-1. Wpisz `FACEIT_CLIENT_ID`, `FACEIT_CLIENT_SECRET` i `FACEIT_API_KEY` w `.env` ([punkt 3](#3-klucze-api-opcjonalnie)) i uruchom `docker compose up -d`.
-2. W <https://developers.faceit.com/> → App Studio → twoja aplikacja → Authentication → Redirect URLs dodaj:
+FACEIT przyjmuje logowanie (OAuth) tylko na zarejestrowane adresy `https://`. Dlatego Docker udostępnia aplikację także pod <https://localhost:3443> i tam FACEIT odsyła po zalogowaniu. Jednorazowo:
+
+1. Wpisz `FACEIT_CLIENT_ID`, `FACEIT_CLIENT_SECRET` i `FACEIT_API_KEY` w `.env` ([punkt 3](#3-klucze-api-opcjonalnie)) i uruchom `docker compose up -d`. Bez `FACEIT_CLIENT_ID` i `FACEIT_CLIENT_SECRET` przycisk „Połącz” w Ustawieniach tylko pokaże komunikat, że łączenie jest wyłączone.
+2. W <https://developers.faceit.com/> → App Studio → twoja aplikacja → Authentication → Redirect URLs dodaj dokładnie (bez ukośnika na końcu):
    `https://localhost:3443/api/faceit/link/callback`
-3. Otwórz <https://localhost:3443>. Przeglądarka ostrzeże o certyfikacie (jest lokalny, wystawiony przez Dockera). Chrome/Edge: „Zaawansowane” → „Przejdź do localhost”. Safari: „Pokaż szczegóły” → „odwiedź tę witrynę”. Firefox: „Zaawansowane” → „Akceptuję ryzyko”.
-4. Zaloguj się, wejdź w „Ustawienia” i kliknij „Połącz FACEIT”.
+3. Raz otwórz <https://localhost:3443> i zaakceptuj ostrzeżenie o certyfikacie (jest lokalny, wystawiony przez Dockera). Chrome/Edge: „Zaawansowane” → „Przejdź do localhost”. Safari: „Pokaż szczegóły” → „odwiedź tę witrynę”. Firefox: „Zaawansowane” → „Akceptuję ryzyko”. Bez tego okienko FACEIT zatrzyma się na ostrzeżeniu.
+4. Na komputerze (<http://localhost:3000> albo <https://localhost:3443>, oba działają) wejdź w „Ustawienia” i kliknij „Połącz” przy FACEIT. Otworzy się okienko FACEIT; po zalogowaniu zamknie się samo, a Ustawienia pokażą „Połączono jako …”.
 
-Po połączeniu możesz wrócić na <http://localhost:3000> albo na telefon: konto zostaje połączone, a historia FACEIT, zaznaczanie meczów i scouting działają na każdym adresie.
+Połączenie robi się na komputerze, na którym działa Docker: z telefonu FACEIT odesłałby na `localhost`, czyli na sam telefon (Ustawienia na telefonie o tym przypominają). Po połączeniu konto jest połączone wszędzie, także na telefonie.
 
-## 10. Lista rzeczy do sprawdzenia
+### Steam
+
+Steam nie wymaga rejestrowania adresu powrotu: wystarczy `STEAM_API_KEY` w `.env` (klucz z <https://steamcommunity.com/dev/apikey>; w polu „Domain Name” wpisz cokolwiek, np. `localhost`). Potem „Ustawienia” → „Połącz” przy Steam przenosi prosto na stronę logowania Steam i z powrotem do Ustawień. Działa na komputerze i na telefonie (adres `http://<IP komputera>:3000`). Bez klucza przycisk pokaże komunikat, że Steam jest wyłączony, a na stronie logowania nie ma przycisku Steam.
+
+## 10. Płatności testowe (Stripe)
+
+Płatności działają w **trybie testowym** Stripe: nikt nie płaci prawdziwych pieniędzy. Aplikacja odrzuca klucz `sk_live_…` (prawdziwe płatności włącza się dopiero osobną zmienną przy starcie publicznym).
+
+1. Załóż darmowe konto na <https://dashboard.stripe.com/register> (nie musisz podawać danych firmy, żeby używać trybu testowego).
+2. Przełącz panel na „Test mode” (przełącznik w prawym górnym rogu), wejdź w „Developers” → „API keys” i skopiuj „Secret key” (`sk_test_…`).
+3. Wpisz go w `.env` jako `STRIPE_SECRET_KEY=sk_test_...` ([punkt 3](#3-klucze-api-opcjonalnie)) i uruchom `docker compose up -d`.
+4. Jednorazowo w panelu Stripe (tryb testowy): „Settings” → „Billing” → „Customer portal” → „Activate test link”. Bez tego przycisk „Zarządzaj subskrypcją” zwróci błąd.
+5. W aplikacji wejdź w „Plan i płatności” (menu „Pro i drużyna” albo Ustawienia → „Plan i płatności”) i wybierz Pro lub Drużyna. Na stronie Stripe wpisz kartę testową `4242 4242 4242 4242`, dowolną przyszłą datę (np. 12/34), dowolny CVC i dowolne dane.
+6. Po powrocie plan i limity zmieniają się od razu (aplikacja sama pyta Stripe o wynik). Faktura pojawi się na liście po kliknięciu „Odśwież status”.
+
+Ceny produktów (Pro 6 USD/mies., Drużyna 15 USD/mies., rocznie 10 miesięcy) aplikacja zakłada w Stripe sama przy pierwszej płatności. Zmienia się je w jednym miejscu: `src/lib/billing/prices.ts`.
+
+Inne karty testowe: `4000 0000 0000 9995` (odmowa, brak środków), `4000 0025 0000 3155` (wymaga potwierdzenia 3D Secure). Anulowanie: „Zarządzaj subskrypcją” → „Anuluj”; plan działa do końca opłaconego okresu.
+
+Webhooki (opcjonalnie, dla programisty): bez nich wszystko działa, bo aplikacja synchronizuje się po powrocie ze Stripe i po „Odśwież status”. Żeby zmiany ze Stripe (np. anulowanie w panelu, odnowienie) przychodziły same, zainstaluj [Stripe CLI](https://docs.stripe.com/stripe-cli) i uruchom `stripe listen --forward-to localhost:3000/api/billing/webhook`, a wypisany sekret `whsec_…` wpisz w `.env` jako `STRIPE_WEBHOOK_SECRET`.
+
+## 11. Lista rzeczy do sprawdzenia
 
 Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zrób zrzut ekranu i opisz, co kliknąłeś.
 
@@ -189,6 +214,7 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 - [ ] Wgranie przykładowego dema z `data/przyklad`, postęp w kolejce, gotowa analiza
 - [ ] Mecz: scoreboard, rundy, oś czasu, clutche, trade'y, multi-kille
 - [ ] Raport (`Raport` przy meczu): przewodnik przy pierwszym raporcie (i z przycisku „Jak czytać raport”), 3 najważniejsze błędy, karty błędów z klipem 2D, „Ty vs pro”
+- [ ] Raport, karta „Twoja rola w meczu”: rola na T i CT, aktywność, pozycje runda po rundzie (callout, strefa, „sam”, rotacja), „Popraw rolę” (po zapisaniu błędy w raporcie przeliczają się, przy błędach taktycznych widać „Oceniono dla roli …”)
 - [ ] Replay 2D: odtwarzanie, przewijanie, zoom i przesuwanie palcami na telefonie, znaczniki błędów, notatki na mapie
 - [ ] Mechanika: strzały w ruchu, counter-strafe, celowanie, reakcja, spray
 - [ ] Granaty, lineupy (kopiowanie `setpos`), heatmapy, ekonomia
@@ -201,9 +227,16 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 - [ ] Normy pro (`/pro`) z filtrami mapy, strony i rangi
 - [ ] Udostępnianie raportu linkiem i otwarcie linku w oknie prywatnym (bez logowania), profil publiczny
 
+**Klipy i znajomi**
+
+- [ ] Klipy (menu „Klipy”, adres `/clips`): highlighty (clutche, ace'y, 4K/3K) i błędy, strzałka pobierania → MP4 i GIF, plik otwiera się w odtwarzaczu (na telefonie też)
+- [ ] „Udostępnij klip” i otwarcie linku w oknie prywatnym: klip gra i da się go pobrać bez logowania
+- [ ] Znajomi: „Utwórz link zaproszenia”, otwarcie linku na drugim koncie, „Dodaj do znajomych”; obaj widzą się w rankingu i w wyzwaniach tygodnia
+- [ ] Ranking: zmiana metryki (ADR, rating, strzały w ruchu…), twoje miejsce
+
 **FACEIT, Steam, powiadomienia**
 
-- [ ] Połączenie FACEIT ([punkt 9](#9-połączenie-konta-faceit-https)), synchronizacja historii, zaznaczenie meczów i „Analizuj zaznaczone”
+- [ ] Połączenie FACEIT ([punkt 9](#9-połączenie-konta-faceit-https-i-steam)), synchronizacja historii, zaznaczenie meczów i „Analizuj zaznaczone”
 - [ ] Scouting: wklejenie linku do pokoju FACEIT, karta rywali i sugestia veto
 - [ ] Premier (z `STEAM_API_KEY`): kod udostępniania meczu, synchronizacja
 - [ ] Dzwonek powiadomień po zakończonej analizie
@@ -214,7 +247,14 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 - [ ] Usunięcie analizy
 - [ ] Panel admina: przegląd, analizy (ponowienie nieudanej), użytkownicy (plan, rola, limit)
 
-## 11. Codzienna obsługa
+**Płatności (tryb testowy, [punkt 10](#10-płatności-testowe-stripe))**
+
+- [ ] Cennik (http://localhost:3000/pricing): trzy plany, przełącznik miesięcznie / rocznie, telefon
+- [ ] Zakup Pro kartą `4242 4242 4242 4242`: po powrocie plan Pro i wyższe limity w Ustawieniach
+- [ ] „Zarządzaj subskrypcją”: zmiana karty, anulowanie, faktura w PDF
+- [ ] Plan Drużyna u właściciela drużyny: członkowie drużyny widzą limity Pro w „Plan i płatności"
+
+## 12. Codzienna obsługa
 
 | Co chcesz zrobić | Polecenie |
 | --- | --- |
@@ -226,7 +266,7 @@ Zaznaczaj po kolei, na komputerze i na telefonie. Jeśli coś wygląda źle, zr�
 
 Uwaga: `docker compose down -v` kasuje bazę, analizy i konta bez pytania. Zwykłe zatrzymanie to `docker compose stop`.
 
-## 12. Gdy coś nie działa
+## 13. Gdy coś nie działa
 
 - **„port is already allocated” przy starcie:** port 3000, 3443, 5432, 6379 albo 9001 zajmuje inny program (np. drugi Postgres albo `npm run dev`). Zamknij go, albo w `docker-compose.yml` zmień lewą liczbę w `ports`, np. `"3001:3000"`, i otwieraj <http://localhost:3001>.
 - **`setup` ma `Exited (1)`:** zobacz `docker compose logs setup` i wklej końcówkę w wątku projektu.

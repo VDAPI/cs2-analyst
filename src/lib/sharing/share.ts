@@ -4,7 +4,7 @@
  * token.ts), covered by `npm run test:progress`.
  */
 
-export type ShareKind = "report" | "moment";
+export type ShareKind = "report" | "moment" | "clip";
 
 export function isShareToken(s: unknown): s is string {
   return typeof s === "string" && /^[A-Za-z0-9_-]{22}$/.test(s);

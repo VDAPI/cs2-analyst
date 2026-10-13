@@ -41,9 +41,13 @@ export const RATE_RULES = {
   coachAiDaily: { max: 40, windowMs: 24 * HOUR },
   /** Joining a team by invite code (guessing codes). */
   teamJoin: { max: 20, windowMs: 10 * MIN },
+  /** Friend requests and adding friends by invite code (guessing codes, spam). */
+  friendAdd: { max: 30, windowMs: 10 * MIN },
   /** Small writes: notes, goals, shares, settings, push, feedback, teams. */
   write: { max: 120, windowMs: 10 * MIN },
   avatar: { max: 10, windowMs: 10 * MIN },
+  /** Stripe checkout / portal / status sync (each one calls the Stripe API). */
+  billing: { max: 20, windowMs: 10 * MIN },
   /** Data export (a big query) and account deletion (asks for the password). */
   account: { max: 5, windowMs: HOUR },
 } as const satisfies Record<string, RateRule>;
