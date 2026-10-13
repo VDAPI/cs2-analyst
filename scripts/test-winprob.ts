@@ -33,6 +33,7 @@ import { predictT, rawScore, type GbdtModel } from "@/lib/winprob/model";
 import { PRIOR_MODEL } from "@/lib/winprob/prior";
 import { findingImpact, IMPACT_RULE, impactPp } from "@/lib/winprob/impact";
 import { matchWpa, roundSeries } from "@/lib/winprob/series";
+import { calibrationReport, snapshotPoints } from "@/lib/winprob/calibration";
 import { actionAfter, similarSituations, situationAt, situationDistance, type Candidate } from "@/lib/winprob/situations";
 import { FINDING_TYPES } from "@/lib/findings/catalog";
 import { findingsStamp } from "@/lib/findings/persist";
@@ -352,6 +353,29 @@ const exactPool = Array.from({ length: 15 }, (_, i) => cand(i, { x: i * 10 }));
 check("search: enough exact matches → exact only", similarSituations(q, [...exactPool, ...pool.slice(20)]).exact);
 
 let failed = 0;
+// ─── 7. Calibration (/admin/ml) ──────────────────────────
+{
+  // Perfectly calibrated: 30% bin wins 3 of 10, 80% bin 8 of 10.
+  const pts = [
+    ...Array.from({ length: 10 }, (_, i) => ({ p: 0.3, y: (i < 3 ? 1 : 0) as 0 | 1, w: 1 })),
+    ...Array.from({ length: 10 }, (_, i) => ({ p: 0.8, y: (i < 8 ? 1 : 0) as 0 | 1, w: 1 })),
+  ];
+  const rep = calibrationReport(pts, 20);
+  check("calibration: 10 bins, counts", rep.bins.length === 10 && rep.bins[3].n === 10 && rep.bins[8].n === 10 && rep.bins[0].n === 0);
+  check("calibration: actual rate per bin", near(rep.bins[3].actual, 0.3) && near(rep.bins[8].predicted, 0.8) && Number.isNaN(rep.bins[0].actual));
+  check("calibration: ECE 0 when calibrated", near(rep.ece, 0));
+  check("calibration: Brier and log loss", near(rep.brier, (0.21 + 0.16) / 2) && near(rep.logloss, -(0.3 * Math.log(0.3) + 0.7 * Math.log(0.7) + 0.8 * Math.log(0.8) + 0.2 * Math.log(0.2)) / 2));
+  check("calibration: p = 1 lands in the top bin", calibrationReport([{ p: 1, y: 1, w: 1 }], 1).bins[9].n === 1);
+  // Stored rows: each round weighs 1 in total, null features read as NaN.
+  const stored = { features: ["t_alive", "ct_alive", "defuse_margin"], rows: [[1, 10, 1, 5, 1, null], [1, 20, 1, 5, 0, null], [2, 10, 0, 1, 5, null]] };
+  const sp = snapshotPoints([stored], PRIOR_MODEL);
+  check("calibration: round weights", sp.rounds === 2 && near(sp.points[0].w, 0.5) && near(sp.points[2].w, 1));
+  check(
+    "calibration: stored rows scored like the live model",
+    near(sp.points[0].p, predictT(PRIOR_MODEL, { t_alive: 5, ct_alive: 1, defuse_margin: NaN })) && sp.points[0].y === 1 && sp.points[2].y === 0
+  );
+}
+
 for (const [label, ok] of checks) {
   if (!ok) failed++;
   console.log(`${ok ? "✓" : "✗"} ${label}`);
