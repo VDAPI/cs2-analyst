@@ -146,6 +146,20 @@ check("victim's death time", roles.get("a3")!.sides.T!.profile.deathTimeS === 13
 check("AWP kills counted", roles.get("a5")!.sides.T!.profile.awpKills === 12 && roles.get("a5")!.sides.T!.profile.kills === 12);
 check("anchors' site rounds from the plants", roles.get("b1")!.sides.CT!.profile.siteRounds === 12);
 
+// Exit frags after the round end (savers hunted) count for neither AWP kills nor first contact.
+{
+  const exit: TacticsKill[] = rounds.map((r) => ({
+    tick: r.endTick + 2 * TICK, roundNumber: r.number, attackerSteamId: "a3", victimSteamId: r.number <= 12 ? "b1" : "a1", weapon: "awp",
+    attackerPosX: 0, attackerPosY: 0, attackerPosZ: 0, victimPosX: 0, victimPosY: 0, victimPosZ: 0,
+  }));
+  const withExit = new Map(detectRoles({ ...tactics, kills: [...kills, ...exit] }).map((r) => [r.steamId, r]));
+  const a3T = withExit.get("a3")!.sides.T!.profile;
+  const baseA3T = roles.get("a3")!.sides.T!.profile;
+  check("kills after the round end are ignored (AWP kills, kills, contact)",
+    a3T.awpKills === 0 && a3T.kills === baseA3T.kills && a3T.contactRounds === baseA3T.contactRounds &&
+    withExit.get("a3")!.sides.T!.role === "support");
+}
+
 // Callouts take priority over plant centres for "on a site".
 const named = detectRoles(
   { ...tactics, bombs: [] },

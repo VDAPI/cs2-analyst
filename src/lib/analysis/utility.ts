@@ -30,7 +30,7 @@
  * Changing the analysis means bumping UTILITY_VERSION.
  */
 
-export const UTILITY_VERSION = 1;
+export const UTILITY_VERSION = 2;
 
 /** Smoke lasts ~18 s once it blooms (CS2). */
 export const SMOKE_LIFE_S = 18;
@@ -438,6 +438,31 @@ export function analyzeUtility(input: UtilityInput): PlayerUtility[] {
 
   const detonations = [...input.detonations].sort((a, b) => a.tick - b.tick);
 
+  // ── Grenade damage → the one HE / molotov that caused it ──
+  // Two grenades of one thrower can have overlapping windows; each damage row
+  // belongs to one of them only (the latest to go off before the hit, else the nearest).
+  const nadeWindow = (d: UtilityDetonation) => ({
+    from: d.tick - 8,
+    to: d.tick + (d.type === "MOLOTOV" ? s2t(FIRE_LIFE_S) : 16),
+  });
+  const damageOwner = new Map<UtilityDamage, UtilityDetonation>();
+  for (const x of input.damages) {
+    if (!x.attackerSteamId) continue;
+    const w = x.weapon.toLowerCase().replace(/^weapon_/, "");
+    const kind: GrenadeKind | null = FIRE_WEAPONS.has(w) ? "MOLOTOV" : w === "hegrenade" ? "HE" : null;
+    if (!kind) continue;
+    let best: UtilityDetonation | null = null;
+    for (const d of detonations) {
+      if (d.type !== kind || d.throwerSteamId !== x.attackerSteamId) continue;
+      const win = nadeWindow(d);
+      if (x.tick < win.from || x.tick > win.to) continue;
+      if (!best) best = d;
+      else if (d.tick <= x.tick && (best.tick > x.tick || d.tick > best.tick)) best = d;
+      else if (d.tick > x.tick && best.tick > x.tick && d.tick < best.tick) best = d;
+    }
+    if (best) damageOwner.set(x, best);
+  }
+
   for (const d of detonations) {
     const ctx = rounds.get(d.roundNumber);
     if (!ctx || ctx.frames.length === 0) continue;
@@ -645,15 +670,12 @@ export function analyzeUtility(input: UtilityInput): PlayerUtility[] {
   ) {
     const p = out(d.throwerSteamId);
     const fire = d.type === "MOLOTOV";
-    const from = d.tick - 8;
-    const to = d.tick + (fire ? s2t(FIRE_LIFE_S) : 16);
+    const { to } = nadeWindow(d);
     let enemyDmg = 0;
     let teamDmg = 0;
     const hurtMates = new Set<string>();
     for (const x of input.damages) {
-      if (x.attackerSteamId !== d.throwerSteamId || x.tick < from || x.tick > to) continue;
-      const w = x.weapon.toLowerCase().replace(/^weapon_/, "");
-      if (fire ? !FIRE_WEAPONS.has(w) : w !== "hegrenade") continue;
+      if (damageOwner.get(x) !== d) continue;
       const vs = sideAt(ctx, x.victimSteamId, x.tick);
       if (vs === side) {
         if (x.victimSteamId !== d.throwerSteamId) {

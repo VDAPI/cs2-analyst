@@ -261,6 +261,31 @@ if (a && b && c && d) {
   check("two duels, the later hit is classified once", !!two && two.duels === 2 && two.flicks + two.trackings + two.preaims === 1);
 }
 
+// ─── Noise: judged by what was known during the run, not at its end ───
+{
+  const run = (spottedFrom: number) => {
+    const frames: AimFrame[] = [];
+    for (let t = 0; t <= 1000; t += 4) {
+      frames.push({
+        tick: t,
+        players: [
+          player(A, "CT", { x: 0, y: 0, velX: t <= 400 ? 250 : 0 }),
+          player(D, "T", { x: 600, y: 0, spottedBy: t >= spottedFrom ? [A] : [] }),
+        ],
+      });
+    }
+    return analyzeAim({
+      tickRate: TICK_RATE, rounds: [{ number: 1, startTick: 0, frames }],
+      shots: [], damages: [], kills: [], flashes: [], reloads: [],
+    }).find((r) => r.steamId === A);
+  };
+  const late = run(392);
+  check("noise: enemy spotted only at the very end of a run → no known-enemy noise", (late?.noiseEpisodes ?? 0) === 0);
+  const mid = run(200);
+  const m = mid?.moments.find((x) => x.type === "noise");
+  check("noise: enemy spotted mid-run → noise counted from the spotting tick", mid?.noiseEpisodes === 1 && m?.tick === 200 && near(m.value, 3.1, 0.05));
+}
+
 // ─── Report ──────────────────────────────────────────────
 
 let failed = 0;

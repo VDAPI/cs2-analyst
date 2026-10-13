@@ -124,6 +124,27 @@ check(
 );
 check("clutch marks are its kills", clutch?.marks.length === 3 && clutch.focus === 10_000 + 40 * T);
 check("headshots counted", clutch?.headshots === 2);
+{
+  // A teammate's world death (fall/bomb, stored as attacker = victim) or a team kill
+  // leaves the player alone just like an enemy kill: the clutch starts there.
+  const wr: R[] = [{
+    number: 1, startTick: 0, endTick: 115 * T, winner: "CT", ctScore: 1, tScore: 0,
+    kills: [
+      kill(10 * T, "b1", "a2"),
+      kill(11 * T, "b1", "a3"),
+      kill(12 * T, "a4", "a4"), // fall damage
+      kill(20 * T, "a1", "a5"), // team kill → a1 alone 1v5
+      kill(30 * T, "a1", "b1"),
+      kill(31 * T, "a1", "b2"),
+      kill(32 * T, "a1", "b3"),
+      kill(33 * T, "a1", "b4"),
+      kill(34 * T, "a1", "b5"),
+    ],
+  }];
+  const wh = detectHighlights({ rounds: wr, finalTeamBySteamId: finalTeam, sideAt: createSideResolver(wr) });
+  const c = wh.find((h) => h.steamId === "a1");
+  check("clutch started by a fall + team kill is found (1v5)", c?.kind === "clutch" && c.clutch === 5 && c.from === 20 * T - 3 * T);
+}
 const pageClutches = detectClutchesBySide({
   rounds: rounds.map((r) => ({ id: String(r.number), number: r.number, winner: r.winner, kills: r.kills })),
   finalTeamBySteamId: finalTeam,

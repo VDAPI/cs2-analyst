@@ -487,6 +487,28 @@ check("predictable position reaches A1's top 3", a1Report.top.some((i) => i.type
   check("match-end money gets its own advice", !!endDraft && endDraft.advice.includes("meczu") && endDraft.severity === "medium");
 }
 
+// ─── 13. Clutch started by a non-enemy death (world / team kill) ───
+{
+  const wk: TacticsKill[] = [];
+  const wkill = (tick: number, attacker: string, victim: string) =>
+    wk.push({
+      tick, roundNumber: 4, attackerSteamId: attacker, victimSteamId: victim,
+      attackerPosX: 0, attackerPosY: 0, attackerPosZ: 0, victimPosX: 0, victimPosY: 0, victimPosZ: 0,
+    });
+  // Round 4 (A on T): A1 falls to death (stored as attacker = victim), A3 team-kills A2,
+  // A3 is alone for ~75 s and the round ends on time without a plant.
+  wkill(1500, A1, A1);
+  wkill(1600, A3, A2);
+  const res = analyzeTactics({
+    tickRate: TICK_RATE,
+    rounds: [{ number: 4, startTick: 0, endTick: 6400, winner: "CT", winReason: "TIME_RAN_OUT", ctScore: 3, tScore: 1, frames: [] }],
+    kills: wk, damages: [], bombs: [], economy: [], players, totalRounds: 24,
+  });
+  const a3 = res.find((p) => p.steamId === A3)!;
+  check("mates lost to a fall and a team kill → clutch starts (no_plant for the last T)",
+    a3.moments.some((m) => m.type === "clutch_decision" && m.variant === "no_plant" && m.tick === 1600));
+}
+
 // ─── Trade kills / multi-kills / buy sync (match page helpers) ───
 {
   const team = new Map<string, "CT" | "T">([["a1", "CT"], ["a2", "CT"], ["b1", "T"], ["b2", "T"]]);

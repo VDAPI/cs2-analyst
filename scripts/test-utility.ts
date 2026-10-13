@@ -168,6 +168,25 @@ check(
 check("molotov damage counted, no finding", me.molotovs === 1 && me.molotovDamage === 30 && moments("molotov_no_effect").length === 0);
 check("two HEs, both 0 enemy damage → he_no_effect ×2", me.hes === 2 && me.heDamage === 0 && moments("he_no_effect").length === 2);
 check("HE into the teammate → nade_team_damage 40", moments("nade_team_damage").some((m) => m.value === 40) && me.nadeTeamDamage === 40);
+{
+  // Two molotovs of one thrower with overlapping burn windows: each damage row counts for one grenade only.
+  const two = analyzeUtility({
+    tickRate: TR,
+    rounds: [round(10, () => ({}))],
+    detonations: [det(10, 20, "MOLOTOV"), det(10, 23, "MOLOTOV")],
+    throws: [],
+    damages: [
+      { tick: at(10, 21), roundNumber: 10, attackerSteamId: P, victimSteamId: E1, weapon: "inferno", dmgHealth: 18 },
+      { tick: at(10, 25), roundNumber: 10, attackerSteamId: P, victimSteamId: E1, weapon: "inferno", dmgHealth: 12 },
+    ],
+    kills: [],
+    plants: [],
+  }).find((r) => r.steamId === P)!;
+  check(
+    "overlapping molotovs: damage counted once (30), both had an effect",
+    two.molotovs === 2 && two.molotovDamage === 30 && !two.moments.some((m) => m.type === "molotov_no_effect")
+  );
+}
 
 // ─── 7. Death with utility ───────────────────────────────
 

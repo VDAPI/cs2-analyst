@@ -36,7 +36,7 @@ import {
 import { mergeSites, siteCentresFromPlants, zoneOf, type SiteCentres, type Zone } from "@/lib/analysis/sites";
 
 /** Bump when detection or the stored profile changes; it is part of NORMS_STAMP. */
-export const ROLES_VERSION = 2;
+export const ROLES_VERSION = 3;
 
 export type Role = "entry" | "awp" | "support" | "lurk" | "anchor" | "rotator" | "mid";
 export const ROLES: Role[] = ["entry", "awp", "lurk", "anchor", "rotator", "mid", "support"];
@@ -252,7 +252,10 @@ export function detectRoles(input: TacticsInput, opts: RoleOptions = {}): Player
     };
     const freezeEnd = freezeEndTick(round, tickRate);
     const since = (tick: number) => Math.max(0, (tick - freezeEnd) / tickRate);
-    const kills = (killsBy.get(round.number) ?? []).filter((k) => enemies(k.attackerSteamId, k.victimSteamId));
+    // Exit frags / damage after the round end (savers hunted) are not part of the round's play.
+    const kills = (killsBy.get(round.number) ?? []).filter(
+      (k) => k.tick <= round.endTick && enemies(k.attackerSteamId, k.victimSteamId)
+    );
     kills.sort((a, b) => a.tick - b.tick);
 
     for (const [id, side] of sideOf) if (ids.has(id)) acc(id, side).profile.rounds++;
@@ -268,7 +271,7 @@ export function detectRoles(input: TacticsInput, opts: RoleOptions = {}): Player
     // First contact: earliest damage or kill between enemies, per player and per team.
     const contacts: Array<{ tick: number; ids: string[] }> = [
       ...(damagesBy.get(round.number) ?? [])
-        .filter((d) => enemies(d.attackerSteamId, d.victimSteamId))
+        .filter((d) => d.tick <= round.endTick && enemies(d.attackerSteamId, d.victimSteamId))
         .map((d) => ({ tick: d.tick, ids: [d.attackerSteamId as string, d.victimSteamId] })),
       ...kills.map((k) => ({ tick: k.tick, ids: [k.attackerSteamId, k.victimSteamId] })),
     ].sort((a, b) => a.tick - b.tick);
