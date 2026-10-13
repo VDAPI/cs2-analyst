@@ -339,7 +339,6 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
   ]) as Record<string, unknown>[];
 
   const kills: ParsedKill[] = [];
-  const firstKillTicks = new Map<number, number>();
 
   // Victim's inventory at death ("died with unused utility", S11). Separate
   // pass so a parser that can't read the prop still gets every kill.
@@ -404,23 +403,11 @@ export async function parseDemoFile(rawPath: string): Promise<ParsedDemo> {
       victimInventory: inventoryAtDeath.get(`${tick}|${victimId}`) ?? null,
     };
 
-    // Opening duels only count enemy kills (no suicides / team kills)
-    if (!isNonEnemyKill(kill)) {
-      const existing = firstKillTicks.get(roundNum);
-      if (existing === undefined || tick < existing) {
-        firstKillTicks.set(roundNum, tick);
-      }
-    }
-
     kills.push(kill);
   }
 
-  // Mark first kills
-  for (const kill of kills) {
-    if (firstKillTicks.get(kill.roundNumber) === kill.tick && !isNonEnemyKill(kill)) {
-      kill.isFirstKill = true;
-    }
-  }
+  // Mark first kills (opening duels only count enemy kills)
+  markFirstKills(kills, isNonEnemyKill);
 
   // 5. Damage events (for ADR)
   // Track HP per player per round to correctly cap overkill damage. Every hurt
@@ -828,6 +815,26 @@ export function assignGrenadeDamage(
     if (match) out.set(match.index, (out.get(match.index) ?? 0) + h.damage);
   }
   return out;
+}
+
+/**
+ * Flag the opening kill of every round: the earliest enemy kill (no suicides,
+ * world deaths or team kills). Exactly one per round, so a collateral (two
+ * victims on one tick) gives the killer one opening kill and one victim one
+ * opening death, not two of each.
+ */
+export function markFirstKills<K extends Pick<ParsedKill, "tick" | "roundNumber" | "isFirstKill">>(
+  kills: K[],
+  isNonEnemyKill: (k: K) => boolean
+): void {
+  const firstByRound = new Map<number, K>();
+  for (const k of kills) {
+    k.isFirstKill = false;
+    if (isNonEnemyKill(k)) continue;
+    const existing = firstByRound.get(k.roundNumber);
+    if (!existing || k.tick < existing.tick) firstByRound.set(k.roundNumber, k);
+  }
+  for (const k of firstByRound.values()) k.isFirstKill = true;
 }
 
 /**
