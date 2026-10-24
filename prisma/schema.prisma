@@ -765,6 +765,22 @@ model MapPlaceCell {
   @@index([map])
 }
 
+/// An admin's correction of how a demo callout is named and grouped in the
+/// team analysis (/callouts). Applied on top of src/lib/team/map-lanes.ts.
+/// For each field: null = keep the built-in value, "" = none.
+model MapCallout {
+  map       String
+  /// The demo's callout, normalized (placeKey: "palacealley").
+  place     String
+  name      String?
+  ctSpot    String?
+  laneA     String?
+  laneB     String?
+  updatedAt DateTime @updatedAt
+
+  @@id([map, place])
+}
+
 // One detected mistake at one moment (src/lib/findings/). Built from the
 // stored analysis (MechanicsStats, AimStats — later utility, teamplay,
 // economy), so it can be rebuilt without the .dem. `type` is a key of
