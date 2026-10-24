@@ -28,3 +28,20 @@ BEGIN
     CREATE UNIQUE INDEX IF NOT EXISTS "User_discordLinkCode_key" ON "User" ("discordLinkCode");
   END IF;
 END $$;
+
+-- Friends, billing and team invites: unique columns added to existing tables
+-- (User, Team). Same reason as above: db push would stop on an upgraded
+-- database with the data-loss prompt, so create them here (all NULL).
+DO $$
+BEGIN
+  IF to_regclass('"User"') IS NOT NULL THEN
+    ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "friendCode" TEXT;
+    ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "stripeCustomerId" TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS "User_friendCode_key" ON "User" ("friendCode");
+    CREATE UNIQUE INDEX IF NOT EXISTS "User_stripeCustomerId_key" ON "User" ("stripeCustomerId");
+  END IF;
+  IF to_regclass('"Team"') IS NOT NULL THEN
+    ALTER TABLE "Team" ADD COLUMN IF NOT EXISTS "inviteCode" TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS "Team_inviteCode_key" ON "Team" ("inviteCode");
+  END IF;
+END $$;
