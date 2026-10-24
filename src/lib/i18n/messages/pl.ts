@@ -447,6 +447,7 @@ export const pl = {
     statusError: "Błąd",
     failed: "Analiza nie powiodła się",
     sendFailed: "Wysyłanie nie powiodło się",
+    duplicate: "To demo jest już przeanalizowane. Znajdziesz je w Bibliotece.",
     sendFailedStatus: "Wysyłanie nie powiodło się ({status})",
     sendFailedNetwork: "Wysyłanie nie powiodło się — sprawdź połączenie",
     removeFile: "Usuń {name}",

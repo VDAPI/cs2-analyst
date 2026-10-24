@@ -86,7 +86,7 @@ function sendUpload(
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     };
     xhr.onload = () => {
-      let data: { uploadId?: string; error?: string; keepDemoIgnored?: boolean } = {};
+      let data: { uploadId?: string; error?: string; code?: string; keepDemoIgnored?: boolean } = {};
       try {
         data = JSON.parse(xhr.responseText);
       } catch {
@@ -95,7 +95,8 @@ function sendUpload(
       if (xhr.status >= 200 && xhr.status < 300 && data.uploadId) {
         resolve({ uploadId: data.uploadId, keepDemoIgnored: data.keepDemoIgnored === true });
       } else {
-        reject(new Error(data.error ?? t("upload.sendFailedStatus", { status: xhr.status })));
+        const message = data.code === "duplicate" ? t("upload.duplicate") : data.error;
+        reject(new Error(message ?? t("upload.sendFailedStatus", { status: xhr.status })));
       }
     };
     xhr.onerror = () => reject(new Error(t("upload.sendFailedNetwork")));
