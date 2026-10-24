@@ -150,6 +150,8 @@ export const authOptions: AuthOptions = {
   },
   pages: {
     signIn: "/login",
+    // First Steam sign-in (the adapter just created the user): pick a nickname.
+    newUser: "/welcome",
   },
   cookies:
     process.env.NODE_ENV === "development"

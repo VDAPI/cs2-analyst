@@ -166,7 +166,7 @@ export function CredentialsForm({ mode }: CredentialsFormProps) {
 }
 
 /** Where to go after login: the middleware's `callbackUrl` when it is a same-site path. */
-function safeCallbackUrl(): string {
+export function safeCallbackUrl(): string {
   const raw = new URLSearchParams(window.location.search).get("callbackUrl");
   if (!raw) return "/matches";
   try {
