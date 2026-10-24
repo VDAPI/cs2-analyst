@@ -114,6 +114,9 @@ export default async function MatchTeamPage({ params, searchParams }: Props) {
           </Link>
         ))}
       </div>
+      <Link href={`/callouts?map=${match.map}`} className="inline-block text-xs text-[var(--accent-hover)] hover:underline">
+        {t("teamDemo.calloutsLink")}
+      </Link>
     </nav>
   );
 

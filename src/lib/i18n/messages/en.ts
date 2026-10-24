@@ -1303,6 +1303,7 @@ export const en: Messages = {
     },
   },
   teamDemo: {
+    calloutsLink: "How are positions named on this map? See the demo callout map",
     tacticSplit: "Split {site}",
     tacticExec: "Exec {site}",
     tacticRush: "Rush {site}",

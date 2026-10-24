@@ -1306,6 +1306,7 @@ export const pl = {
     },
   },
   teamDemo: {
+    calloutsLink: "Jak nazywam pozycje na tej mapie? Zobacz mapę pozycji z dema",
     tacticSplit: "Split {site}",
     tacticExec: "Exec {site}",
     tacticRush: "Rush {site}",
