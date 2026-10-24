@@ -30,7 +30,7 @@
  * Changing the analysis means bumping UTILITY_VERSION.
  */
 
-export const UTILITY_VERSION = 2;
+export const UTILITY_VERSION = 3;
 
 /** Smoke lasts ~18 s once it blooms (CS2). */
 export const SMOKE_LIFE_S = 18;
@@ -322,10 +322,21 @@ interface RoundCtx {
   hasSpotting: boolean;
 }
 
-/** Freeze time ends on the first frame anyone moves (nobody can move during it). */
+/**
+ * Freeze time ends on the first frame anyone moves (nobody can move during it).
+ * Speeds above MAX_PLAYER_SPEED are the respawn teleport, not movement.
+ */
+const MAX_PLAYER_SPEED = 400;
+
 export function freezeEndTick(frames: UtilityFrame[], fallback: number): number {
   for (const f of frames) {
-    if (f.players.some((p) => p.isAlive && Math.hypot(p.velX, p.velY) > 20)) return f.tick;
+    if (
+      f.players.some((p) => {
+        const v = Math.hypot(p.velX, p.velY);
+        return p.isAlive && v > 20 && v <= MAX_PLAYER_SPEED;
+      })
+    )
+      return f.tick;
   }
   return fallback;
 }

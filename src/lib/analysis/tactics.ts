@@ -32,7 +32,7 @@
 import { distToSite, mergeSites, siteCentresFromPlants, zoneOf, type SiteCentres } from "./sites";
 
 /** Bump when detection or summary numbers change; stored rows are recomputed. */
-export const TACTICS_VERSION = 5;
+export const TACTICS_VERSION = 6;
 
 /** A kill of the killer within this many seconds trades the death. */
 export const TRADE_WINDOW_S = 3;
@@ -283,10 +283,24 @@ function frameAt(frames: TacticsFrame[], tick: number): TacticsFrame | null {
   return tick - frames[lo].tick <= frames[hi].tick - tick ? frames[lo] : frames[hi];
 }
 
+/**
+ * Fastest a player really moves (knife run ≈ 250 u/s, plus some slack). The
+ * respawn teleport at round start reports thousands of u/s in the first
+ * frames of freeze time; counting it as "moving" put freeze end ~20 s early,
+ * so defaults and setups were read in spawn.
+ */
+export const MAX_PLAYER_SPEED = 400;
+
 /** First frame where anyone moves: freeze time is over. */
 export function freezeEndTick(round: Pick<TacticsRound, "startTick" | "frames">, tickRate: number): number {
   for (const f of round.frames) {
-    if (f.players.some((p) => p.isAlive && Math.hypot(p.velX, p.velY) > 1)) return f.tick;
+    if (
+      f.players.some((p) => {
+        const v = Math.hypot(p.velX, p.velY);
+        return p.isAlive && v > 1 && v <= MAX_PLAYER_SPEED;
+      })
+    )
+      return f.tick;
   }
   return round.startTick + 15 * tickRate;
 }

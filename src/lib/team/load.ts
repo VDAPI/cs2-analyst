@@ -370,6 +370,37 @@ export async function getRivalReport(
 }
 
 /**
+ * Team breakdown of one demo (match page → "Team analysis"): the anti-strat
+ * analysis of the five players who finished on `side`, round by round. Not
+ * cached: one demo is cheap, and the caller has already checked access.
+ */
+export async function getMatchTeamReport(
+  prisma: PrismaClient,
+  matchId: string,
+  side: FinalSide
+): Promise<AntiStratReport | null> {
+  const head = await prisma.match.findUnique({
+    where: { id: matchId },
+    select: {
+      id: true,
+      map: true,
+      date: true,
+      totalTicks: true,
+      scoreCT: true,
+      scoreT: true,
+      players: { select: { steamId: true, team: true } },
+    },
+  });
+  if (!head) return null;
+  const team = head.players.filter((p) => p.team === side).map((p) => p.steamId);
+  if (team.length === 0) return null;
+  const loaded = await loadAntiStratMatch(prisma, { ...head, players: head.players as MatchHead["players"], rivalSide: side });
+  if (!loaded) return null;
+  const [sites, place] = await Promise.all([bombsiteCentres(prisma, head.map), getPlaceLookup(prisma, head.map)]);
+  return analyzeRival({ rival: team, matches: [loaded], maps: { [head.map]: { sites, place } } });
+}
+
+/**
  * May `viewerId` read a teammate's match (2D replay, its data routes)? Only
  * team matches and rival matches of a team both are in, never the rest of the
  * uploader's library.

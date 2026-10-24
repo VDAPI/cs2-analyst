@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Card, PageHeader, buttonVariants } from "@/components/ui";
 import { MapThumb } from "@/components/match";
 import Link from "next/link";
-import { ClipboardCheck, Crosshair, DollarSign, Flame, Footprints, Play, Clapperboard } from "lucide-react";
+import { ClipboardCheck, Crosshair, DollarSign, Flame, Footprints, Play, Clapperboard, Users } from "lucide-react";
 import { RoundTimeline } from "./round-timeline";
 import { ScoreboardLegend, ScoreboardTable } from "./scoreboard-table";
 import { formatDate } from "@/lib/utils/formatters";
@@ -160,6 +160,7 @@ export default async function MatchDetailPage({ params }: Props) {
 
   const toolLinks = [
     { href: `/report/${matchId}`, label: "Co poprawić", icon: ClipboardCheck, primary: true },
+    { href: `/matches/${matchId}/team`, label: "Analiza drużynowa", icon: Users },
     { href: `/economy/${matchId}`, label: "Ekonomia", icon: DollarSign },
     { href: `/heatmaps/${matchId}`, label: "Heatmapa", icon: Flame },
     { href: `/replay/${matchId}`, label: "Replay 2D", icon: Play },

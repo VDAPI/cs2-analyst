@@ -27,7 +27,7 @@ import {
 import type { FinalSide } from "./roster";
 
 /** Bump when the analysis or its output shape changes: cached reports are rebuilt. */
-export const ANTISTRAT_VERSION = 1;
+export const ANTISTRAT_VERSION = 2;
 
 /** T default = rival positions this long after freeze end. */
 export const DEFAULT_PROBE_S = 15;
@@ -269,6 +269,34 @@ export interface Insight {
   example?: Example;
 }
 
+/** One round of the rival, as played (the single-demo team breakdown). */
+export interface RoundBreakdown {
+  matchId: string;
+  round: number;
+  side: Side;
+  buy: BuyKind;
+  won: boolean;
+  /** Tick to open the 2D replay at (the hit on T, the setup probe on CT). */
+  tick: number;
+  /** Rival players and their callout at the probe (T default / CT setup). */
+  positions: Array<{ steamId: string; place: string }>;
+  /** Utility thrown for the hit (T) or early in the round (CT). */
+  utility: Array<{ type: string; place: string }>;
+  /** Every rival grenade of the round: type, landing callout, seconds after freeze end. */
+  thrown: Array<{ type: string; place: string; s: number }>;
+  /** T: site hit, pace, seconds to the hit, plant, players on site, lurkers. */
+  site: "A" | "B" | null;
+  pace: Pace | null;
+  hitS: number | null;
+  planted: boolean;
+  playersOnSite: number;
+  lurkers: string[];
+  /** CT: players per zone at the probe, early off-site duels, retake. */
+  setup: { A: number; mid: number; B: number } | null;
+  aggression: Array<{ place: string; kill: boolean }>;
+  retake: { alive: number; saved: boolean } | null;
+}
+
 export interface AntiStratReport {
   version: number;
   matches: Array<{
@@ -281,6 +309,7 @@ export interface AntiStratReport {
   maps: MapAntiStrat[];
   players: RivalPlayer[];
   insights: Insight[];
+  rounds: RoundBreakdown[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -419,6 +448,7 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
     }
   >();
   const reportMatches: AntiStratReport["matches"] = [];
+  const roundLog: RoundBreakdown[] = [];
   const noPlace = () => null;
 
   for (const m of [...input.matches].sort((a, b) =>
@@ -539,6 +569,13 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
       const grenades = m.grenades.filter(
         (g) => g.roundNumber === round.number && inRival.has(g.throwerSteamId),
       );
+      const thrown = [...grenades]
+        .sort((a, b) => a.tick - b.tick)
+        .map((g) => ({
+          type: utilityKind(g.type),
+          place: placeOf({ x: g.landX, y: g.landY, z: g.landZ }),
+          s: Math.max(0, Math.round(sec(g.tick))),
+        }));
 
       // The round after a lost pistol.
       if (
@@ -669,6 +706,15 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
           s.tc.add(v.place);
           if (lurkers.includes(id)) s.lurk++;
         }
+        roundLog.push({
+          ...emptyBreakdown(ex(hitTick ?? probe), side, buy, won, positions, utility, thrown),
+          site,
+          pace: hitS != null ? paceOf(hitS) : null,
+          hitS: hitS != null ? r1(hitS) : null,
+          planted: !!plant,
+          playersOnSite,
+          lurkers,
+        });
         acc.t.push({
           ex: ex(hitTick ?? probe),
           won,
@@ -732,6 +778,12 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
           ).length;
           retake = { alive, saved: !won && aliveAtEnd > 0 };
         }
+        roundLog.push({
+          ...emptyBreakdown(ex(probe), side, buy, won, positions, utility, thrown),
+          setup,
+          aggression,
+          retake,
+        });
         acc.ct.push({
           ex: ex(probe),
           won,
@@ -801,6 +853,41 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
     maps,
     players: playerList,
     insights: buildInsights(maps, playerList),
+    rounds: roundLog.sort((a, b) => a.matchId.localeCompare(b.matchId) || a.round - b.round),
+  };
+}
+
+function emptyBreakdown(
+  ex: Example,
+  side: Side,
+  buy: BuyKind,
+  won: boolean,
+  positions: Map<string, { p: Point3; place: string }>,
+  utility: Set<string>,
+  thrown: RoundBreakdown["thrown"],
+): RoundBreakdown {
+  return {
+    matchId: ex.matchId,
+    round: ex.round,
+    side,
+    buy,
+    won,
+    tick: ex.tick,
+    positions: [...positions].map(([steamId, v]) => ({ steamId, place: v.place })),
+    utility: [...utility].map((k) => {
+      const [type, place] = k.split("|");
+      return { type, place };
+    }),
+    thrown,
+    site: null,
+    pace: null,
+    hitS: null,
+    planted: false,
+    playersOnSite: 0,
+    lurkers: [],
+    setup: null,
+    aggression: [],
+    retake: null,
   };
 }
 
