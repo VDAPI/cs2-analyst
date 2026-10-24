@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Bomb, ClipboardCheck, Skull, Target } from "lucide-react";
 import { useReplayStore, TICK_RATE } from "@/stores/replay-store";
-import type { PlayerSnapshot } from "@/stores/replay-store";
+import type { PlayerSnapshot, TickFrame } from "@/stores/replay-store";
 import { PlaybackControls } from "./playback-controls";
 import { MapViewport } from "@/components/maps/map-viewport";
 import { useCanvasUiScale, useRadarImage } from "@/components/maps/use-canvas";
@@ -87,6 +87,25 @@ function findingStrength(f: FindingView, tick: number): number {
   const dt = Math.abs(tick - f.tick) / TICK_RATE;
   if (dt <= FINDING_FULL_S) return 1;
   return Math.max(0, 1 - (dt - FINDING_FULL_S) / (FINDING_FADE_S - FINDING_FULL_S));
+}
+
+/** Shortest turn from `a` to `b` in degrees, `t` of the way. */
+function lerpYaw(a: number, b: number, t: number): number {
+  const d = ((((b - a) % 360) + 540) % 360) - 180;
+  return a + d * t;
+}
+
+/** A frame `alpha` (0–1) of the way from `a` to `b`: players alive in both move, the rest stay. */
+function interpolateFrame(a: TickFrame, b: TickFrame, alpha: number): TickFrame {
+  const nextOf = new Map(b.players.map((p) => [p.steamId, p]));
+  return {
+    tick: a.tick + (b.tick - a.tick) * alpha,
+    players: a.players.map((p) => {
+      const q = nextOf.get(p.steamId);
+      if (!q || !p.isAlive || !q.isAlive) return p;
+      return { ...p, x: p.x + (q.x - p.x) * alpha, y: p.y + (q.y - p.y) * alpha, yaw: lerpYaw(p.yaw, q.yaw, alpha) };
+    }),
+  };
 }
 
 function usePrefersReducedMotion() {
@@ -206,84 +225,96 @@ export function ReplayViewer({
     return Math.hypot(b.x - a.x, b.y - a.y);
   }, [worldToCanvas]);
 
-  // Draw the current frame
+  // Draw the current frame. During playback the loop below also calls the
+  // latest `draw` between store frames with `alpha` (0–1 of the way to the
+  // next frame), so players glide at the screen's rate instead of jumping
+  // once per stored frame (every 4 ticks).
+  const drawRef = useRef<(alpha: number) => void>(() => {});
   useEffect(() => {
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     const { width, height } = ctx.canvas;
+    const next = frames[currentFrameIndex + 1];
 
-    drawRadarBackground(ctx, radar, 0.3, mapName);
-    if (!frame) return;
+    const draw = (alpha: number) => {
+      const shown = frame && next && alpha > 0 ? interpolateFrame(frame, next, alpha) : frame;
+      const tickNow = shown?.tick ?? currentTick;
 
-    if (showGrenades) {
-      drawActiveSmokes(ctx, grenadeEvents, currentTick, worldToCanvas);
-      drawActiveFires(ctx, grenadeEvents, currentTick, worldToCanvas);
-      drawUtilityTimers(ctx, grenadeEvents, currentTick, worldToCanvas, ui);
-      drawGrenadeTrajectories(ctx, grenadeEvents, currentTick, worldToCanvas);
-    }
+      drawRadarBackground(ctx, radar, 0.3, mapName);
+      if (!shown) return;
 
-    if (showFov) {
-      for (const p of frame.players) {
-        if (!p.isAlive) continue;
-        if (selectedSteamId && p.steamId !== selectedSteamId) continue;
+      if (showGrenades) {
+        drawActiveSmokes(ctx, grenadeEvents, tickNow, worldToCanvas);
+        drawActiveFires(ctx, grenadeEvents, tickNow, worldToCanvas);
+        drawUtilityTimers(ctx, grenadeEvents, tickNow, worldToCanvas, ui);
+        drawGrenadeTrajectories(ctx, grenadeEvents, tickNow, worldToCanvas);
+      }
+
+      if (showFov) {
+        for (const p of shown.players) {
+          if (!p.isAlive) continue;
+          if (selectedSteamId && p.steamId !== selectedSteamId) continue;
+          const pos = worldToCanvas(p.x, p.y);
+          drawViewCone(ctx, pos.x, pos.y, p.yaw, p.team, conePx, p.steamId === selectedSteamId);
+        }
+      }
+
+      // Mistake around now: line to the enemy it was about.
+      const live = roundFindings
+        .map((f) => ({ f, strength: f.id === activeFindingId ? Math.max(0.35, findingStrength(f, tickNow)) : findingStrength(f, tickNow) }))
+        .filter((x) => x.strength > 0);
+      for (const { f } of live) {
+        if (!f.targetSteamId) continue;
+        const me = shown.players.find((p) => p.steamId === f.steamId);
+        const foe = shown.players.find((p) => p.steamId === f.targetSteamId);
+        if (me?.isAlive && foe?.isAlive) {
+          drawSightLine(ctx, worldToCanvas(me.x, me.y), worldToCanvas(foe.x, foe.y), ui);
+        }
+      }
+
+      for (const kill of kills) {
+        if (kill.tick > tickNow) continue;
+        const pos = worldToCanvas(kill.victimX, kill.victimY);
+        drawKillMarker(ctx, pos.x, pos.y, tickNow - kill.tick < FRESH_KILL_TICKS, ui);
+      }
+
+      if (showGrenades) {
+        drawBombMarker(ctx, bombEvents, tickNow, worldToCanvas, ui);
+        drawHEExplosions(ctx, grenadeEvents, tickNow, worldToCanvas);
+      }
+
+      // Selected player last so the ring and name sit on top
+      const ordered = [...shown.players].sort(
+        (a, b) => Number(a.steamId === selectedSteamId) - Number(b.steamId === selectedSteamId)
+      );
+      for (const p of ordered) {
         const pos = worldToCanvas(p.x, p.y);
-        drawViewCone(ctx, pos.x, pos.y, p.yaw, p.team, conePx, p.steamId === selectedSteamId);
+        drawPlayer(ctx, pos.x, pos.y, p, showPlayerNames, p.steamId === selectedSteamId, tickNow, ui);
+        if (p.steamId === selectedSteamId) drawPlayerLoadout(ctx, pos.x, pos.y, p, ui);
       }
-    }
-
-    // Mistake around now: line to the enemy it was about.
-    const live = roundFindings
-      .map((f) => ({ f, strength: f.id === activeFindingId ? Math.max(0.35, findingStrength(f, currentTick)) : findingStrength(f, currentTick) }))
-      .filter((x) => x.strength > 0);
-    for (const { f } of live) {
-      if (!f.targetSteamId) continue;
-      const me = frame.players.find((p) => p.steamId === f.steamId);
-      const foe = frame.players.find((p) => p.steamId === f.targetSteamId);
-      if (me?.isAlive && foe?.isAlive) {
-        drawSightLine(ctx, worldToCanvas(me.x, me.y), worldToCanvas(foe.x, foe.y), ui);
+      for (const { f, strength } of live) {
+        const p = shown.players.find((x) => x.steamId === f.steamId);
+        if (!p) continue;
+        const pos = worldToCanvas(p.x, p.y);
+        drawFindingMarker(ctx, pos.x, pos.y, f.severity, tickNow, strength, ui);
       }
-    }
 
-    for (const kill of kills) {
-      if (kill.tick > currentTick) continue;
-      const pos = worldToCanvas(kill.victimX, kill.victimY);
-      drawKillMarker(ctx, pos.x, pos.y, currentTick - kill.tick < FRESH_KILL_TICKS, ui);
-    }
+      roundNotes.forEach((n, i) => {
+        const pos = worldToCanvas(n.x, n.y);
+        drawNotePin(ctx, pos.x, pos.y, String(i + 1), Math.abs(tickNow - n.tick) <= NOTE_ACTIVE_TICKS, ui);
+      });
+      if (pendingNote) {
+        const pos = worldToCanvas(pendingNote.x, pendingNote.y);
+        drawNotePin(ctx, pos.x, pos.y, "+", true, ui);
+      }
 
-    if (showGrenades) {
-      drawBombMarker(ctx, bombEvents, currentTick, worldToCanvas, ui);
-      drawHEExplosions(ctx, grenadeEvents, currentTick, worldToCanvas);
-    }
-
-    // Selected player last so the ring and name sit on top
-    const ordered = [...frame.players].sort(
-      (a, b) => Number(a.steamId === selectedSteamId) - Number(b.steamId === selectedSteamId)
-    );
-    for (const p of ordered) {
-      const pos = worldToCanvas(p.x, p.y);
-      drawPlayer(ctx, pos.x, pos.y, p, showPlayerNames, p.steamId === selectedSteamId, currentTick, ui);
-      if (p.steamId === selectedSteamId) drawPlayerLoadout(ctx, pos.x, pos.y, p, ui);
-    }
-    for (const { f, strength } of live) {
-      const p = frame.players.find((x) => x.steamId === f.steamId);
-      if (!p) continue;
-      const pos = worldToCanvas(p.x, p.y);
-      drawFindingMarker(ctx, pos.x, pos.y, f.severity, currentTick, strength, ui);
-    }
-
-    roundNotes.forEach((n, i) => {
-      const pos = worldToCanvas(n.x, n.y);
-      drawNotePin(ctx, pos.x, pos.y, String(i + 1), Math.abs(currentTick - n.tick) <= NOTE_ACTIVE_TICKS, ui);
-    });
-    if (pendingNote) {
-      const pos = worldToCanvas(pendingNote.x, pendingNote.y);
-      drawNotePin(ctx, pos.x, pos.y, "+", true, ui);
-    }
-
-    if (showGrenades) {
-      drawFlashOverlay(ctx, grenadeEvents, currentTick, width, height, worldToCanvas, !reducedMotion);
-    }
-  }, [frame, currentTick, kills, grenadeEvents, bombEvents, showGrenades, showPlayerNames, showFov, selectedSteamId, roundFindings, activeFindingId, conePx, worldToCanvas, radar, mapName, reducedMotion, ui, roundNotes, pendingNote]);
+      if (showGrenades) {
+        drawFlashOverlay(ctx, grenadeEvents, tickNow, width, height, worldToCanvas, !reducedMotion);
+      }
+    };
+    drawRef.current = draw;
+    draw(0);
+  }, [frame, frames, currentFrameIndex, currentTick, kills, grenadeEvents, bombEvents, showGrenades, showPlayerNames, showFov, selectedSteamId, roundFindings, activeFindingId, conePx, worldToCanvas, radar, mapName, reducedMotion, ui, roundNotes, pendingNote]);
 
   // Playback loop; pauses while the tab is hidden
   useEffect(() => {
@@ -292,9 +323,12 @@ export function ReplayViewer({
     const msPerFrame = (ticksPerFrame / TICK_RATE / playbackSpeed) * 1000;
 
     const animate = (time: number) => {
-      if (time - lastTickTimeRef.current >= msPerFrame) {
+      const alpha = (time - lastTickTimeRef.current) / msPerFrame;
+      if (alpha >= 1) {
         lastTickTimeRef.current = time;
         nextFrame();
+      } else {
+        drawRef.current(alpha);
       }
       animFrameRef.current = requestAnimationFrame(animate);
     };

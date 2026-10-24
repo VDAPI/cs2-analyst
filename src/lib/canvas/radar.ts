@@ -45,6 +45,28 @@ export function makeCanvasToWorld(config: RadarConfig | null, size = TOOL_CANVAS
   });
 }
 
+const greyCache = new WeakMap<HTMLImageElement, HTMLCanvasElement>();
+
+/**
+ * The radar desaturated once per image and size. A canvas `filter` runs on
+ * every draw, and the replay redraws up to 60 times a second: filtering a
+ * 1024 px radar each time made playback stutter.
+ */
+function greyRadar(radar: HTMLImageElement, width: number, height: number): CanvasImageSource {
+  const cached = greyCache.get(radar);
+  if (cached && cached.width === width && cached.height === height) return cached;
+  if (typeof document === "undefined") return radar;
+  const out = document.createElement("canvas");
+  out.width = width;
+  out.height = height;
+  const g = out.getContext("2d");
+  if (!g) return radar;
+  g.filter = "grayscale(100%)";
+  g.drawImage(radar, 0, 0, width, height);
+  greyCache.set(radar, out);
+  return out;
+}
+
 /** Clears to `--canvas` and draws the radar desaturated, or a grid + map name when it's missing. */
 export function drawRadarBackground(
   ctx: CanvasRenderingContext2D,
@@ -59,8 +81,7 @@ export function drawRadarBackground(
 
   if (radar) {
     ctx.globalAlpha = opacity;
-    ctx.filter = "grayscale(100%)";
-    ctx.drawImage(radar, 0, 0, width, height);
+    ctx.drawImage(greyRadar(radar, width, height), 0, 0, width, height);
   } else {
     ctx.strokeStyle = CANVAS_COLORS.grid;
     ctx.lineWidth = 1;
