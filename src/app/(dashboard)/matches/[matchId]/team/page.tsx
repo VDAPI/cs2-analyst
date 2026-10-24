@@ -11,14 +11,17 @@ import { getMatchTeamReport } from "@/lib/team/load";
 import { DEFAULT_PROBE_S, SETUP_PROBE_S, type Insight, type RoundBreakdown } from "@/lib/team/antistrat";
 import {
   BUY_KEY,
-  PACE_KEY,
+  defaultSpots,
   namesFromReport,
-  playText,
+  reportMap,
+  roundText,
   summaryLines,
+  tacticCounts,
   thrownText,
   topUtility,
   utilName,
 } from "@/lib/team/breakdown-text";
+import { ctSpotOf, shortPlace } from "@/lib/team/map-lanes";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { cn } from "@/lib/utils/cn";
 import { Badge, Card, EmptyState, PageHeader, SectionTitle, buttonVariants } from "@/components/ui";
@@ -44,8 +47,8 @@ function insightText(t: TFunction, i: Insight): string {
 
 /**
  * /matches/[matchId]/team — what one team of the demo played: key points,
- * pistols, force/eco rounds, T default and hits, CT setups, utility and a
- * round-by-round list (the per-demo view of the S17 anti-strat analysis).
+ * pistols, force/eco rounds, T tactics and default, CT positions, utility and
+ * a round-by-round list (the per-demo view of the S17 anti-strat analysis).
  */
 export default async function MatchTeamPage({ params, searchParams }: Props) {
   const { matchId } = await params;
@@ -125,25 +128,47 @@ export default async function MatchTeamPage({ params, searchParams }: Props) {
   }
 
   const nameOf = namesFromReport(report);
-  const map = report.maps[0];
+  const mapName = reportMap(report);
   const tRounds = report.rounds.filter((r) => r.side === "T");
   const ctRounds = report.rounds.filter((r) => r.side === "CT");
   const pistols = report.rounds.filter((r) => r.buy === "pistol");
   const ecoForce = report.rounds.filter((r) => r.buy === "eco" || r.buy === "force");
   const replay = (r: RoundBreakdown) => `/replay/${r.matchId}?round=${r.round}&tick=${r.tick}`;
+  const spotOf = (place: string) => ctSpotOf(mapName, place) ?? shortPlace(mapName, place);
 
-  const roundCard = (r: RoundBreakdown) => (
-    <li key={r.round} className="space-y-1 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3 text-sm">
-      <p className="flex flex-wrap items-center gap-2">
-        <span className="font-semibold text-[var(--text-primary)]">R{r.round}</span>
-        <SideBadge side={r.side} />
-        <Badge variant="neutral">{t(BUY_KEY[r.buy])}</Badge>
-        <span className={r.won ? "text-[var(--good)]" : "text-[var(--mistake)]"}>{r.won ? t("teamDemo.won") : t("teamDemo.lost")}</span>
-        <ReplayLink href={replay(r)} label={t("antistrat.openRound")} />
-      </p>
-      <p className="text-[var(--text-secondary)]">{playText(t, r, nameOf)}</p>
-      <p className="text-xs text-[var(--text-tertiary)]">{thrownText(t, r)}</p>
-    </li>
+  const roundCard = (r: RoundBreakdown) => {
+    const text = roundText(t, mapName, r, nameOf);
+    return (
+      <li key={r.round} className="space-y-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3 text-sm">
+        <p className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-[var(--text-primary)]">R{r.round}</span>
+          <SideBadge side={r.side} />
+          <Badge variant="neutral">{t(BUY_KEY[r.buy])}</Badge>
+          <span className={r.won ? "text-[var(--good)]" : "text-[var(--mistake)]"}>{r.won ? t("teamDemo.won") : t("teamDemo.lost")}</span>
+          <ReplayLink href={replay(r)} label={t("antistrat.openRound")} />
+        </p>
+        <p className="font-display text-base font-semibold text-[var(--text-primary)]">{text.name}</p>
+        <ul className="space-y-0.5 text-[var(--text-secondary)]">
+          {text.groups.map((g, n) => (
+            <li key={n}>{g}</li>
+          ))}
+        </ul>
+        {text.outcome && <p className="text-[var(--text-secondary)]">{text.outcome}</p>}
+        <p className="text-xs leading-relaxed text-[var(--text-tertiary)]">{thrownText(t, mapName, r, nameOf)}</p>
+      </li>
+    );
+  };
+  const countList = (rows: Array<{ label: string; n: number }>, of: number) => (
+    <ul className="space-y-1 text-sm text-[var(--text-secondary)]">
+      {rows.map((d) => (
+        <li key={d.label} className="flex gap-2">
+          <span className="min-w-0 flex-1 truncate">{d.label}</span>
+          <span className="font-mono text-xs text-[var(--text-tertiary)]">
+            {d.n}/{of}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 
   return (
@@ -193,51 +218,24 @@ export default async function MatchTeamPage({ params, searchParams }: Props) {
         <SectionTitle>
           <span id="strona-t">{t("teamDemo.tTitle")}</span>
         </SectionTitle>
-        {tRounds.length === 0 || !map ? (
+        {tRounds.length === 0 ? (
           <p className="text-sm text-[var(--text-tertiary)]">{t("teamDemo.noSide")}</p>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
             <Card className="space-y-2">
-              <h3 className="font-display text-sm font-semibold text-[var(--text-primary)]">{t("antistrat.defaultsTitle", { s: DEFAULT_PROBE_S })}</h3>
-              <ul className="space-y-1 text-sm text-[var(--text-secondary)]">
-                {map.t.defaults.slice(0, 8).map((d) => (
-                  <li key={d.place} className="flex gap-2">
-                    <span className="min-w-0 flex-1 truncate">{d.place}</span>
-                    <span className="font-mono text-xs text-[var(--text-tertiary)]">
-                      {d.rounds}/{d.of}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <h3 className="font-display text-sm font-semibold text-[var(--text-primary)]">{t("antistrat.colExecute")}</h3>
+              {countList(
+                tacticCounts(t, report).map(([label, n]) => ({ label, n })),
+                tRounds.length
+              )}
             </Card>
             <Card className="space-y-2">
-              <h3 className="font-display text-sm font-semibold text-[var(--text-primary)]">{t("antistrat.colExecute")}</h3>
-              {map.t.executes.length === 0 ? (
-                <p className="text-sm text-[var(--text-tertiary)]">{t("antistrat.noExecutes")}</p>
-              ) : (
-                <ul className="space-y-2 text-sm">
-                  {map.t.executes.map((e) => (
-                    <li key={`${e.site}|${e.pace}`} className="space-y-0.5">
-                      <p className="text-[var(--text-primary)]">
-                        {t("teamDemo.executeLine", {
-                          site: e.site,
-                          pace: t(PACE_KEY[e.pace]),
-                          sec: Math.round(e.hitS),
-                          n: e.rounds,
-                          wins: e.wins,
-                        })}
-                      </p>
-                      {e.utility.length > 0 && (
-                        <p className="text-xs text-[var(--text-tertiary)]">
-                          {e.utility
-                            .slice(0, 4)
-                            .map((u) => t("teamDemo.utilCount", { type: utilName(t, u.type), place: u.place, n: u.rounds }))
-                            .join(", ")}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+              <h3 className="font-display text-sm font-semibold text-[var(--text-primary)]">{t("antistrat.defaultsTitle", { s: DEFAULT_PROBE_S })}</h3>
+              {countList(
+                defaultSpots(mapName, tRounds)
+                  .slice(0, 8)
+                  .map((d) => ({ label: d.place, n: d.rounds })),
+                tRounds.length
               )}
             </Card>
           </div>
@@ -248,32 +246,19 @@ export default async function MatchTeamPage({ params, searchParams }: Props) {
         <SectionTitle>
           <span id="strona-ct">{t("teamDemo.ctTitle")}</span>
         </SectionTitle>
-        {ctRounds.length === 0 || !map ? (
+        {ctRounds.length === 0 ? (
           <p className="text-sm text-[var(--text-tertiary)]">{t("teamDemo.noSide")}</p>
         ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="space-y-2">
-              <h3 className="font-display text-sm font-semibold text-[var(--text-primary)]">{t("antistrat.setupsTitle", { s: SETUP_PROBE_S })}</h3>
-              <ul className="space-y-1 text-sm text-[var(--text-primary)]">
-                {map.ct.setups.map((s) => (
-                  <li key={`${s.A}-${s.mid}-${s.B}`}>{t("teamDemo.setupLine", { a: s.A, mid: s.mid, b: s.B, n: s.rounds, wins: s.wins })}</li>
-                ))}
-              </ul>
-            </Card>
-            <Card className="space-y-2">
-              <h3 className="font-display text-sm font-semibold text-[var(--text-primary)]">{t("antistrat.positionsTitle")}</h3>
-              <ul className="space-y-1 text-sm text-[var(--text-secondary)]">
-                {map.ct.positions.slice(0, 8).map((d) => (
-                  <li key={d.place} className="flex gap-2">
-                    <span className="min-w-0 flex-1 truncate">{d.place}</span>
-                    <span className="font-mono text-xs text-[var(--text-tertiary)]">
-                      {d.rounds}/{d.of}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          </div>
+          <Card className="space-y-2">
+            <h3 className="font-display text-sm font-semibold text-[var(--text-primary)]">{t("antistrat.setupsTitle", { s: SETUP_PROBE_S })}</h3>
+            {countList(
+              defaultSpots(
+                mapName,
+                ctRounds.map((r) => ({ ...r, positions: r.positions.map((p) => ({ ...p, place: spotOf(p.place) })) }))
+              ).map((d) => ({ label: d.place, n: d.rounds })),
+              ctRounds.length
+            )}
+          </Card>
         )}
       </section>
 
@@ -297,8 +282,8 @@ export default async function MatchTeamPage({ params, searchParams }: Props) {
                 {report.players.map((p) => (
                   <tr key={p.steamId}>
                     <td className="font-medium">{p.name}</td>
-                    <td className="text-xs">{p.tSpot ? `${p.tSpot.place} (${p.tSpot.rounds}/${p.tSpot.of})` : "—"}</td>
-                    <td className="text-xs">{p.ctSpot ? `${p.ctSpot.place} (${p.ctSpot.rounds}/${p.ctSpot.of})` : "—"}</td>
+                    <td className="text-xs">{p.tSpot ? `${shortPlace(mapName, p.tSpot.place)} (${p.tSpot.rounds}/${p.tSpot.of})` : "—"}</td>
+                    <td className="text-xs">{p.ctSpot ? `${spotOf(p.ctSpot.place)} (${p.ctSpot.rounds}/${p.ctSpot.of})` : "—"}</td>
                     <td>
                       <span className="flex flex-wrap gap-1">
                         {p.roles.map((r) => (
@@ -331,6 +316,7 @@ export default async function MatchTeamPage({ params, searchParams }: Props) {
               </h3>
               <ul className="space-y-1 text-sm text-[var(--text-secondary)]">
                 {topUtility(
+                  mapName,
                   report.rounds.filter((r) => r.side === s),
                   10
                 ).map((u) => (
@@ -350,7 +336,7 @@ export default async function MatchTeamPage({ params, searchParams }: Props) {
         <SectionTitle>
           <span id="rundy">{t("teamDemo.roundsTitle")}</span>
         </SectionTitle>
-        <ul className="grid gap-2">{report.rounds.map(roundCard)}</ul>
+        <ul className="grid gap-2 md:grid-cols-2">{report.rounds.map(roundCard)}</ul>
       </section>
     </div>
   );

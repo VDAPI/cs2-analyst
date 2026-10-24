@@ -27,8 +27,12 @@ import {
 import type { FinalSide } from "./roster";
 
 /** Bump when the analysis or its output shape changes: cached reports are rebuilt. */
-export const ANTISTRAT_VERSION = 2;
+export const ANTISTRAT_VERSION = 3;
 
+/** Routes of a T round without a site hit are followed this long. */
+export const PATH_NO_HIT_S = 45;
+/** Routes of a T round with a hit are followed this long after it. */
+export const PATH_AFTER_HIT_S = 8;
 /** T default = rival positions this long after freeze end. */
 export const DEFAULT_PROBE_S = 15;
 /** CT setup = positions this long after freeze end (same as the S12 anchor). */
@@ -283,7 +287,14 @@ export interface RoundBreakdown {
   /** Utility thrown for the hit (T) or early in the round (CT). */
   utility: Array<{ type: string; place: string }>;
   /** Every rival grenade of the round: type, landing callout, seconds after freeze end. */
-  thrown: Array<{ type: string; place: string; s: number }>;
+  thrown: Array<{ type: string; place: string; s: number; by: string }>;
+  /**
+   * T: each rival player's route this round, callouts in visiting order (no
+   * repeats) from freeze end to the hit (or PATH_NO_HIT_S without one), and
+   * whether they reached the hit site. The breakdown turns these into
+   * "Split A: 3 Con, 2 Ramp" with the map's lanes (src/lib/team/map-lanes.ts).
+   */
+  paths: Array<{ steamId: string; path: string[]; onSite: boolean }>;
   /** T: site hit, pace, seconds to the hit, plant, players on site, lurkers. */
   site: "A" | "B" | null;
   pace: Pace | null;
@@ -575,6 +586,7 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
           type: utilityKind(g.type),
           place: placeOf({ x: g.landX, y: g.landY, z: g.landZ }),
           s: Math.max(0, Math.round(sec(g.tick))),
+          by: g.throwerSteamId,
         }));
 
       // The round after a lost pistol.
@@ -673,6 +685,27 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
         }
         const hitS = hitTick != null ? Math.max(0, sec(hitTick)) : null;
 
+        // Routes: callouts each rival T passed through until shortly after
+        // the hit (players of a split arrive a few seconds after the first).
+        const pathEnd = hitTick != null ? hitTick + PATH_AFTER_HIT_S * m.tickRate : freezeEnd + PATH_NO_HIT_S * m.tickRate;
+        const siteKey = site ? `bombsite${site.toLowerCase()}` : null;
+        const routes = new Map<string, { path: string[]; onSite: boolean }>();
+        for (const f of round.frames) {
+          if (f.tick < freezeEnd || f.tick > pathEnd) continue;
+          for (const q of f.players) {
+            if (!inRival.has(q.steamId) || !q.isAlive || q.team !== "T") continue;
+            const r = routes.get(q.steamId) ?? { path: [], onSite: false };
+            routes.set(q.steamId, r);
+            if (r.onSite) continue;
+            const place = placeOf(q);
+            if (r.path[r.path.length - 1] !== place) r.path.push(place);
+            // On the site = the bombsite's own callout; the plant-spot radius
+            // (SITE_ZONE) also covers the lanes leading into it.
+            if (siteKey && place.toLowerCase().replace(/[^a-z0-9]/g, "") === siteKey) r.onSite = true;
+          }
+        }
+        const paths = [...routes].map(([steamId, r]) => ({ steamId, ...r }));
+
         const utility = new Set<string>();
         if (hitTick != null) {
           for (const g of grenades) {
@@ -708,6 +741,7 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
         }
         roundLog.push({
           ...emptyBreakdown(ex(hitTick ?? probe), side, buy, won, positions, utility, thrown),
+          paths,
           site,
           pace: hitS != null ? paceOf(hitS) : null,
           hitS: hitS != null ? r1(hitS) : null,
@@ -879,6 +913,7 @@ function emptyBreakdown(
       return { type, place };
     }),
     thrown,
+    paths: [],
     site: null,
     pace: null,
     hitS: null,
