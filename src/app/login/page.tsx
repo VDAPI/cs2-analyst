@@ -12,7 +12,13 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("auth.loginMetaTitle") };
 }
 
-export default async function LoginPage() {
+interface Props {
+  // NextAuth sends failed Steam sign-ins back here with ?error=<code>.
+  searchParams: Promise<{ error?: string }>;
+}
+
+export default async function LoginPage({ searchParams }: Props) {
+  const { error } = await searchParams;
   const { t } = await getT();
   return (
     <AuthShell
@@ -27,6 +33,11 @@ export default async function LoginPage() {
         </>
       }
     >
+      {error && (
+        <p role="alert" className="mb-4 rounded-lg border-l-[3px] border-[var(--mistake)] bg-[var(--mistake-muted)] px-3 py-2 text-sm text-[var(--mistake)]">
+          {t("auth.steamLoginFailed")}
+        </p>
+      )}
       <CredentialsForm mode="login" />
 
       {isSteamLoginEnabled() && (

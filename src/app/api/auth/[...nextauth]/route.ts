@@ -114,6 +114,7 @@ async function handler(
             return "/settings?linked=steam";
           }
 
+          await adoptSteamUser(account.providerAccountId);
           return true;
         }
 
@@ -121,6 +122,30 @@ async function handler(
         return true;
       },
     },
+  });
+}
+
+/**
+ * Plain "Sign in with Steam": a user row can hold this Steam id without the
+ * Account row the adapter looks up (steamId set by an older link flow, or a
+ * Steam user whose Account row was lost). The adapter then matches that row
+ * by the provider's pseudo email (`<steamid>@steamcommunity.com`) and stops
+ * with OAuthAccountNotLinked, so the player lands back on /login. Attach the
+ * Account to that user first; NextAuth looks the account up again after
+ * signIn() and signs them in.
+ */
+async function adoptSteamUser(steamId: string) {
+  const linked = await prisma.account.findUnique({
+    where: { provider_providerAccountId: { provider: "steam", providerAccountId: steamId } },
+    select: { id: true },
+  });
+  if (linked) return;
+  const owner =
+    (await prisma.user.findUnique({ where: { steamId }, select: { id: true } })) ??
+    (await prisma.user.findUnique({ where: { email: `${steamId}@steamcommunity.com` }, select: { id: true } }));
+  if (!owner) return; // first Steam login: the adapter creates the user
+  await prisma.account.create({
+    data: { userId: owner.id, type: "oauth", provider: "steam", providerAccountId: steamId },
   });
 }
 
