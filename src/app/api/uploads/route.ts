@@ -25,6 +25,10 @@ import { join } from "path";
 const MAX_FILE_SIZE = 700 * 1024 * 1024; // 700MB
 /** The file plus multipart headers and the small form fields. */
 const MAX_BODY_SIZE = MAX_FILE_SIZE + 1024 * 1024;
+/** FACEIT names its demos after the match: "1-<uuid>.dem", often "1-<uuid>-1-1.dem". */
+const FACEIT_FILE_ID = /^(1-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+/** 409 body for a demo the player already analyzed; the upload page maps `code` to its message. */
+const DUPLICATE = { error: "This demo has already been analyzed", code: "duplicate" } as const;
 
 function sanitizeFileName(name: string): string {
   // Keep alphanumerics, dots, hyphens, underscores. Replace everything else with _.
@@ -90,22 +94,53 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: headerError }, { status: 400 });
   }
 
+  const safeName = sanitizeFileName(file.name);
+
+  // The same demo uploaded again (or a FACEIT demo downloaded by hand after
+  // "Analyze selected" already fetched it) would be a second analysis of one
+  // match: refuse it while the first one is in flight or kept.
+  const fileFaceitId = file.name.match(FACEIT_FILE_ID)?.[1].toLowerCase() ?? null;
+  const duplicate = await prisma.demoUpload.findFirst({
+    where: {
+      userId,
+      deletedAt: null,
+      status: { not: "FAILED" },
+      OR: [
+        { fileName: safeName, fileSize: file.size },
+        ...(fileFaceitId
+          ? [{ faceitMatchId: fileFaceitId }, { fileName: { startsWith: fileFaceitId } }]
+          : []),
+      ],
+    },
+    select: { id: true },
+  });
+  if (duplicate) {
+    return NextResponse.json(DUPLICATE, { status: 409 });
+  }
+
   // Optional link to a FACEIT history entry (upload fallback for "Analyze
-  // selected" when automatic downloads aren't available).
-  let faceitMatchId: string | null = null;
-  if (typeof faceitMatchRef === "string" && faceitMatchRef) {
+  // selected" when automatic downloads aren't available). A FACEIT demo
+  // dropped in by hand links to its history entry by file name, so the
+  // FACEIT list marks the match as analyzed.
+  let faceitRef = typeof faceitMatchRef === "string" && faceitMatchRef ? faceitMatchRef : null;
+  if (!faceitRef && !(typeof steamMatchRef === "string" && steamMatchRef) && fileFaceitId) {
     const fm = await prisma.faceitMatch.findUnique({
-      where: { id: faceitMatchRef },
+      where: { userId_faceitMatchId: { userId, faceitMatchId: fileFaceitId } },
+      select: { id: true },
+    });
+    faceitRef = fm?.id ?? null;
+  }
+  let faceitMatchId: string | null = null;
+  if (faceitRef) {
+    const fm = await prisma.faceitMatch.findUnique({
+      where: { id: faceitRef },
       include: FACEIT_UPLOAD_INCLUDE,
     });
     if (!fm || fm.userId !== userId) {
       return NextResponse.json({ error: "FACEIT match not found" }, { status: 404 });
     }
     if (activeUploadId(fm)) {
-      return NextResponse.json(
-        { error: "This FACEIT match already has a demo" },
-        { status: 409 }
-      );
+      return NextResponse.json(DUPLICATE, { status: 409 });
     }
     faceitMatchId = fm.faceitMatchId;
   }
@@ -127,7 +162,6 @@ export async function POST(req: Request) {
   }
 
   const originalName = file.name;
-  const safeName = sanitizeFileName(originalName);
   console.log(
     `[upload] received file="${originalName}" sanitized="${safeName}" size=${file.size}`
   );
@@ -145,7 +179,7 @@ export async function POST(req: Request) {
         include: FACEIT_UPLOAD_INCLUDE,
       });
       if (!fm || activeUploadId(fm)) {
-        return { error: "This FACEIT match already has a demo", status: 409 } as const;
+        return { ...DUPLICATE, status: 409 } as const;
       }
       if (fm.upload) await releaseFaceitMatch(userId, fm.faceitMatchId, tx);
     }
@@ -189,7 +223,8 @@ export async function POST(req: Request) {
     return { upload: created, keepDemo } as const;
   });
   if ("error" in reserved) {
-    return NextResponse.json({ error: reserved.error }, { status: reserved.status });
+    const { status, ...body } = reserved;
+    return NextResponse.json(body, { status });
   }
   const { upload, keepDemo } = reserved;
 

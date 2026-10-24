@@ -444,6 +444,7 @@ export const en: Messages = {
     statusError: "Error",
     failed: "Analysis failed",
     sendFailed: "Upload failed",
+    duplicate: "This demo has already been analyzed. You'll find it in the Library.",
     sendFailedStatus: "Upload failed ({status})",
     sendFailedNetwork: "Upload failed — check your connection",
     removeFile: "Remove {name}",
