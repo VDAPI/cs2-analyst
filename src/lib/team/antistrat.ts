@@ -27,7 +27,7 @@ import {
 import type { FinalSide } from "./roster";
 
 /** Bump when the analysis or its output shape changes: cached reports are rebuilt. */
-export const ANTISTRAT_VERSION = 3;
+export const ANTISTRAT_VERSION = 4;
 
 /** Routes of a T round without a site hit are followed this long. */
 export const PATH_NO_HIT_S = 45;
@@ -84,6 +84,10 @@ export interface AntiStratGrenade {
   landX: number;
   landY: number;
   landZ: number;
+  /** Where it was thrown from (older callers may leave it out). */
+  throwX?: number;
+  throwY?: number;
+  throwZ?: number;
 }
 
 export interface AntiStratPlayerLine {
@@ -120,6 +124,11 @@ export interface AntiStratMapContext {
   sites: Partial<Record<"A" | "B", Point3>>;
   /** Callout of a position (learned, S11), null when unknown. */
   place: (p: Point3) => string | null;
+  /**
+   * The demo's own callout when `place` also answers with admin-drawn zones
+   * ("Ninja" inside "Bombsite A"): used to tell when a T reached the site.
+   */
+  demoPlace?: (p: Point3) => string | null;
 }
 
 export interface AntiStratInput {
@@ -287,7 +296,7 @@ export interface RoundBreakdown {
   /** Utility thrown for the hit (T) or early in the round (CT). */
   utility: Array<{ type: string; place: string }>;
   /** Every rival grenade of the round: type, landing callout, seconds after freeze end. */
-  thrown: Array<{ type: string; place: string; s: number; by: string }>;
+  thrown: Array<{ type: string; place: string; s: number; by: string; from: string | null }>;
   /**
    * T: each rival player's route this round, callouts in visiting order (no
    * repeats) from freeze end to the hit (or PATH_NO_HIT_S without one), and
@@ -366,9 +375,14 @@ export function zoneOf(p: Point3, ctx: AntiStratMapContext): Zone {
   return "mid";
 }
 
-/** Rival buy from the average equipment at freeze end. */
-export function buyKind(roundNumber: number, avgEquip: number): BuyKind {
+/**
+ * Rival buy from the average equipment at freeze end. The round after a won
+ * pistol is the winners' full buy (SMGs and armour are all they can and need
+ * to buy), never a force, whatever the equipment value says.
+ */
+export function buyKind(roundNumber: number, avgEquip: number, wonPistol = false): BuyKind {
   if (roundNumber === 1 || roundNumber === 13) return "pistol";
+  if (wonPistol && (roundNumber === 2 || roundNumber === 14)) return "full";
   if (avgEquip < ECO_EQUIP) return "eco";
   if (avgEquip < FULL_BUY_EQUIP) return "force";
   return "full";
@@ -576,7 +590,7 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
       const avgEquip = econ.length
         ? econ.reduce((s, e) => s + e.equipValue, 0) / econ.length
         : FULL_BUY_EQUIP;
-      const buy = buyKind(round.number, avgEquip);
+      const buy = buyKind(round.number, avgEquip, prevWon.get(round.number - 1) === true);
       const grenades = m.grenades.filter(
         (g) => g.roundNumber === round.number && inRival.has(g.throwerSteamId),
       );
@@ -587,6 +601,7 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
           place: placeOf({ x: g.landX, y: g.landY, z: g.landZ }),
           s: Math.max(0, Math.round(sec(g.tick))),
           by: g.throwerSteamId,
+          from: g.throwX != null && g.throwY != null && g.throwZ != null ? placeOf({ x: g.throwX, y: g.throwY, z: g.throwZ }) : null,
         }));
 
       // The round after a lost pistol.
@@ -701,7 +716,8 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
             if (r.path[r.path.length - 1] !== place) r.path.push(place);
             // On the site = the bombsite's own callout; the plant-spot radius
             // (SITE_ZONE) also covers the lanes leading into it.
-            if (siteKey && place.toLowerCase().replace(/[^a-z0-9]/g, "") === siteKey) r.onSite = true;
+            const demo = ctx.demoPlace ? ctx.demoPlace(q) ?? place : place;
+            if (siteKey && demo.toLowerCase().replace(/[^a-z0-9]/g, "") === siteKey) r.onSite = true;
           }
         }
         const paths = [...routes].map(([steamId, r]) => ({ steamId, ...r }));
