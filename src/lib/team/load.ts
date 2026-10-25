@@ -8,6 +8,8 @@
  * a match of one of the team's rivals; the rest of a member's library stays
  * private.
  */
+import { loadZones } from "./map-lanes-load";
+import { withZones } from "./zones";
 import type { Prisma, PrismaClient, TeamRole } from "@prisma/client";
 import { loadTacticsInput } from "@/lib/analysis/persist-tactics";
 import { getPlaceLookup } from "@/lib/analysis/persist-utility";
@@ -298,7 +300,17 @@ async function loadAntiStratMatch(
             number: true,
             kills: { select: { tick: true, weapon: true, attackerSteamId: true, victimSteamId: true } },
             grenades: {
-              select: { tick: true, throwerSteamId: true, grenadeType: true, landPosX: true, landPosY: true, landPosZ: true },
+              select: {
+                tick: true,
+                throwerSteamId: true,
+                grenadeType: true,
+                landPosX: true,
+                landPosY: true,
+                landPosZ: true,
+                throwPosX: true,
+                throwPosY: true,
+                throwPosZ: true,
+              },
             },
           },
         },
@@ -332,6 +344,9 @@ async function loadAntiStratMatch(
         landX: g.landPosX,
         landY: g.landPosY,
         landZ: g.landPosZ,
+        throwX: g.throwPosX,
+        throwY: g.throwPosY,
+        throwZ: g.throwPosZ,
       }))
     ),
     players: extra.players,
@@ -396,8 +411,14 @@ export async function getMatchTeamReport(
   if (team.length === 0) return null;
   const loaded = await loadAntiStratMatch(prisma, { ...head, players: head.players as MatchHead["players"], rivalSide: side });
   if (!loaded) return null;
-  const [sites, place] = await Promise.all([bombsiteCentres(prisma, head.map), getPlaceLookup(prisma, head.map)]);
-  return analyzeRival({ rival: team, matches: [loaded], maps: { [head.map]: { sites, place } } });
+  const [sites, base, zones] = await Promise.all([
+    bombsiteCentres(prisma, head.map),
+    getPlaceLookup(prisma, head.map),
+    loadZones(prisma, head.map),
+  ]);
+  // Zones the admin drew (/callouts) name positions before the demo's callouts.
+  const place = withZones(zones, base);
+  return analyzeRival({ rival: team, matches: [loaded], maps: { [head.map]: { sites, place, demoPlace: base } } });
 }
 
 /**

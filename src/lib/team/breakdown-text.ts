@@ -10,6 +10,21 @@ import type { AntiStratReport, BuyKind, RoundBreakdown } from "./antistrat";
 import { DEFAULT_PROBE_S, EXECUTE_UTILITY_S, LATE_HIT_S } from "./antistrat";
 import { ctSpotOf, laneOf, mapLanes, shortPlace } from "./map-lanes";
 
+/** Competitive round time (1:55) and bomb timer (0:40), seconds. */
+export const ROUND_TIME_S = 115;
+export const BOMB_TIME_S = 40;
+
+const mss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+
+/**
+ * The in-game clock at `s` seconds after freeze end: round time counting
+ * down from 1:55, or "C4 0:31" on the bomb timer after the plant.
+ */
+export function roundClock(s: number, plantS: number | null = null): string {
+  if (plantS != null && s >= plantS) return `C4 ${mss(Math.max(0, BOMB_TIME_S - (s - plantS)))}`;
+  return mss(Math.max(0, ROUND_TIME_S - s));
+}
+
 /** A single-lane hit this fast is a rush. */
 export const RUSH_S = 20;
 /** Utility thrown for a single-lane hit that makes it an execute. */
@@ -138,8 +153,8 @@ export function roundText(t: TFunction, map: string, r: RoundBreakdown, nameOf: 
       r.hitS == null
         ? ""
         : r.planted
-          ? t("teamDemo.plantAt", { s: Math.round(r.hitS) })
-          : t("teamDemo.hitAt", { s: Math.round(r.hitS) });
+          ? t("teamDemo.plantAt", { clock: roundClock(r.hitS) })
+          : t("teamDemo.hitAt", { clock: roundClock(r.hitS) });
     return { ...play, outcome };
   }
   const parts: string[] = [];
@@ -158,11 +173,20 @@ export function roundText(t: TFunction, map: string, r: RoundBreakdown, nameOf: 
   };
 }
 
-/** Every grenade of the round in throw order: "Smoke Window (EnTii-, 8 s)". */
+/** Every grenade of the round in throw order: "Smoke: z Top Mid na Con (k1ttt, 1:32)". */
 export function thrownText(t: TFunction, map: string, r: RoundBreakdown, nameOf: NameOf): string {
   if (r.thrown.length === 0) return t("teamDemo.none");
+  const plantS = r.planted ? r.hitS : null;
   return r.thrown
-    .map((g) => t("teamDemo.utilBy", { type: utilName(t, g.type), place: shortPlace(map, g.place), name: nameOf(g.by), s: g.s }))
+    .map((g) => {
+      const vars = {
+        type: utilName(t, g.type),
+        place: shortPlace(map, g.place),
+        name: nameOf(g.by),
+        clock: roundClock(g.s, plantS),
+      };
+      return g.from ? t("teamDemo.utilFromTo", { ...vars, from: shortPlace(map, g.from) }) : t("teamDemo.utilBy", vars);
+    })
     .join(", ");
 }
 

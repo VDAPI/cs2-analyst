@@ -781,6 +781,24 @@ model MapCallout {
   @@id([map, place])
 }
 
+/// A callout zone an admin drew on the radar (/callouts), e.g. "Ninja" or
+/// "Kitchen": a polygon in world units that names positions inside it before
+/// the demo's own callouts, with its CT position and T lanes ("" = none).
+model MapZone {
+  id        String   @id @default(cuid())
+  map       String
+  name      String
+  /// [[x, y], …] world units, at least 3 points.
+  points    Json
+  ctSpot    String   @default("")
+  laneA     String   @default("")
+  laneB     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([map])
+}
+
 // One detected mistake at one moment (src/lib/findings/). Built from the
 // stored analysis (MechanicsStats, AimStats — later utility, teamplay,
 // economy), so it can be rebuilt without the .dem. `type` is a key of

@@ -53,8 +53,8 @@ export default async function CalloutsPage({ searchParams }: Props) {
     p.cells++;
     places.set(r.place, p);
   }
-  const [{ overrides }, editable] = await Promise.all([
-    map ? loadMapLanes(prisma, map) : Promise.resolve({ overrides: [] }),
+  const [{ overrides, zones }, editable] = await Promise.all([
+    map ? loadMapLanes(prisma, map) : Promise.resolve({ overrides: [], zones: [] }),
     currentUserIsAdmin(),
   ]);
   const edited = new Set(overrides.map((o) => o.place));
@@ -88,7 +88,7 @@ export default async function CalloutsPage({ searchParams }: Props) {
       <PageHeader
         eyebrow="Mapy"
         title="Pozycje z dema"
-        description="Nazwy pozycji, które gra zapisuje w demie, na radarze mapy. Obok nazwa używana w analizie drużynowej, pozycja CT i wejście T, do którego należy. Najedź na mapę albo kliknij nazwę na liście."
+        description="Nazwy pozycji, które gra zapisuje w demie, na radarze mapy, i strefy narysowane przez admina (mają pierwszeństwo). Obok nazwa używana w analizie drużynowej, pozycja CT i wejście T. Najedź na mapę albo kliknij nazwę na liście."
       />
       <nav aria-label="Mapy" className="flex flex-wrap gap-2">
         {maps.map((m) => (
@@ -114,6 +114,7 @@ export default async function CalloutsPage({ searchParams }: Props) {
           cells={cells}
           places={placeList}
           map={map!}
+          zones={zones}
           editable={editable}
           options={{
             ctSpots: lanes?.ctSpots.map((c) => c.name) ?? [],
