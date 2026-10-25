@@ -274,6 +274,17 @@ model TeamFolder {
   @@index([userId, parentId])
 }
 
+/// Computed analyses kept between page views (team analysis per map): the
+/// key names everything the value was computed from, so a new demo, a
+/// callout edit or a new analysis version simply misses the cache.
+model AnalysisCache {
+  key       String   @id
+  value     Json
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 enum UploadSource {
   MANUAL
   FACEIT

@@ -317,6 +317,47 @@ export function pistolLines(t: TFunction, report: AntiStratReport): string[] {
   return out;
 }
 
+export interface AfterPistol {
+  /** The pistol round's result for the team. */
+  won: boolean;
+  /** How many pistol rounds with that result. */
+  pistols: number;
+  /** What came next, per round after the pistol (+1, +2): buy and play with counts. */
+  next: Array<{ offset: 1 | 2; lines: string[] }>;
+}
+
+/**
+ * What the team does after winning / losing a pistol round: the buy and the
+ * play of the next two rounds, counted over every demo ("Pełny zakup · Rush B ×2").
+ */
+export function afterPistol(t: TFunction, report: AntiStratReport): AfterPistol[] {
+  const map = reportMap(report);
+  const nameOf = namesFromReport(report);
+  const byMatch = new Map<string, Map<number, RoundBreakdown>>();
+  for (const r of report.rounds) {
+    const m = byMatch.get(r.matchId) ?? new Map<number, RoundBreakdown>();
+    m.set(r.round, r);
+    byMatch.set(r.matchId, m);
+  }
+  const describe = (r: RoundBreakdown) =>
+    `${t(BUY_KEY[r.buy])} · ${r.side === "T" ? tPlay(t, map, r, nameOf).name : `${t("teamDemo.tacticCt")} ${ctSetupKey(map, r) ?? ""}`.trim()}`;
+  const out: AfterPistol[] = [];
+  for (const won of [true, false]) {
+    const pistols = report.rounds.filter((r) => r.buy === "pistol" && r.won === won);
+    if (pistols.length === 0) continue;
+    const next = ([1, 2] as const).map((offset) => {
+      const c = new Map<string, number>();
+      for (const p of pistols) {
+        const r = byMatch.get(p.matchId)?.get(p.round + offset);
+        if (r) c.set(describe(r), (c.get(describe(r)) ?? 0) + 1);
+      }
+      return { offset, lines: [...c.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ×${n}`) };
+    });
+    out.push({ won, pistols: pistols.length, next });
+  }
+  return out;
+}
+
 /** CT setup as players per position, e.g. "B 2 · Short 1 · Window 1 · A 1". */
 function ctSetupKey(map: string, r: RoundBreakdown): string | null {
   const order = ctOrder(map);
