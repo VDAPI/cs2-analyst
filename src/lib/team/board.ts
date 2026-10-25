@@ -116,6 +116,46 @@ export function boardFromTokens(
   return { v: BOARD_VERSION, steps: [{ name: "1", items }] };
 }
 
+/**
+ * A board of one played round (team analysis → "Na tablicę"): step 1 the
+ * team's positions at the default probe with their names, step 2 the same
+ * players with the grenades they threw (landing spots), our five tokens in
+ * the corner. Positions without coordinates (old cached reports) are left out.
+ */
+export function boardFromRound(
+  config: RadarConfig | null,
+  side: "CT" | "T",
+  players: Array<{ name: string; x?: number; y?: number }>,
+  utility: Array<{ type: string; x?: number; y?: number }>,
+  notes: { setup: string; utility: string }
+): BoardData {
+  const ours: "CT" | "T" = side === "CT" ? "T" : "CT";
+  const tokens: BoardItem[] = players
+    .filter((p) => p.x != null && p.y != null)
+    .slice(0, 5)
+    .map((p, i) => {
+      const w = worldToBoard(config, p.x!, p.y!);
+      return { id: `r${i + 1}`, kind: "player", side, label: p.name.slice(0, 16), x: w.x, y: w.y };
+    });
+  for (let i = 0; i < 5; i++) {
+    tokens.push({ id: `o${i + 1}`, kind: "player", side: ours, label: String(i + 1), x: q(0.06 + i * 0.055), y: ours === "CT" ? 0.05 : 0.95 });
+  }
+  const utilItems: BoardItem[] = utility
+    .filter((u): u is { type: BoardUtility; x: number; y: number } => (UTILITY_TYPES as readonly string[]).includes(u.type) && u.x != null && u.y != null)
+    .slice(0, 20)
+    .map((u, i) => {
+      const w = worldToBoard(config, u.x, u.y);
+      return { id: `u${i + 1}`, kind: "util", type: u.type, x: w.x, y: w.y };
+    });
+  return {
+    v: BOARD_VERSION,
+    steps: [
+      { name: "Ustawienie", note: notes.setup.slice(0, 400), items: tokens },
+      { name: "Granaty", note: notes.utility.slice(0, 400), items: [...tokens.map((i) => ({ ...i })), ...utilItems] },
+    ],
+  };
+}
+
 /** Short unique id for a new item. */
 export function newItemId(existing: Iterable<string>): string {
   const used = new Set(existing);

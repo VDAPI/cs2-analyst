@@ -27,7 +27,7 @@ import {
 import type { FinalSide } from "./roster";
 
 /** Bump when the analysis or its output shape changes: cached reports are rebuilt. */
-export const ANTISTRAT_VERSION = 4;
+export const ANTISTRAT_VERSION = 6;
 
 /** Routes of a T round without a site hit are followed this long. */
 export const PATH_NO_HIT_S = 45;
@@ -292,11 +292,11 @@ export interface RoundBreakdown {
   /** Tick to open the 2D replay at (the hit on T, the setup probe on CT). */
   tick: number;
   /** Rival players and their callout at the probe (T default / CT setup). */
-  positions: Array<{ steamId: string; place: string }>;
+  positions: Array<{ steamId: string; place: string; x?: number; y?: number }>;
   /** Utility thrown for the hit (T) or early in the round (CT). */
   utility: Array<{ type: string; place: string }>;
   /** Every rival grenade of the round: type, landing callout, seconds after freeze end. */
-  thrown: Array<{ type: string; place: string; s: number; by: string; from: string | null }>;
+  thrown: Array<{ type: string; place: string; s: number; by: string; from: string | null; x?: number; y?: number }>;
   /**
    * T: each rival player's route this round, callouts in visiting order (no
    * repeats) from freeze end to the hit (or PATH_NO_HIT_S without one), and
@@ -304,6 +304,8 @@ export interface RoundBreakdown {
    * "Split A: 3 Con, 2 Ramp" with the map's lanes (src/lib/team/map-lanes.ts).
    */
   paths: Array<{ steamId: string; path: string[]; onSite: boolean }>;
+  /** Rival kills with an AWP this round: who, from where, seconds after freeze end. */
+  awp: Array<{ steamId: string; place: string; s: number }>;
   /** T: site hit, pace, seconds to the hit, plant, players on site, lurkers. */
   site: "A" | "B" | null;
   pace: Pace | null;
@@ -576,6 +578,13 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
       const kills = m.kills
         .filter((k) => k.roundNumber === round.number)
         .sort((a, b) => a.tick - b.tick);
+      const awp = kills
+        .filter((k) => inRival.has(k.attackerSteamId) && /awp/i.test(k.weapon ?? ""))
+        .map((k) => ({
+          steamId: k.attackerSteamId,
+          place: placeOf({ x: k.attackerPosX, y: k.attackerPosY, z: k.attackerPosZ }),
+          s: Math.max(0, Math.round(sec(k.tick))),
+        }));
       const deathTick = new Map<string, number>();
       for (const k of kills)
         if (!deathTick.has(k.victimSteamId))
@@ -601,6 +610,8 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
           place: placeOf({ x: g.landX, y: g.landY, z: g.landZ }),
           s: Math.max(0, Math.round(sec(g.tick))),
           by: g.throwerSteamId,
+          x: Math.round(g.landX),
+          y: Math.round(g.landY),
           from: g.throwX != null && g.throwY != null && g.throwZ != null ? placeOf({ x: g.throwX, y: g.throwY, z: g.throwZ }) : null,
         }));
 
@@ -756,7 +767,7 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
           if (lurkers.includes(id)) s.lurk++;
         }
         roundLog.push({
-          ...emptyBreakdown(ex(hitTick ?? probe), side, buy, won, positions, utility, thrown),
+          ...emptyBreakdown(ex(hitTick ?? probe), side, buy, won, positions, utility, thrown, awp),
           paths,
           site,
           pace: hitS != null ? paceOf(hitS) : null,
@@ -829,7 +840,7 @@ export function analyzeRival(input: AntiStratInput): AntiStratReport {
           retake = { alive, saved: !won && aliveAtEnd > 0 };
         }
         roundLog.push({
-          ...emptyBreakdown(ex(probe), side, buy, won, positions, utility, thrown),
+          ...emptyBreakdown(ex(probe), side, buy, won, positions, utility, thrown, awp),
           setup,
           aggression,
           retake,
@@ -915,6 +926,7 @@ function emptyBreakdown(
   positions: Map<string, { p: Point3; place: string }>,
   utility: Set<string>,
   thrown: RoundBreakdown["thrown"],
+  awp: RoundBreakdown["awp"],
 ): RoundBreakdown {
   return {
     matchId: ex.matchId,
@@ -923,12 +935,13 @@ function emptyBreakdown(
     buy,
     won,
     tick: ex.tick,
-    positions: [...positions].map(([steamId, v]) => ({ steamId, place: v.place })),
+    positions: [...positions].map(([steamId, v]) => ({ steamId, place: v.place, x: Math.round(v.p.x), y: Math.round(v.p.y) })),
     utility: [...utility].map((k) => {
       const [type, place] = k.split("|");
       return { type, place };
     }),
     thrown,
+    awp,
     paths: [],
     site: null,
     pace: null,

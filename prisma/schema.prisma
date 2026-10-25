@@ -274,6 +274,21 @@ model TeamFolder {
   @@index([userId, parentId])
 }
 
+/// A public read-only link to one team's analysis (/s/team/<token>): the
+/// owner's team-analysis demos of that roster, every map. Revoked links stop working.
+model TeamShare {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  /// Roster SteamIDs (the detected or folder team).
+  steamIds  String[]
+  title     String
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  @@index([userId])
+}
+
 /// Computed analyses kept between page views (team analysis per map): the
 /// key names everything the value was computed from, so a new demo, a
 /// callout edit or a new analysis version simply misses the cache.
