@@ -274,3 +274,42 @@ export function SaveTeamFolder({ steamIds, defaultName }: { steamIds: string[]; 
     </form>
   );
 }
+
+/** "Udostępnij": a public read-only link to this team's analysis, with copy. */
+export function ShareTeamLink({ steamIds, title }: { steamIds: string[]; title: string }) {
+  const [url, setUrl] = useState("");
+  const [copied, setCopied] = useState(false);
+  if (url) {
+    return (
+      <span className="flex flex-wrap items-center gap-2">
+        <input readOnly value={url} className={`${inputClass} w-72`} onFocus={(e) => e.target.select()} aria-label="Link do analizy" />
+        <button
+          type="button"
+          className={buttonVariants({ variant: "secondary", size: "sm" })}
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(url);
+              setCopied(true);
+            } catch {
+              setCopied(false);
+            }
+          }}
+        >
+          {copied ? "Skopiowano" : "Kopiuj"}
+        </button>
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className={buttonVariants({ variant: "secondary", size: "sm" })}
+      onClick={async () => {
+        const res = await send("/api/team-analysis/share", "POST", { steamIds, title: title.slice(0, 60) });
+        if (res?.token) setUrl(`${window.location.origin}/s/team/${String(res.token)}`);
+      }}
+    >
+      Udostępnij link
+    </button>
+  );
+}

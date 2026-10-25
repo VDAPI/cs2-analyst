@@ -317,6 +317,50 @@ export function pistolLines(t: TFunction, report: AntiStratReport): string[] {
   return out;
 }
 
+export interface AwpSide {
+  side: "T" | "CT";
+  /** AWP kills per player, most first: "ZywOo 9". */
+  players: Array<{ name: string; kills: number }>;
+  /** Where the AWP kills were made from, with the usual round clock: "Window ×4 (≈1:38)". */
+  spots: Array<{ place: string; kills: number; clock: string }>;
+  /** Kills in the first 20 s after freeze end (opening picks). */
+  early: number;
+  kills: number;
+}
+
+/** Seconds after freeze end that count as an early AWP pick. */
+export const AWP_EARLY_S = 20;
+
+/** The team's AWP play per side: who has it, where it kills from and when. */
+export function awpSummary(report: AntiStratReport): AwpSide[] {
+  const map = reportMap(report);
+  const nameOf = namesFromReport(report);
+  const out: AwpSide[] = [];
+  for (const side of ["T", "CT"] as const) {
+    const kills = report.rounds.filter((r) => r.side === side).flatMap((r) => r.awp ?? []);
+    if (kills.length === 0) continue;
+    const byPlayer = new Map<string, number>();
+    const bySpot = new Map<string, number[]>();
+    for (const k of kills) {
+      byPlayer.set(k.steamId, (byPlayer.get(k.steamId) ?? 0) + 1);
+      const place = shortPlace(map, k.place);
+      bySpot.set(place, [...(bySpot.get(place) ?? []), k.s]);
+    }
+    const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[xs.length >> 1];
+    out.push({
+      side,
+      players: [...byPlayer.entries()].sort((a, b) => b[1] - a[1]).map(([id, n]) => ({ name: nameOf(id), kills: n })),
+      spots: [...bySpot.entries()]
+        .sort((a, b) => b[1].length - a[1].length)
+        .slice(0, 6)
+        .map(([place, s]) => ({ place, kills: s.length, clock: roundClock(median(s)) })),
+      early: kills.filter((k) => k.s <= AWP_EARLY_S).length,
+      kills: kills.length,
+    });
+  }
+  return out;
+}
+
 export interface AfterPistol {
   /** The pistol round's result for the team. */
   won: boolean;

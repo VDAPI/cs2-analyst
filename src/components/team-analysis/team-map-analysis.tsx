@@ -3,6 +3,7 @@ import type { TFunction } from "@/lib/i18n/translate";
 import type { AntiStratReport } from "@/lib/team/antistrat";
 import {
   afterPistol,
+  awpSummary,
   defaultSpots,
   namesFromReport,
   repeatedPlays,
@@ -43,9 +44,15 @@ export function TeamMapAnalysis({
   report,
   t,
   opponents,
+  teams,
+  shared,
 }: {
   report: AntiStratReport;
   t: TFunction;
+  /** The viewer's teams, to send a play to their tactic board. */
+  teams?: Array<{ id: string; name: string }>;
+  /** Public shared view: no replay links or boards. */
+  shared?: boolean;
   /** Opponent label per match id ("vs MOUZ" lineup names). */
   opponents?: Map<string, string>;
 }) {
@@ -55,6 +62,7 @@ export function TeamMapAnalysis({
   const ctRounds = report.rounds.filter((r) => r.side === "CT");
   const spot = (place: string) => ctSpotOf(map, place) ?? shortPlace(map, place);
   const after = afterPistol(t, report);
+  const awp = awpSummary(report);
 
   return (
     <div className="space-y-6">
@@ -89,7 +97,7 @@ export function TeamMapAnalysis({
 
       <section className="space-y-2">
         <SectionTitle>Powtarzane zagrywki T</SectionTitle>
-        <RepeatedPlays plays={repeatedPlays(t, report)} />
+        <RepeatedPlays plays={repeatedPlays(t, report)} board={teams && !shared ? { map, teams, nameOf } : undefined} shared={shared} />
       </section>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -112,6 +120,32 @@ export function TeamMapAnalysis({
           />
         </Card>
       </div>
+
+      {awp.length > 0 && (
+        <section className="space-y-2">
+          <SectionTitle>AWP</SectionTitle>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {awp.map((a) => (
+              <Card key={a.side} className="space-y-1.5 text-sm">
+                <h3 className="font-semibold text-[var(--text-primary)]">
+                  {a.side}: {a.kills} zabójstw z AWP, {a.early} w pierwszych 20 s
+                </h3>
+                <p className="text-[var(--text-secondary)]">{a.players.map((p) => `${p.name} ${p.kills}`).join(", ")}</p>
+                <ul className="text-[var(--text-secondary)]">
+                  {a.spots.map((s) => (
+                    <li key={s.place} className="flex gap-2">
+                      <span className="min-w-0 flex-1 truncate">{s.place}</span>
+                      <span className="font-mono text-xs text-[var(--text-tertiary)]">
+                        ×{s.kills} · ≈{s.clock}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {(["T", "CT"] as const).map((side) => (
@@ -149,7 +183,7 @@ export function TeamMapAnalysis({
               {report.rounds
                 .filter((r) => r.matchId === m.matchId)
                 .map((r) => (
-                  <RoundCard key={r.round} r={r} t={t} map={map} nameOf={nameOf} />
+                  <RoundCard key={r.round} r={r} t={t} map={map} nameOf={nameOf} shared={shared} />
                 ))}
             </ul>
           </details>

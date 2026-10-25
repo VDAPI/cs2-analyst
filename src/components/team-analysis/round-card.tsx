@@ -11,7 +11,7 @@ export function SideBadge({ side }: { side: "CT" | "T" }) {
 }
 
 /** One round of a team breakdown: buy, result, the play (who went where), grenades, 2D replay link. */
-export function RoundCard({ r, t, map, nameOf }: { r: RoundBreakdown; t: TFunction; map: string; nameOf: NameOf }) {
+export function RoundCard({ r, t, map, nameOf, shared }: { r: RoundBreakdown; t: TFunction; map: string; nameOf: NameOf; shared?: boolean }) {
   const text = roundText(t, map, r, nameOf);
   return (
     <li className="space-y-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3 text-sm">
@@ -20,6 +20,7 @@ export function RoundCard({ r, t, map, nameOf }: { r: RoundBreakdown; t: TFuncti
         <SideBadge side={r.side} />
         <Badge variant="neutral">{t(BUY_KEY[r.buy])}</Badge>
         <span className={r.won ? "text-[var(--good)]" : "text-[var(--mistake)]"}>{r.won ? t("teamDemo.won") : t("teamDemo.lost")}</span>
+        {!shared && (
         <Link
           href={`/replay/${r.matchId}?round=${r.round}&tick=${r.tick}`}
           title={t("antistrat.openRound")}
@@ -28,6 +29,7 @@ export function RoundCard({ r, t, map, nameOf }: { r: RoundBreakdown; t: TFuncti
           <Play className="h-3 w-3" aria-hidden />
           2D
         </Link>
+        )}
       </p>
       <p className="font-display text-base font-semibold text-[var(--text-primary)]">{text.name}</p>
       <ul className="space-y-0.5 text-[var(--text-secondary)]">

@@ -14,7 +14,8 @@ import { mapDisplayName } from "@/lib/utils/mapNames";
 import { cn } from "@/lib/utils/cn";
 import { Card, PageHeader, Pager, SectionTitle, buttonVariants, pageSlice } from "@/components/ui";
 import { MapThumb } from "@/components/match";
-import { DemoFolderSelect, FolderActions, NewFolderButton, RosterPicker } from "@/components/team-analysis/folder-tools";
+import { DemoFolderSelect, FolderActions, NewFolderButton, RosterPicker, ShareTeamLink } from "@/components/team-analysis/folder-tools";
+import { PrintButton } from "@/components/team/print-button";
 import { TeamMapAnalysis } from "@/components/team-analysis/team-map-analysis";
 
 /** Demos per page of a folder's list. */
@@ -74,6 +75,9 @@ export async function TeamAnalysisView({ folderId, page = 1, map: mapParam }: { 
   const map = maps.find((m) => m.map === mapParam)?.map ?? maps[0]?.map;
   const report = map ? await getTeamMapReport(prisma, userId, roster, map, scope) : null;
   if (map) await loadMapLanes(prisma, map);
+  const myTeams = (
+    await prisma.teamMember.findMany({ where: { userId }, select: { team: { select: { id: true, name: true } } } })
+  ).map((m) => m.team);
   const opponents = report ? await opponentLabels(report.matches.map((m) => m.matchId), roster) : new Map<string, string>();
   const nameOf = new Map(teams.flatMap((tm) => [...tm.core, ...tm.standIns]).map((p) => [p.steamId, p.name]));
   const base = `/team-analysis${folderId ? `/${folderId}` : ""}`;
@@ -96,6 +100,8 @@ export async function TeamAnalysisView({ folderId, page = 1, map: mapParam }: { 
             </Link>
             <NewFolderButton parentId={folderId} />
             {folder && <FolderActions folder={{ id: folder.id, name: folder.name, parentId: folder.parentId }} options={options} />}
+            {folder && roster.length > 0 && <ShareTeamLink steamIds={roster} title={folder.name} />}
+            {report && <PrintButton label="Drukuj / PDF" />}
           </div>
         }
       />
@@ -207,7 +213,7 @@ export async function TeamAnalysisView({ folderId, page = 1, map: mapParam }: { 
           ))}
         </nav>
       )}
-      {report && <TeamMapAnalysis report={report} t={t} opponents={opponents} />}
+      {report && <TeamMapAnalysis report={report} t={t} opponents={opponents} teams={myTeams} />}
 
       <section aria-labelledby="dema" className="space-y-3">
         <SectionTitle>

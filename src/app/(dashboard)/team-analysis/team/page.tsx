@@ -13,7 +13,8 @@ import { cn } from "@/lib/utils/cn";
 import { Card, EmptyState, PageHeader } from "@/components/ui";
 import { MapThumb } from "@/components/match";
 import { TeamMapAnalysis } from "@/components/team-analysis/team-map-analysis";
-import { SaveTeamFolder } from "@/components/team-analysis/folder-tools";
+import { SaveTeamFolder, ShareTeamLink } from "@/components/team-analysis/folder-tools";
+import { PrintButton } from "@/components/team/print-button";
 import { folderOfTeam, opponentLabels } from "../view";
 import { Users } from "lucide-react";
 
@@ -48,6 +49,9 @@ export default async function TeamPage({ searchParams }: Props) {
   const map = maps.find((m) => m.map === query.map)?.map ?? maps[0]?.map;
   const report = map ? await getTeamMapReport(prisma, userId, roster, map) : null;
   if (map) await loadMapLanes(prisma, map);
+  const myTeams = (
+    await prisma.teamMember.findMany({ where: { userId }, select: { team: { select: { id: true, name: true } } } })
+  ).map((m) => m.team);
   const opponents = report ? await opponentLabels(report.matches.map((m) => m.matchId), roster) : new Map<string, string>();
   const href = (m: string) => `/team-analysis/team?roster=${encodeURIComponent(rosterKey(roster))}&map=${m}`;
 
@@ -59,13 +63,17 @@ export default async function TeamPage({ searchParams }: Props) {
         title={title}
         description="Ze wszystkich Twoich dem drużynowych, w których grało co najmniej 3 z tych graczy. Wyniki są zapisywane, więc kolejne otwarcie jest natychmiastowe."
         actions={
-          folder ? (
-            <Link href={`/team-analysis/${folder.id}`} className="text-sm text-[var(--accent-hover)] hover:underline">
-              Folder: {folder.name}
-            </Link>
-          ) : (
-            <SaveTeamFolder steamIds={roster} defaultName={title} />
-          )
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
+            <ShareTeamLink steamIds={roster} title={title} />
+            <PrintButton label="Drukuj / PDF" />
+            {folder ? (
+              <Link href={`/team-analysis/${folder.id}`} className="text-sm text-[var(--accent-hover)] hover:underline">
+                Folder: {folder.name}
+              </Link>
+            ) : (
+              <SaveTeamFolder steamIds={roster} defaultName={title} />
+            )}
+          </div>
         }
       />
       {team && (
@@ -101,7 +109,7 @@ export default async function TeamPage({ searchParams }: Props) {
           ))}
         </nav>
       )}
-      {report && <TeamMapAnalysis report={report} t={t} opponents={opponents} />}
+      {report && <TeamMapAnalysis report={report} t={t} opponents={opponents} teams={myTeams} />}
     </div>
   );
 }
