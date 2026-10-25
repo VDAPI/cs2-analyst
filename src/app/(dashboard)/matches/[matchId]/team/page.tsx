@@ -22,6 +22,7 @@ import {
   utilName,
 } from "@/lib/team/breakdown-text";
 import { ctSpotOf, shortPlace } from "@/lib/team/map-lanes";
+import { loadMapLanes } from "@/lib/team/map-lanes-load";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { cn } from "@/lib/utils/cn";
 import { Badge, Card, EmptyState, PageHeader, SectionTitle, buttonVariants } from "@/components/ui";
@@ -72,7 +73,7 @@ export default async function MatchTeamPage({ params, searchParams }: Props) {
     names: match.players.filter((p) => p.team === s).map((p) => p.name),
   }));
 
-  const report = await getMatchTeamReport(prisma, matchId, side);
+  const [report] = await Promise.all([getMatchTeamReport(prisma, matchId, side), loadMapLanes(prisma, match.map)]);
   const header = (
     <PageHeader
       back={{ href: `/matches/${matchId}`, label: t("teamDemo.back") }}

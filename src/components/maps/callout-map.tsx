@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { drawRadarBackground, makeCanvasToWorld, makeWorldToCanvas, TOOL_CANVAS_SIZE, type RadarConfig } from "@/lib/canvas/radar";
 import { useRadarImage } from "./use-canvas";
 import { cn } from "@/lib/utils/cn";
@@ -17,7 +18,11 @@ export interface CalloutPlace {
   human: string;
   short: string;
   ctSpot: string;
-  tLane: string;
+  /** T lane into A / B ("" = none). */
+  laneA: string;
+  laneB: string;
+  /** An admin corrected this callout. */
+  edited: boolean;
   /** Sample-weighted centre, world units (label position). */
   x: number;
   y: number;
@@ -33,11 +38,19 @@ export function CalloutMap({
   cellSize,
   cells,
   places,
+  map,
+  editable,
+  options,
 }: {
   config: RadarConfig;
   cellSize: number;
   cells: CalloutCell[];
   places: CalloutPlace[];
+  map: string;
+  /** Admins can correct names, CT positions and T lanes. */
+  editable: boolean;
+  /** Existing CT positions and lanes, suggested in the edit form. */
+  options: { ctSpots: string[]; laneA: string[]; laneB: string[] };
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const radar = useRadarImage(config.radarImage);
@@ -85,6 +98,7 @@ export function CalloutMap({
   };
 
   const info = places.find((p) => p.raw === focus);
+  const selectedPlace = places.find((p) => p.raw === selected);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -99,9 +113,13 @@ export function CalloutMap({
         />
         <p className="min-h-6 text-sm text-[var(--text-secondary)]">
           {info
-            ? `${info.human} → ${info.short}${info.ctSpot ? ` · CT: ${info.ctSpot}` : ""}${info.tLane ? ` · T: ${info.tLane}` : ""}`
+            ? `${info.human} → ${info.short}${info.ctSpot ? ` · CT: ${info.ctSpot}` : ""}${laneText(info) ? ` · T: ${laneText(info)}` : ""}`
             : "Najedź na kolorowe pole, żeby zobaczyć nazwę."}
         </p>
+        {editable && selectedPlace && <CalloutEditor key={selectedPlace.raw} map={map} place={selectedPlace} options={options} />}
+        {editable && !selectedPlace && (
+          <p className="text-xs text-[var(--text-tertiary)]">Jako admin kliknij nazwę na liście, żeby ją poprawić.</p>
+        )}
       </div>
       <div className="overflow-hidden rounded-xl border border-[var(--border)]">
         <table className="data-table text-xs">
@@ -124,14 +142,104 @@ export function CalloutMap({
                   <span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm align-middle" style={{ background: colourOf(index.get(p.raw) ?? 0, 0.9) }} />
                   {p.human}
                 </td>
-                <td>{p.short}</td>
+                <td>
+                  {p.short}
+                  {p.edited && <span className="ml-1 text-[var(--accent-2)]" title="Poprawione przez admina">✎</span>}
+                </td>
                 <td>{p.ctSpot || "—"}</td>
-                <td>{p.tLane || "—"}</td>
+                <td>{laneText(p) || "—"}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
     </div>
+  );
+}
+
+const laneText = (p: CalloutPlace) => [p.laneA && `A: ${p.laneA}`, p.laneB && `B: ${p.laneB}`].filter(Boolean).join(", ");
+
+/** Admin form for one callout: name, CT position, T lane into A and B. */
+function CalloutEditor({
+  map,
+  place,
+  options,
+}: {
+  map: string;
+  place: CalloutPlace;
+  options: { ctSpots: string[]; laneA: string[]; laneB: string[] };
+}) {
+  const router = useRouter();
+  const [name, setName] = useState(place.short);
+  const [ctSpot, setCtSpot] = useState(place.ctSpot);
+  const [laneA, setLaneA] = useState(place.laneA);
+  const [laneB, setLaneB] = useState(place.laneB);
+  const [status, setStatus] = useState("");
+
+  const send = async (body: Record<string, string | null>) => {
+    setStatus("Zapisuję…");
+    const res = await fetch("/api/admin/callouts", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ map, place: place.raw, ...body }),
+    });
+    setStatus(res.ok ? "Zapisane" : "Nie udało się zapisać");
+    if (res.ok) router.refresh();
+  };
+  const input = "w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-1.5 text-sm text-[var(--text-primary)]";
+  const list = (id: string, values: string[]) => (
+    <datalist id={id}>
+      {values.map((v) => (
+        <option key={v} value={v} />
+      ))}
+    </datalist>
+  );
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        send({ name: name.trim(), ctSpot: ctSpot.trim(), laneA: laneA.trim(), laneB: laneB.trim() });
+      }}
+      className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3"
+    >
+      <p className="text-sm font-semibold text-[var(--text-primary)]">Popraw: {place.human}</p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="space-y-1 text-xs text-[var(--text-secondary)]">
+          Nazwa w analizie
+          <input className={input} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
+        </label>
+        <label className="space-y-1 text-xs text-[var(--text-secondary)]">
+          Pozycja CT (puste = żadna)
+          <input className={input} list="ct-spots" value={ctSpot} onChange={(e) => setCtSpot(e.target.value)} maxLength={40} />
+        </label>
+        <label className="space-y-1 text-xs text-[var(--text-secondary)]">
+          Wejście T na A (puste = żadne)
+          <input className={input} list="lanes-a" value={laneA} onChange={(e) => setLaneA(e.target.value)} maxLength={40} />
+        </label>
+        <label className="space-y-1 text-xs text-[var(--text-secondary)]">
+          Wejście T na B (puste = żadne)
+          <input className={input} list="lanes-b" value={laneB} onChange={(e) => setLaneB(e.target.value)} maxLength={40} />
+        </label>
+      </div>
+      {list("ct-spots", options.ctSpots)}
+      {list("lanes-a", options.laneA)}
+      {list("lanes-b", options.laneB)}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="submit" className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-sm font-semibold text-[var(--on-accent)]">
+          Zapisz
+        </button>
+        {place.edited && (
+          <button
+            type="button"
+            onClick={() => send({ name: null, ctSpot: null, laneA: null, laneB: null })}
+            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text-secondary)]"
+          >
+            Przywróć domyślne
+          </button>
+        )}
+        <span className="text-xs text-[var(--text-tertiary)]">{status}</span>
+      </div>
+    </form>
   );
 }

@@ -7,6 +7,8 @@ import { humanizePlace, PLACE_CELL } from "@/lib/analysis/places";
 import { MAP_CONFIGS } from "@/lib/utils/maps";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { ctSpotOf, mapLanes, placeKey, shortPlace } from "@/lib/team/map-lanes";
+import { loadMapLanes } from "@/lib/team/map-lanes-load";
+import { currentUserIsAdmin } from "@/lib/admin/session";
 import { cn } from "@/lib/utils/cn";
 import { PageHeader } from "@/components/ui";
 import { CalloutMap, type CalloutCell, type CalloutPlace } from "@/components/maps/callout-map";
@@ -51,16 +53,13 @@ export default async function CalloutsPage({ searchParams }: Props) {
     p.cells++;
     places.set(r.place, p);
   }
+  const [{ overrides }, editable] = await Promise.all([
+    map ? loadMapLanes(prisma, map) : Promise.resolve({ overrides: [] }),
+    currentUserIsAdmin(),
+  ]);
+  const edited = new Set(overrides.map((o) => o.place));
   const lanes = map ? mapLanes(map) : null;
-  const laneOfPlace = (raw: string) => {
-    const key = placeKey(raw);
-    const out: string[] = [];
-    for (const site of ["A", "B"] as const) {
-      const lane = lanes?.lanes[site].find((l) => l.places.includes(key));
-      if (lane) out.push(`${site}: ${lane.name}`);
-    }
-    return out.join(", ");
-  };
+  const laneIn = (raw: string, site: "A" | "B") => lanes?.lanes[site].find((l) => l.places.includes(placeKey(raw)))?.name ?? "";
   const placeList: CalloutPlace[] = [...places.entries()]
     .sort((a, b) => b[1].n - a[1].n)
     .map(([raw, p]) => {
@@ -70,7 +69,9 @@ export default async function CalloutsPage({ searchParams }: Props) {
         human,
         short: map ? shortPlace(map, human) : human,
         ctSpot: map ? ctSpotOf(map, human) ?? "" : "",
-        tLane: laneOfPlace(human),
+        laneA: laneIn(human, "A"),
+        laneB: laneIn(human, "B"),
+        edited: edited.has(placeKey(raw)),
         x: p.sx / p.n,
         y: p.sy / p.n,
         samples: p.n,
@@ -112,6 +113,13 @@ export default async function CalloutsPage({ searchParams }: Props) {
           cellSize={PLACE_CELL}
           cells={cells}
           places={placeList}
+          map={map!}
+          editable={editable}
+          options={{
+            ctSpots: lanes?.ctSpots.map((c) => c.name) ?? [],
+            laneA: lanes?.lanes.A.map((l) => l.name) ?? [],
+            laneB: lanes?.lanes.B.map((l) => l.name) ?? [],
+          }}
         />
       ) : (
         <p className="text-sm text-[var(--text-tertiary)]">Brak dem z danymi pozycji.</p>

@@ -76,9 +76,59 @@ const MIRAGE: MapLanes = {
   },
 };
 
-const MAPS: Record<string, MapLanes> = { de_mirage: MIRAGE };
+const BUILT_IN: Record<string, MapLanes> = { de_mirage: MIRAGE };
+/** Built-in tables with the admin's corrections applied (loadMapLanes). */
+const MAPS: Record<string, MapLanes> = { ...BUILT_IN };
 
 export const mapLanes = (map: string): MapLanes | null => MAPS[map] ?? null;
+
+/** An admin correction of one callout (MapCallout row): null = built-in, "" = none. */
+export interface CalloutOverride {
+  place: string;
+  name: string | null;
+  ctSpot: string | null;
+  laneA: string | null;
+  laneB: string | null;
+}
+
+/** Move `key` into the group named `to` (created at the end), out of every other group. */
+function regroup<T extends { name: string; places: string[] }>(groups: T[], key: string, to: string): T[] {
+  const out = groups.map((g) => ({ ...g, places: g.places.filter((p) => p !== key) }));
+  if (!to) return out;
+  const target = out.find((g) => g.name === to);
+  if (target) target.places.push(key);
+  else out.push({ name: to, places: [key] } as T);
+  return out;
+}
+
+/** A map's table with the admin's corrections on top of the built-in one. */
+export function applyOverrides(map: string, overrides: CalloutOverride[]): MapLanes | null {
+  const base = BUILT_IN[map];
+  if (!base && overrides.length === 0) return null;
+  let lanes: MapLanes = base
+    ? { names: { ...base.names }, ctSpots: base.ctSpots, lanes: { A: base.lanes.A, B: base.lanes.B } }
+    : { names: {}, ctSpots: [], lanes: { A: [], B: [] } };
+  for (const o of overrides) {
+    const key = placeKey(o.place);
+    if (o.name != null) {
+      if (o.name) lanes.names[key] = o.name;
+      else delete lanes.names[key];
+    }
+    if (o.ctSpot != null) lanes = { ...lanes, ctSpots: regroup(lanes.ctSpots, key, o.ctSpot) };
+    if (o.laneA != null) lanes = { ...lanes, lanes: { ...lanes.lanes, A: regroup(lanes.lanes.A, key, o.laneA) } };
+    if (o.laneB != null) lanes = { ...lanes, lanes: { ...lanes.lanes, B: regroup(lanes.lanes.B, key, o.laneB) } };
+  }
+  return lanes;
+}
+
+/**
+ * Make the lookups below use `lanes` for `map` (the server loads the admin's
+ * corrections before rendering; see src/lib/team/map-lanes-load.ts).
+ */
+export function registerMapLanes(map: string, lanes: MapLanes | null) {
+  if (lanes) MAPS[map] = lanes;
+  else delete MAPS[map];
+}
 
 /** The players' name for a callout on this map (the callout itself when unknown). */
 export function shortPlace(map: string, place: string): string {
@@ -100,7 +150,7 @@ export function ctSpotOf(map: string, place: string): CtSpot | null {
  */
 export function laneOf(map: string, site: Site, path: string[]): string | null {
   const lanes = mapLanes(map)?.lanes[site];
-  if (!lanes) {
+  if (!lanes?.length) {
     // No table: the last callout before the site is the lane.
     const before = path.filter((p) => !/bombsite/i.test(p));
     return before[before.length - 1] ?? null;

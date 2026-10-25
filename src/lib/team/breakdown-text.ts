@@ -43,6 +43,12 @@ export function namesFromReport(report: AntiStratReport): NameOf {
   return (id) => m.get(id) ?? id;
 }
 
+/** The map's CT positions in display order; undefined without a table. */
+const ctOrder = (map: string) => {
+  const spots = mapLanes(map)?.ctSpots.map((s) => s.name);
+  return spots?.length ? spots : undefined;
+};
+
 export const reportMap = (report: AntiStratReport) => report.matches[0]?.map ?? "";
 
 /** Groups of names under a label, biggest first: [["Con", ["a", "b"]], …]. */
@@ -102,7 +108,7 @@ function tPlay(t: TFunction, map: string, r: RoundBreakdown, nameOf: NameOf): TP
 
 /** CT players per position, in the map's order; players off the usual spots as pushes. */
 function ctGroups(t: TFunction, map: string, r: RoundBreakdown, nameOf: NameOf): string[] {
-  const order = mapLanes(map)?.ctSpots.map((s) => s.name);
+  const order = ctOrder(map);
   const spots: Array<[string, string]> = [];
   const pushes: Array<[string, string]> = [];
   for (const p of r.positions) {
@@ -199,7 +205,7 @@ export function tacticCounts(t: TFunction, report: AntiStratReport): Array<[stri
 
 /** CT setup as players per position, e.g. "B 2 · Short 1 · Window 1 · A 1". */
 function ctSetupKey(map: string, r: RoundBreakdown): string | null {
-  const order = mapLanes(map)?.ctSpots.map((s) => s.name);
+  const order = ctOrder(map);
   if (!order || r.positions.length < 3) return null;
   const n = new Map<string, number>();
   for (const p of r.positions) {

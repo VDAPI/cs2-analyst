@@ -4,6 +4,7 @@ import { ownMatchWhere } from "@/lib/sharing/access";
 import { getT } from "@/lib/i18n/server";
 import { getMatchTeamReport } from "@/lib/team/load";
 import { roundsCsv } from "@/lib/team/breakdown-text";
+import { loadMapLanes } from "@/lib/team/map-lanes-load";
 
 /** GET /api/matches/[matchId]/team-breakdown?side=CT|T — the team breakdown's rounds as CSV. */
 export async function GET(req: Request, ctx: { params: Promise<{ matchId: string }> }) {
@@ -15,6 +16,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ matchId: string
   const side = new URL(req.url).searchParams.get("side") === "T" ? "T" : "CT";
   const report = await getMatchTeamReport(prisma, matchId, side);
   if (!report) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  await loadMapLanes(prisma, report.matches[0]?.map ?? "");
   const { t } = await getT();
   return new NextResponse(roundsCsv(t, report), {
     headers: {
