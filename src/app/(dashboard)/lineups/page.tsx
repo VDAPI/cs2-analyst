@@ -100,7 +100,7 @@ export default async function LineupsPage({ searchParams }: Props) {
     return name ? shortPlace(map, name) : null;
   };
   const [lineupBase, mastered] = await Promise.all([getMapLineups(prisma, map, placeOf), loadMastered(prisma, userId, map)]);
-  const throwerIds = [...new Set(lineupBase.flatMap((l) => l.throwers))];
+  const throwerIds = [...new Set(lineupBase.flatMap((l) => l.throwers ?? []))];
   const throwerRows = throwerIds.length
     ? await prisma.matchPlayer.findMany({
         where: { steamId: { in: throwerIds } },
@@ -110,7 +110,7 @@ export default async function LineupsPage({ searchParams }: Props) {
       })
     : [];
   const nameOf = new Map(throwerRows.map((r) => [r.steamId, r.name]));
-  const all = lineupBase.map((l) => ({ ...l, throwerNames: l.throwers.map((id) => nameOf.get(id) ?? id) }));
+  const all = lineupBase.map((l) => ({ ...l, throwerNames: (l.throwers ?? []).map((id) => nameOf.get(id) ?? id) }));
   const ofType = type ? all.filter((l) => l.type === type) : all.filter((l) => l.type !== "DECOY");
   const lineups = ofType
     .filter((l) => show === "all" || (show === "mastered") === mastered.has(l.key))

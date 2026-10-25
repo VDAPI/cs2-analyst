@@ -56,7 +56,7 @@ export interface Lineup {
   landPlace: string | null;
   throwPlace: string | null;
   /** SteamIDs that throw it most, most frequent first (at most 3). */
-  throwers: string[];
+  throwers?: string[];
   /** Display names of `throwers`, filled by the page that shows them. */
   throwerNames?: string[];
 }
