@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getPlanUsage } from "@/lib/limits";
 import { activeUploadId, FACEIT_UPLOAD_INCLUDE } from "@/lib/faceit/analyze";
 import { activeSteamUploadId, STEAM_UPLOAD_INCLUDE } from "@/lib/steam/premier";
+import { folderOptions, userFolders } from "@/lib/team/folders";
 import { UploadClient, type FaceitSlot, type SteamSlot } from "./upload-client";
 
 /**
@@ -14,11 +15,11 @@ import { UploadClient, type FaceitSlot, type SteamSlot } from "./upload-client";
 export default async function UploadPage({
   searchParams,
 }: {
-  searchParams: Promise<{ faceit?: string; steam?: string; keep?: string }>;
+  searchParams: Promise<{ faceit?: string; steam?: string; keep?: string; kind?: string; folder?: string }>;
 }) {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
-  const { faceit, steam, keep } = await searchParams;
+  const { faceit, steam, keep, kind, folder } = await searchParams;
 
   const ids = (faceit ?? "").split(",").filter(Boolean).slice(0, 50);
   const faceitMatches =
@@ -53,6 +54,7 @@ export default async function UploadPage({
     .map((sm) => ({ id: sm.id, shareCode: sm.shareCode }));
 
   const usage = userId ? await getPlanUsage(userId) : null;
+  const folders = userId ? folderOptions(await userFolders(prisma, userId)) : [];
 
   return (
     <UploadClient
@@ -62,6 +64,9 @@ export default async function UploadPage({
       maxFiles={Math.min(usage?.limits.uploadFiles ?? 5, usage?.remaining ?? 5)}
       remaining={usage?.remaining ?? 0}
       monthlyLimit={usage?.limit ?? 0}
+      folders={folders}
+      defaultKind={kind === "team" ? "TEAM" : "PLAYER"}
+      defaultFolderId={folders.some((f) => f.id === folder) ? folder! : ""}
     />
   );
 }

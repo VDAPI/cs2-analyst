@@ -25,7 +25,7 @@ export async function ownSteamId(prisma: PrismaClient, userId: string): Promise<
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { steamId: true, faceitNickname: true } });
   if (!user) return null;
   const scan = await prisma.match.findMany({
-    where: { upload: { userId, deletedAt: null } },
+    where: { upload: { kind: "PLAYER", userId, deletedAt: null } },
     orderBy: { date: "desc" },
     take: IDENTITY_SCAN,
     select: { date: true, players: { select: { steamId: true, name: true } } },
@@ -74,7 +74,7 @@ export function prismaDiscordDeps(prisma: PrismaClient): DiscordDeps {
       const steamId = await ownSteamId(prisma, userId);
       if (!steamId) return null;
       const rows = await prisma.match.findMany({
-        where: { upload: { userId, deletedAt: null }, players: { some: { steamId } } },
+        where: { upload: { kind: "PLAYER", userId, deletedAt: null }, players: { some: { steamId } } },
         orderBy: { date: "desc" },
         take: n,
         select: { map: true, date: true, scoreCT: true, scoreT: true, players: { where: { steamId } } },
@@ -103,7 +103,7 @@ export function prismaDiscordDeps(prisma: PrismaClient): DiscordDeps {
       const steamId = await ownSteamId(prisma, userId);
       if (!steamId) return null;
       const m = await prisma.match.findFirst({
-        where: { upload: { userId, deletedAt: null }, players: { some: { steamId } } },
+        where: { upload: { kind: "PLAYER", userId, deletedAt: null }, players: { some: { steamId } } },
         orderBy: { date: "desc" },
         select: {
           id: true,

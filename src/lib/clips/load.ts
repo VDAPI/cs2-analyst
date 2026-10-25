@@ -39,7 +39,7 @@ export async function loadHighlights(
   prisma: PrismaClient,
   opts: { userId: string; steamId: string | null; matchId?: string | null }
 ): Promise<HighlightRow[]> {
-  const owned = { upload: { userId: opts.userId, deletedAt: null } };
+  const owned = { upload: { kind: "PLAYER" as const, userId: opts.userId, deletedAt: null } };
   if (!opts.matchId && !opts.steamId) return [];
   const matches = await prisma.match.findMany({
     where: opts.matchId ? { ...owned, id: opts.matchId } : { ...owned, players: { some: { steamId: opts.steamId! } } },
@@ -96,7 +96,7 @@ export async function loadMistakes(
     where: {
       steamId: opts.steamId,
       severity: "high",
-      match: { upload: { userId: opts.userId, deletedAt: null }, ...(opts.matchId ? { id: opts.matchId } : {}) },
+      match: { upload: { kind: "PLAYER" as const, userId: opts.userId, deletedAt: null }, ...(opts.matchId ? { id: opts.matchId } : {}) },
     },
     orderBy: [{ match: { date: "desc" } }, { tick: "asc" }],
     take: 200,

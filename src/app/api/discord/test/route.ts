@@ -16,7 +16,7 @@ export async function POST() {
   if (limited) return limited;
 
   const latest = await prisma.match.findFirst({
-    where: { upload: { userId: session.user.id, deletedAt: null } },
+    where: { upload: { kind: "PLAYER", userId: session.user.id, deletedAt: null } },
     orderBy: { date: "desc" },
     select: { id: true, map: true, scoreCT: true, scoreT: true },
   });

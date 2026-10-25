@@ -61,7 +61,7 @@ export default async function ProNormsPage({ searchParams }: Props) {
     }),
     steamId
       ? prisma.matchPlayer.findFirst({
-          where: { steamId, rankType: { not: null }, match: { upload: { userId } } },
+          where: { steamId, rankType: { not: null }, match: { upload: { kind: "PLAYER", userId } } },
           orderBy: { match: { date: "desc" } },
           select: { rankType: true, rankValue: true },
         })
@@ -80,7 +80,7 @@ export default async function ProNormsPage({ searchParams }: Props) {
   // The player's own median over their latest analysed matches (same side filter).
   const mine = steamId
     ? await prisma.normSample.findMany({
-        where: { steamId, side, version: NORMS_STAMP, pro: false, match: { upload: { userId }, ...(map !== "all" ? { map } : {}) } },
+        where: { steamId, side, version: NORMS_STAMP, pro: false, match: { upload: { kind: "PLAYER", userId }, ...(map !== "all" ? { map } : {}) } },
         orderBy: { match: { date: "desc" } },
         take: YOUR_MATCHES,
         select: { metrics: true },

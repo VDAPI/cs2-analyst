@@ -14,7 +14,7 @@ export default async function PlayersPage() {
   // Get all match players from user's matches
   const matchPlayers = userId
     ? await prisma.matchPlayer.findMany({
-        where: { match: { upload: { userId } } },
+        where: { match: { upload: { kind: "PLAYER", userId } } },
         select: {
           steamId: true,
           name: true,

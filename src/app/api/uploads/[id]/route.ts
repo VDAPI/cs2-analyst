@@ -20,11 +20,16 @@ async function ownUpload(id: string) {
 const patchSchema = z.object({
   keepDemo: z.boolean().optional(),
   deleteDemo: z.literal(true).optional(),
+  /** Team analysis: file the demo in a folder (null = no folder). */
+  folderId: z.string().min(1).max(40).nullable().optional(),
+  /** Move a demo between the player's own matches and team analysis. */
+  kind: z.enum(["PLAYER", "TEAM"]).optional(),
 });
 
 /**
  * PATCH /api/uploads/[id] — { keepDemo } toggles "keep demo";
- * { deleteDemo: true } deletes the .dem now and keeps the analysis.
+ * { deleteDemo: true } deletes the .dem now and keeps the analysis;
+ * { kind, folderId } moves it to / within team analysis.
  */
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -34,6 +39,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const body = patchSchema.safeParse(await req.json().catch(() => null));
   if (!body.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+
+  if (body.data.folderId !== undefined || body.data.kind) {
+    const { folderId, kind } = body.data;
+    if (folderId) {
+      const folder = await prisma.teamFolder.findFirst({ where: { id: folderId, userId }, select: { id: true } });
+      if (!folder) return NextResponse.json({ error: "Folder not found" }, { status: 404 });
+    }
+    // A folder only holds team analysis demos; back to "my match" leaves the folder.
+    const data =
+      kind === "PLAYER"
+        ? { kind, folderId: null }
+        : { ...(kind ? { kind } : {}), ...(folderId !== undefined ? { folderId, kind: "TEAM" as const } : {}) };
+    const updated = await prisma.demoUpload.update({ where: { id }, data, select: { kind: true, folderId: true } });
+    return NextResponse.json(updated);
+  }
 
   if (body.data.keepDemo === true) {
     if (upload.demoDeletedAt) {

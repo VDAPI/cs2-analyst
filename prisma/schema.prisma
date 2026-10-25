@@ -120,6 +120,7 @@ model User {
   subscriptions     BillingSubscription[]
   invoices          BillingInvoice[]
   roleOverrides     RoleOverride[]
+  teamFolders       TeamFolder[]
 }
 
 // Friends (S25): one row per pair. An invite link adds the friend at once
@@ -227,11 +228,16 @@ model DemoUpload {
   // the pro-pool system user (src/lib/norms/pro-pool.ts), never a player.
   pro            Boolean      @default(false)
   proLabel       String? // e.g. "Vitality vs MOUZ, IEM Cologne 2026" (admin-entered)
+  // Team analysis demo (someone else's match, scouting): kept out of the
+  // player's own matches, stats and reports; filed in a TeamFolder.
+  kind           UploadKind   @default(PLAYER)
+  folderId       String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   user        User         @relation(fields: [userId], references: [id])
   match       Match?       @relation(fields: [matchId], references: [id])
+  folder      TeamFolder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
   faceitMatch FaceitMatch?
   steamMatch  SteamMatch?
 
@@ -241,6 +247,31 @@ model DemoUpload {
   @@index([status, updatedAt])
   @@index([createdAt])
   @@index([faceitMatchId])
+}
+
+enum UploadKind {
+  PLAYER // the player's own match (FACEIT / Premier / any demo they played)
+  TEAM // a demo uploaded for team analysis only
+}
+
+/// A folder of team analysis demos (/team-analysis), nestable. `steamIds`
+/// is the analysed team's roster: the folder summary is the anti-strat
+/// analysis of those players over every demo in the folder and below.
+model TeamFolder {
+  id        String   @id @default(cuid())
+  userId    String
+  parentId  String?
+  name      String
+  steamIds  String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent   TeamFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children TeamFolder[] @relation("FolderTree")
+  uploads  DemoUpload[]
+
+  @@index([userId, parentId])
 }
 
 enum UploadSource {

@@ -15,7 +15,7 @@ export default async function ComparePage({
 
   const matchPlayers = userId
     ? await prisma.matchPlayer.findMany({
-        where: { match: { upload: { userId } } },
+        where: { match: { upload: { kind: "PLAYER", userId } } },
         select: {
           steamId: true,
           name: true,
