@@ -8,6 +8,8 @@ import { folderChain, MAX_FOLDER_DEPTH, userFolders } from "@/lib/team/folders";
 const createSchema = z.object({
   name: z.string().trim().min(1).max(60),
   parentId: z.string().min(1).max(40).nullable().optional(),
+  /** Save a detected team as a folder: its roster. */
+  steamIds: z.array(z.string().regex(/^\d{5,20}$/)).max(10).optional(),
 });
 
 /** Folders a player may own; stops a script from creating thousands. */
@@ -20,7 +22,7 @@ export async function POST(req: Request) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const parsed = createSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
-  const { name, parentId = null } = parsed.data;
+  const { name, parentId = null, steamIds = [] } = parsed.data;
 
   const rows = await userFolders(prisma, userId);
   if (rows.length >= MAX_FOLDERS) return NextResponse.json({ error: "Too many folders" }, { status: 409 });
@@ -30,6 +32,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Folder too deep" }, { status: 409 });
     }
   }
-  const folder = await prisma.teamFolder.create({ data: { userId, name, parentId }, select: { id: true } });
+  const folder = await prisma.teamFolder.create({ data: { userId, name, parentId, steamIds }, select: { id: true } });
   return NextResponse.json({ id: folder.id }, { status: 201 });
 }

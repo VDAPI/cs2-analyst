@@ -8,8 +8,8 @@ export default async function TeamAnalysisFolderPage({
   searchParams,
 }: {
   params: Promise<{ folderId: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; map?: string }>;
 }) {
-  const [{ folderId }, { page }] = await Promise.all([params, searchParams]);
-  return <TeamAnalysisView folderId={folderId} page={Number(page) || 1} />;
+  const [{ folderId }, { page, map }] = await Promise.all([params, searchParams]);
+  return <TeamAnalysisView folderId={folderId} page={Number(page) || 1} map={map} />;
 }

@@ -8,6 +8,8 @@
  * a match of one of the team's rivals; the rest of a member's library stays
  * private.
  */
+import { createHash } from "crypto";
+import type { Lineup as DetectLineup } from "./detect";
 import { loadZones } from "./map-lanes-load";
 import { withZones } from "./zones";
 import type { Prisma, PrismaClient, TeamRole } from "@prisma/client";
@@ -423,23 +425,20 @@ export async function getMatchTeamReport(
   return analyzeRival({ rival: team, matches: [loaded], maps: { [head.map]: { sites, place, demoPlace: base } } });
 }
 
-/**
- * Team analysis folder summary (/team-analysis/[id]): the anti-strat
- * analysis of `roster` over the player's team-analysis demos in `folderIds`,
- * one report per map (sorted by demo count). Matches where fewer than
- * ANTISTRAT_MIN_TOGETHER of the roster played together are left out.
- */
-export async function getFolderReports(
-  prisma: PrismaClient,
-  userId: string,
-  folderIds: string[],
-  roster: string[]
-): Promise<AntiStratReport[]> {
-  if (folderIds.length === 0 || roster.length === 0) return [];
-  const rows = await prisma.match.findMany({
-    where: { upload: { userId, kind: "TEAM", deletedAt: null, status: "COMPLETED", folderId: { in: folderIds } } },
+/** Team-analysis demos of a user (optionally only in `folderIds`), with lineups. */
+async function teamDemoHeads(prisma: PrismaClient, userId: string, folderIds?: string[]) {
+  return prisma.match.findMany({
+    where: {
+      upload: {
+        userId,
+        kind: "TEAM",
+        deletedAt: null,
+        status: "COMPLETED",
+        ...(folderIds ? { folderId: { in: folderIds } } : {}),
+      },
+    },
     orderBy: { date: "desc" },
-    take: FOLDER_MATCH_LIMIT,
+    take: FOLDER_MATCH_LIMIT * 3,
     select: {
       id: true,
       map: true,
@@ -447,25 +446,86 @@ export async function getFolderReports(
       totalTicks: true,
       scoreCT: true,
       scoreT: true,
-      players: { select: { steamId: true, team: true } },
+      players: { select: { steamId: true, name: true, team: true } },
     },
   });
-  const byMap = new Map<string, Array<MatchHead & { rivalSide: FinalSide }>>();
-  for (const m of rows) {
-    const rivalSide = rivalSideInMatch(m.players, roster);
-    if (!rivalSide) continue;
-    byMap.set(m.map, [...(byMap.get(m.map) ?? []), { ...m, rivalSide }]);
-  }
-  const reports: AntiStratReport[] = [];
-  for (const [map, heads] of [...byMap].sort((a, b) => b[1].length - a[1].length)) {
-    const loaded = (await Promise.all(heads.map((h) => loadAntiStratMatch(prisma, h)))).filter(
-      (m): m is AntiStratMatch => m != null
-    );
-    if (loaded.length === 0) continue;
-    const [sites, base, zones] = await Promise.all([bombsiteCentres(prisma, map), getPlaceLookup(prisma, map), loadZones(prisma, map)]);
-    reports.push(analyzeRival({ rival: roster, matches: loaded, maps: { [map]: { sites, place: withZones(zones, base), demoPlace: base } } }));
-  }
-  return reports;
+}
+
+/** Both lineups of every team-analysis demo (team detection, roster pickers). */
+export async function teamLineups(prisma: PrismaClient, userId: string, folderIds?: string[]): Promise<DetectLineup[]> {
+  const heads = await teamDemoHeads(prisma, userId, folderIds);
+  return heads.flatMap((m) =>
+    (["CT", "T"] as const).map((side) => ({
+      matchId: m.id,
+      map: m.map,
+      date: m.date.toISOString(),
+      side,
+      players: m.players.filter((p) => p.team === side).map((p) => ({ steamId: p.steamId, name: p.name })),
+    }))
+  );
+}
+
+/** Maps `roster` played in the user's team-analysis demos (most demos first). */
+export async function teamMaps(
+  prisma: PrismaClient,
+  userId: string,
+  roster: string[],
+  folderIds?: string[]
+): Promise<Array<{ map: string; matches: number }>> {
+  const count = new Map<string, number>();
+  for (const m of await teamDemoHeads(prisma, userId, folderIds))
+    if (rivalSideInMatch(m.players, roster)) count.set(m.map, (count.get(m.map) ?? 0) + 1);
+  return [...count.entries()].sort((a, b) => b[1] - a[1]).map(([map, matches]) => ({ map, matches }));
+}
+
+/**
+ * The anti-strat analysis of `roster` on one map over the user's
+ * team-analysis demos (optionally only in `folderIds`; ≥ 3 roster players
+ * together). Stored in AnalysisCache under a key of the version, roster,
+ * matches and the map's callout edits, so opening a team again is instant.
+ */
+export async function getTeamMapReport(
+  prisma: PrismaClient,
+  userId: string,
+  roster: string[],
+  map: string,
+  folderIds?: string[]
+): Promise<AntiStratReport | null> {
+  const heads = (await teamDemoHeads(prisma, userId, folderIds))
+    .filter((m) => m.map === map)
+    .flatMap((m) => {
+      const rivalSide = rivalSideInMatch(m.players, roster);
+      return rivalSide ? [{ ...m, rivalSide }] : [];
+    })
+    .slice(0, FOLDER_MATCH_LIMIT);
+  if (heads.length === 0) return null;
+  const [zoneEdit, calloutEdit] = await Promise.all([
+    prisma.mapZone.aggregate({ where: { map }, _max: { updatedAt: true }, _count: true }),
+    prisma.mapCallout.aggregate({ where: { map }, _max: { updatedAt: true }, _count: true }),
+  ]);
+  const key = createHash("sha256")
+    .update(
+      [
+        `team-map:v${ANTISTRAT_VERSION}`,
+        map,
+        [...roster].sort().join(","),
+        heads.map((h) => `${h.id}:${h.rivalSide}`).sort().join(","),
+        `${zoneEdit._count}:${zoneEdit._max.updatedAt?.toISOString() ?? ""}`,
+        `${calloutEdit._count}:${calloutEdit._max.updatedAt?.toISOString() ?? ""}`,
+      ].join("|")
+    )
+    .digest("hex");
+  const hit = await prisma.analysisCache.findUnique({ where: { key } });
+  if (hit) return hit.value as unknown as AntiStratReport;
+
+  const loaded = (await Promise.all(heads.map((h) => loadAntiStratMatch(prisma, h)))).filter((m): m is AntiStratMatch => m != null);
+  if (loaded.length === 0) return null;
+  const [sites, base, zones] = await Promise.all([bombsiteCentres(prisma, map), getPlaceLookup(prisma, map), loadZones(prisma, map)]);
+  const report = analyzeRival({ rival: roster, matches: loaded, maps: { [map]: { sites, place: withZones(zones, base), demoPlace: base } } });
+  await prisma.analysisCache
+    .upsert({ where: { key }, create: { key, value: report as unknown as Prisma.InputJsonValue }, update: {} })
+    .catch((err) => console.error("[team] analysis cache write failed", err));
+  return report;
 }
 
 /**

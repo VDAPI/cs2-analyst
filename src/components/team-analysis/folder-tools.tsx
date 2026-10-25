@@ -244,3 +244,33 @@ export function TeamAnalysisFiling({
     </div>
   );
 }
+
+/** Save a detected team as a folder (its roster); its demos stay where they are. */
+export function SaveTeamFolder({ steamIds, defaultName }: { steamIds: string[]; defaultName: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(defaultName);
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+        <FolderPlus className="h-4 w-4" aria-hidden />
+        Zapisz jako folder drużyny
+      </button>
+    );
+  }
+  return (
+    <form
+      className="flex flex-wrap items-center gap-2"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        const res = await send("/api/team-folders", "POST", { name: name.trim() || defaultName, steamIds });
+        if (res?.id) router.push(`/team-analysis/${String(res.id)}`);
+      }}
+    >
+      <input autoFocus className={inputClass} value={name} onChange={(e) => setName(e.target.value)} maxLength={60} aria-label="Nazwa drużyny" />
+      <button type="submit" className={buttonVariants({ variant: "cta", size: "sm" })}>
+        Zapisz
+      </button>
+    </form>
+  );
+}
