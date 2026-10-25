@@ -22,6 +22,8 @@ import {
   utilName,
 } from "@/lib/team/breakdown-text";
 import { ctSpotOf, shortPlace } from "@/lib/team/map-lanes";
+import { repeatedPlays } from "@/lib/team/breakdown-text";
+import { RepeatedPlays } from "@/components/team-analysis/repeated-plays";
 import { loadMapLanes } from "@/lib/team/map-lanes-load";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { cn } from "@/lib/utils/cn";
@@ -206,6 +208,13 @@ export default async function MatchTeamPage({ params, searchParams }: Props) {
             ))}
           </ul>
         </Card>
+      </section>
+
+      <section aria-labelledby="zagrywki" className="space-y-3">
+        <SectionTitle>
+          <span id="zagrywki">Powtarzane zagrywki T</span>
+        </SectionTitle>
+        <RepeatedPlays plays={repeatedPlays(t, report)} />
       </section>
 
       <section aria-labelledby="pistolety" className="space-y-3">

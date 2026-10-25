@@ -8,7 +8,8 @@ import { getT } from "@/lib/i18n/server";
 import { folderChain, folderOptions, folderRoster, subtreeIds, userFolders } from "@/lib/team/folders";
 import { getFolderReports } from "@/lib/team/load";
 import { loadMapLanes } from "@/lib/team/map-lanes-load";
-import { defaultSpots, reportMap, summaryLines, tacticCounts, topUtility, utilName } from "@/lib/team/breakdown-text";
+import { defaultSpots, repeatedPlays, reportMap, summaryLines, tacticCounts, topUtility, utilName } from "@/lib/team/breakdown-text";
+import { RepeatedPlays } from "@/components/team-analysis/repeated-plays";
 import { ctSpotOf, shortPlace } from "@/lib/team/map-lanes";
 import { formatDate } from "@/lib/utils/formatters";
 import { mapDisplayName } from "@/lib/utils/mapNames";
@@ -167,6 +168,8 @@ export async function TeamAnalysisView({ folderId, page = 1 }: { folderId: strin
                 ))}
               </ul>
             </Card>
+            <h3 className="font-display text-sm font-semibold text-[var(--text-primary)]">Powtarzane zagrywki T</h3>
+            <RepeatedPlays plays={repeatedPlays(t, report)} />
             <div className="grid gap-4 lg:grid-cols-3">
               <Card className="space-y-2">
                 <h3 className="font-display text-sm font-semibold text-[var(--text-primary)]">Taktyki T</h3>
