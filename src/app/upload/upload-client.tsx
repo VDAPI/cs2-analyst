@@ -57,7 +57,13 @@ interface Props {
   maxFiles: number;
   remaining: number;
   monthlyLimit: number;
+  /** Team analysis folders, as paths. */
+  folders: Array<{ id: string; path: string }>;
+  defaultKind: UploadKind;
+  defaultFolderId: string;
 }
+
+type UploadKind = "PLAYER" | "TEAM";
 
 const isDem = (f: File) => f.name.toLowerCase().endsWith(".dem");
 
@@ -71,12 +77,17 @@ function sendUpload(
   t: TFunction,
   item: Item,
   keepDemo: boolean,
-  onProgress: (pct: number) => void
+  onProgress: (pct: number) => void,
+  team: { kind: UploadKind; folderId: string }
 ): Promise<{ uploadId: string; keepDemoIgnored: boolean }> {
   return new Promise((resolve, reject) => {
     const form = new FormData();
     form.append("file", item.file);
     if (keepDemo) form.append("keepDemo", "true");
+    if (team.kind === "TEAM") {
+      form.append("kind", "TEAM");
+      if (team.folderId) form.append("folder", team.folderId);
+    }
     if (item.faceitMatch) form.append("faceitMatch", item.faceitMatch);
     if (item.steamMatch) form.append("steamMatch", item.steamMatch);
 
@@ -111,11 +122,16 @@ export function UploadClient({
   maxFiles,
   remaining,
   monthlyLimit,
+  folders,
+  defaultKind,
+  defaultFolderId,
 }: Props) {
   const router = useRouter();
   const t = useT();
   const [items, setItems] = useState<Item[]>([]);
   const [keepDemo, setKeepDemo] = useState(defaultKeepDemo);
+  const [kind, setKind] = useState<UploadKind>(defaultKind);
+  const [folderId, setFolderId] = useState(defaultFolderId);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState("");
   const [isDragging, setIsDragging] = useState(false);
@@ -211,8 +227,12 @@ export function UploadClient({
     for (const it of items.filter((i) => i.status === "pending" || i.status === "error")) {
       update(it.key, { status: "uploading", uploadPct: 0, error: undefined });
       try {
-        const { uploadId, keepDemoIgnored } = await sendUpload(t, it, keepDemo, (pct) =>
-          update(it.key, { uploadPct: pct })
+        const { uploadId, keepDemoIgnored } = await sendUpload(
+          t,
+          it,
+          keepDemo,
+          (pct) => update(it.key, { uploadPct: pct }),
+          { kind, folderId }
         );
         update(it.key, { status: "queued", uploadId });
         // The plan's "keep demo" cap is reached: analyzed, but the .dem goes.
@@ -233,10 +253,12 @@ export function UploadClient({
     items.length === 1 && faceitSlots.length === 0 && steamSlots.length === 0 ? items[0] : null;
   useEffect(() => {
     if (single?.status === "done" && single.matchId) {
-      const t = setTimeout(() => router.push(`/matches/${single.matchId}`), 1000);
+      // A team analysis demo opens its team breakdown, not the player report.
+      const href = kind === "TEAM" ? `/matches/${single.matchId}/team` : `/matches/${single.matchId}`;
+      const t = setTimeout(() => router.push(href), 1000);
       return () => clearTimeout(t);
     }
-  }, [single?.status, single?.matchId, router]);
+  }, [single?.status, single?.matchId, router, kind]);
 
   const pending = items.filter((i) => i.status === "pending" || i.status === "error").length;
   const started = items.some((i) => i.uploadId);
@@ -273,6 +295,55 @@ export function UploadClient({
               )}
             </div>
           </div>
+
+          {/* What the demo is for: the player's own match or team analysis */}
+          {!hasSlots && (
+            <div className="space-y-2">
+              <div role="radiogroup" aria-label={t("upload.kindLabel")} className="grid grid-cols-2 gap-2">
+                {(["PLAYER", "TEAM"] as const).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    role="radio"
+                    aria-checked={kind === k}
+                    disabled={running || started}
+                    onClick={() => setKind(k)}
+                    className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                      kind === k
+                        ? "border-[var(--border-active)] bg-[var(--accent-muted)] text-[var(--text-primary)]"
+                        : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--border-hover)]"
+                    }`}
+                  >
+                    <span className="block font-semibold">{k === "PLAYER" ? t("upload.kindPlayer") : t("upload.kindTeam")}</span>
+                    <span className="block text-xs text-[var(--text-tertiary)]">
+                      {k === "PLAYER" ? t("upload.kindPlayerHint") : t("upload.kindTeamHint")}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {kind === "TEAM" && (
+                <label className="block space-y-1 text-xs text-[var(--text-secondary)]">
+                  {t("upload.folder")}
+                  <select
+                    value={folderId}
+                    onChange={(e) => setFolderId(e.target.value)}
+                    disabled={running || started}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2 py-2 text-sm text-[var(--text-primary)]"
+                  >
+                    <option value="">{t("upload.noFolder")}</option>
+                    {folders.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.path}
+                      </option>
+                    ))}
+                  </select>
+                  <Link href="/team-analysis" className="inline-block text-[var(--accent-hover)] hover:underline">
+                    {t("upload.manageFolders")}
+                  </Link>
+                </label>
+              )}
+            </div>
+          )}
 
           {/* FACEIT matches picked in the history */}
           {faceitSlots.length > 0 && (
@@ -463,7 +534,7 @@ export function UploadClient({
                 </Button>
               </Link>
               {allSettled && (
-                <Link href="/library" className="flex-1">
+                <Link href={kind === "TEAM" ? `/team-analysis${folderId ? `/${folderId}` : ""}` : "/library"} className="flex-1">
                   <Button variant="secondary" className="w-full">
                     {t("upload.library")}
                   </Button>

@@ -53,7 +53,7 @@ export default async function PlayerDetailPage({ params }: Props) {
     ? await prisma.matchPlayer.findMany({
         where: {
           steamId,
-          match: { upload: { userId } },
+          match: { upload: { kind: "PLAYER", userId } },
         },
         include: {
           match: {
@@ -109,7 +109,7 @@ export default async function PlayerDetailPage({ params }: Props) {
   const matches = userId
     ? await prisma.match.findMany({
         where: {
-          upload: { userId },
+          upload: { kind: "PLAYER", userId },
           players: { some: { steamId } },
         },
         select: {
@@ -161,7 +161,7 @@ export default async function PlayerDetailPage({ params }: Props) {
     ? await prisma.grenadeEvent.findMany({
         where: {
           throwerSteamId: steamId,
-          round: { match: { upload: { userId } } },
+          round: { match: { upload: { kind: "PLAYER", userId } } },
         },
         select: {
           grenadeType: true,

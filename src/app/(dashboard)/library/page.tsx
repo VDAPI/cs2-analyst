@@ -16,7 +16,7 @@ export default async function LibraryPage() {
 
   const uploads = userId
     ? await prisma.demoUpload.findMany({
-        where: { userId, deletedAt: null, status: "COMPLETED", matchId: { not: null } },
+        where: { userId, kind: "PLAYER", deletedAt: null, status: "COMPLETED", matchId: { not: null } },
         orderBy: { createdAt: "desc" },
         select: {
           id: true,

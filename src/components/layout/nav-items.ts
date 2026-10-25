@@ -1,4 +1,5 @@
 import {
+  MapPin,
   BarChart3,
   Upload,
   Users,
@@ -104,6 +105,8 @@ export const navGroups: NavGroup[] = [
     icon: Shield,
     items: [
       { href: "/team", labelKey: "nav.team", icon: Shield },
+      { href: "/team-analysis", labelKey: "nav.teamAnalysis", icon: FolderOpen },
+      { href: "/callouts", labelKey: "nav.callouts", icon: MapPin },
       { href: "/scouting", labelKey: "nav.scouting", icon: Binoculars },
     ],
   },

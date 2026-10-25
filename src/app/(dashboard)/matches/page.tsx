@@ -37,7 +37,7 @@ export default async function MatchesPage({
   // Fetch parsed matches (from uploaded demos)
   const parsedMatches = userId
     ? await prisma.match.findMany({
-        where: { upload: { userId } },
+        where: { upload: { kind: "PLAYER", userId } },
         include: {
           players: true,
           upload: { select: { createdAt: true, source: true, faceitMatchId: true } },

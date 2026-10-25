@@ -34,6 +34,8 @@ import { playerCandidates, resolvePlayer } from "@/lib/progress/identity";
 
 /** Rival matches the anti-strat reads (newest first). */
 export const RIVAL_MATCH_LIMIT = 15;
+/** Newest demos a team analysis folder summary reads. */
+export const FOLDER_MATCH_LIMIT = 40;
 /** Candidate matches scanned per lookup before the roster rule filters them. */
 const SCAN_LIMIT = 400;
 
@@ -422,6 +424,51 @@ export async function getMatchTeamReport(
 }
 
 /**
+ * Team analysis folder summary (/team-analysis/[id]): the anti-strat
+ * analysis of `roster` over the player's team-analysis demos in `folderIds`,
+ * one report per map (sorted by demo count). Matches where fewer than
+ * ANTISTRAT_MIN_TOGETHER of the roster played together are left out.
+ */
+export async function getFolderReports(
+  prisma: PrismaClient,
+  userId: string,
+  folderIds: string[],
+  roster: string[]
+): Promise<AntiStratReport[]> {
+  if (folderIds.length === 0 || roster.length === 0) return [];
+  const rows = await prisma.match.findMany({
+    where: { upload: { userId, kind: "TEAM", deletedAt: null, status: "COMPLETED", folderId: { in: folderIds } } },
+    orderBy: { date: "desc" },
+    take: FOLDER_MATCH_LIMIT,
+    select: {
+      id: true,
+      map: true,
+      date: true,
+      totalTicks: true,
+      scoreCT: true,
+      scoreT: true,
+      players: { select: { steamId: true, team: true } },
+    },
+  });
+  const byMap = new Map<string, Array<MatchHead & { rivalSide: FinalSide }>>();
+  for (const m of rows) {
+    const rivalSide = rivalSideInMatch(m.players, roster);
+    if (!rivalSide) continue;
+    byMap.set(m.map, [...(byMap.get(m.map) ?? []), { ...m, rivalSide }]);
+  }
+  const reports: AntiStratReport[] = [];
+  for (const [map, heads] of [...byMap].sort((a, b) => b[1].length - a[1].length)) {
+    const loaded = (await Promise.all(heads.map((h) => loadAntiStratMatch(prisma, h)))).filter(
+      (m): m is AntiStratMatch => m != null
+    );
+    if (loaded.length === 0) continue;
+    const [sites, base, zones] = await Promise.all([bombsiteCentres(prisma, map), getPlaceLookup(prisma, map), loadZones(prisma, map)]);
+    reports.push(analyzeRival({ rival: roster, matches: loaded, maps: { [map]: { sites, place: withZones(zones, base), demoPlace: base } } }));
+  }
+  return reports;
+}
+
+/**
  * May `viewerId` read a teammate's match (2D replay, its data routes)? Only
  * team matches and rival matches of a team both are in, never the rest of the
  * uploader's library.
@@ -459,7 +506,7 @@ export async function guessMemberSteamId(prisma: PrismaClient, userId: string): 
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { steamId: true, faceitNickname: true } });
   if (!user || user.steamId) return null;
   const scan = await prisma.match.findMany({
-    where: { upload: { userId, deletedAt: null } },
+    where: { upload: { kind: "PLAYER", userId, deletedAt: null } },
     orderBy: { date: "desc" },
     take: 100,
     select: { date: true, players: { select: { steamId: true, name: true } } },
@@ -471,7 +518,7 @@ export async function guessMemberSteamId(prisma: PrismaClient, userId: string): 
 /** Players of the member's own matches, most frequent first (the "that's me" picker). */
 export async function memberCandidates(prisma: PrismaClient, userId: string) {
   const scan = await prisma.match.findMany({
-    where: { upload: { userId, deletedAt: null, pro: false } },
+    where: { upload: { kind: "PLAYER", userId, deletedAt: null, pro: false } },
     orderBy: { date: "desc" },
     take: 100,
     select: { date: true, players: { select: { steamId: true, name: true } } },

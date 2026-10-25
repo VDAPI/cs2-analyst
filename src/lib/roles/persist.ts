@@ -130,7 +130,7 @@ export async function playerSamples(
       side,
       pro: false,
       version: NORMS_STAMP,
-      match: { upload: { userId, deletedAt: null }, ...(map !== "all" ? { map } : {}) },
+      match: { upload: { kind: "PLAYER", userId, deletedAt: null }, ...(map !== "all" ? { map } : {}) },
     },
     orderBy: { match: { date: "desc" } },
     take,

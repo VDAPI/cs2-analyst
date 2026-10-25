@@ -227,6 +227,40 @@ export function tacticCounts(t: TFunction, report: AntiStratReport): Array<[stri
   return [...c.entries()].sort((a, b) => b[1] - a[1]);
 }
 
+/** Pistol rounds over every demo: T tactics and CT setups with counts. */
+export function pistolLines(t: TFunction, report: AntiStratReport): string[] {
+  const map = reportMap(report);
+  const nameOf = namesFromReport(report);
+  const pistols = report.rounds.filter((r) => r.buy === "pistol");
+  const count = (keys: string[]) => {
+    const c = new Map<string, number>();
+    for (const k of keys) c.set(k, (c.get(k) ?? 0) + 1);
+    return [...c.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ×${n}`).join(", ");
+  };
+  const out: string[] = [];
+  const tp = pistols.filter((r) => r.side === "T");
+  if (tp.length > 0) {
+    out.push(
+      t("teamDemo.summaryPistolT", {
+        list: count(tp.map((r) => tPlay(t, map, r, nameOf).name)),
+        won: tp.filter((r) => r.won).length,
+        of: tp.length,
+      })
+    );
+  }
+  const cp = pistols.filter((r) => r.side === "CT");
+  if (cp.length > 0) {
+    out.push(
+      t("teamDemo.summaryPistolCt", {
+        list: count(cp.map((r) => ctSetupKey(map, r) ?? t("teamDemo.noPositions"))),
+        won: cp.filter((r) => r.won).length,
+        of: cp.length,
+      })
+    );
+  }
+  return out;
+}
+
 /** CT setup as players per position, e.g. "B 2 · Short 1 · Window 1 · A 1". */
 function ctSetupKey(map: string, r: RoundBreakdown): string | null {
   const order = ctOrder(map);
@@ -269,15 +303,26 @@ export function summaryLines(t: TFunction, report: AntiStratReport): string[] {
   const stats = report.maps[0];
   const match = report.matches[0];
   if (!stats || !match) return [];
+  const won = report.matches.filter((m) => m.rivalScore > m.oppScore).length;
   const out: string[] = [
-    t("teamDemo.summaryResult", {
-      score: `${match.rivalScore}:${match.oppScore}`,
-      t: stats.t.wins,
-      tOf: stats.t.rounds,
-      ct: stats.ct.wins,
-      ctOf: stats.ct.rounds,
-    }),
+    report.matches.length > 1
+      ? t("teamDemo.summaryMatches", {
+          n: report.matches.length,
+          won,
+          t: stats.t.wins,
+          tOf: stats.t.rounds,
+          ct: stats.ct.wins,
+          ctOf: stats.ct.rounds,
+        })
+      : t("teamDemo.summaryResult", {
+          score: `${match.rivalScore}:${match.oppScore}`,
+          t: stats.t.wins,
+          tOf: stats.t.rounds,
+          ct: stats.ct.wins,
+          ctOf: stats.ct.rounds,
+        }),
   ];
+  out.push(...pistolLines(t, report));
   const tactics = tacticCounts(t, report);
   if (tactics.length > 0) out.push(t("teamDemo.summaryTactics", { list: tactics.map(([n, c]) => `${n} ×${c}`).join(", ") }));
   const tRounds = report.rounds.filter((r) => r.side === "T");

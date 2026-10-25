@@ -62,7 +62,7 @@ export async function invalidateFindings(
     where:
       "matchId" in where
         ? { id: where.matchId }
-        : { upload: { userId: where.userId }, players: { some: { steamId: where.steamId } } },
+        : { upload: { kind: "PLAYER", userId: where.userId }, players: { some: { steamId: where.steamId } } },
     data: { findingsVersion: null },
   });
 }

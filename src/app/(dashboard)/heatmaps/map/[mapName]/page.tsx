@@ -21,7 +21,7 @@ export default async function MapHeatmapPage({ params }: Props) {
 
   // Get all user's matches on this map
   const matches = await prisma.match.findMany({
-    where: { map: mapName, upload: { userId } },
+    where: { map: mapName, upload: { kind: "PLAYER", userId } },
     select: {
       id: true,
       date: true,

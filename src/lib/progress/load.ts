@@ -84,7 +84,7 @@ export async function loadProgress(
     limit: number;
   }
 ): Promise<ProgressData> {
-  const owned = { upload: { userId: opts.userId, deletedAt: null } };
+  const owned = { upload: { kind: "PLAYER" as const, userId: opts.userId, deletedAt: null } };
   const [totalMatches, scan] = await Promise.all([
     prisma.match.count({ where: owned }),
     prisma.match.findMany({

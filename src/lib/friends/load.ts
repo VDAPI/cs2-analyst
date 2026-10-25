@@ -161,7 +161,7 @@ export async function friendSuggestions(prisma: PrismaClient, userId: string): P
 
   if (out.length < MAX_SUGGESTIONS) {
     const matches = await prisma.match.findMany({
-      where: { upload: { userId, deletedAt: null, pro: false } },
+      where: { upload: { kind: "PLAYER", userId, deletedAt: null, pro: false } },
       orderBy: { date: "desc" },
       take: SUGGESTION_MATCHES,
       select: { players: { select: { steamId: true } } },

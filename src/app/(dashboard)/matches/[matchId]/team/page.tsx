@@ -27,6 +27,8 @@ import { mapDisplayName } from "@/lib/utils/mapNames";
 import { cn } from "@/lib/utils/cn";
 import { Badge, Card, EmptyState, PageHeader, SectionTitle, buttonVariants } from "@/components/ui";
 import { PrintButton } from "@/components/team/print-button";
+import { TeamAnalysisFiling } from "@/components/team-analysis/folder-tools";
+import { folderOptions, userFolders } from "@/lib/team/folders";
 
 interface Props {
   params: Promise<{ matchId: string }>;
@@ -73,6 +75,13 @@ export default async function MatchTeamPage({ params, searchParams }: Props) {
     names: match.players.filter((p) => p.team === s).map((p) => p.name),
   }));
 
+  const ownUpload = session?.user?.id
+    ? await prisma.demoUpload.findFirst({
+        where: { matchId, userId: session.user.id, deletedAt: null },
+        select: { id: true, kind: true, folderId: true },
+      })
+    : null;
+  const folders = ownUpload && session?.user?.id ? folderOptions(await userFolders(prisma, session.user.id)) : [];
   const [report] = await Promise.all([getMatchTeamReport(prisma, matchId, side), loadMapLanes(prisma, match.map)]);
   const header = (
     <PageHeader
@@ -115,6 +124,9 @@ export default async function MatchTeamPage({ params, searchParams }: Props) {
           </Link>
         ))}
       </div>
+      {ownUpload && (
+        <TeamAnalysisFiling uploadId={ownUpload.id} kind={ownUpload.kind} folderId={ownUpload.folderId} options={folders} />
+      )}
       <Link href={`/callouts?map=${match.map}`} className="inline-block text-xs text-[var(--accent-hover)] hover:underline">
         {t("teamDemo.calloutsLink")}
       </Link>

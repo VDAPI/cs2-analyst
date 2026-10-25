@@ -159,7 +159,7 @@ export default async function ComparisonPage({ params }: Props) {
 
   if (!userId) notFound();
 
-  const uploadFilter = { match: { upload: { userId } } };
+  const uploadFilter = { match: { upload: { kind: "PLAYER" as const, userId } } };
 
   // Parallel data fetching
   const [entries1, entries2, p1KillsOnP2, p2KillsOnP1] = await Promise.all([
@@ -221,14 +221,14 @@ export default async function ComparisonPage({ params }: Props) {
       where: {
         attackerSteamId: steamId1,
         victimSteamId: steamId2,
-        round: { match: { upload: { userId } } },
+        round: { match: { upload: { kind: "PLAYER" as const, userId } } },
       },
     }),
     prisma.kill.count({
       where: {
         attackerSteamId: steamId2,
         victimSteamId: steamId1,
-        round: { match: { upload: { userId } } },
+        round: { match: { upload: { kind: "PLAYER" as const, userId } } },
       },
     }),
   ]);

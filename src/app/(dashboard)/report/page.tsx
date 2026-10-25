@@ -11,7 +11,7 @@ export default async function ReportListPage() {
 
   const matches = userId
     ? await prisma.match.findMany({
-        where: { upload: { userId } },
+        where: { upload: { kind: "PLAYER", userId } },
         select: { id: true, map: true, date: true, scoreCT: true, scoreT: true },
         orderBy: { date: "desc" },
       })

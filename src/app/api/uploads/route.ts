@@ -73,6 +73,15 @@ export async function POST(req: Request) {
   const wantKeepDemo = formData.get("keepDemo") === "true";
   const faceitMatchRef = formData.get("faceitMatch");
   const steamMatchRef = formData.get("steamMatch");
+  // Team analysis demo (scouting): someone else's match, filed in a folder.
+  const kind = formData.get("kind") === "TEAM" ? "TEAM" : "PLAYER";
+  const folderRef = formData.get("folder");
+  let folderId: string | null = null;
+  if (kind === "TEAM" && typeof folderRef === "string" && folderRef) {
+    const folder = await prisma.teamFolder.findFirst({ where: { id: folderRef, userId }, select: { id: true } });
+    if (!folder) return NextResponse.json({ error: "Folder not found" }, { status: 404 });
+    folderId = folder.id;
+  }
 
   if (!file) {
     return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -123,7 +132,7 @@ export async function POST(req: Request) {
   // dropped in by hand links to its history entry by file name, so the
   // FACEIT list marks the match as analyzed.
   let faceitRef = typeof faceitMatchRef === "string" && faceitMatchRef ? faceitMatchRef : null;
-  if (!faceitRef && !(typeof steamMatchRef === "string" && steamMatchRef) && fileFaceitId) {
+  if (kind === "PLAYER" && !faceitRef && !(typeof steamMatchRef === "string" && steamMatchRef) && fileFaceitId) {
     const fm = await prisma.faceitMatch.findUnique({
       where: { userId_faceitMatchId: { userId, faceitMatchId: fileFaceitId } },
       select: { id: true },
@@ -204,6 +213,8 @@ export async function POST(req: Request) {
         fileUrl: "",
         status: "QUEUED",
         keepDemo,
+        kind,
+        folderId,
         ...(faceitMatchId ? { source: "FACEIT" as const, faceitMatchId } : {}),
         ...(steamMatchId ? { source: "STEAM" as const } : {}),
       },

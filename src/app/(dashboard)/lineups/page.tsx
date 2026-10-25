@@ -63,7 +63,7 @@ export default async function LineupsPage({ searchParams }: Props) {
   if (!map) {
     const top = await prisma.match.groupBy({
       by: ["map"],
-      where: { upload: { userId }, map: { in: maps } },
+      where: { upload: { kind: "PLAYER", userId }, map: { in: maps } },
       _count: { map: true },
       orderBy: { _count: { map: "desc" } },
       take: 1,
@@ -75,7 +75,7 @@ export default async function LineupsPage({ searchParams }: Props) {
 
   // Matches analysed before S11 get their utility analysis here, a few per view.
   const missing = await prisma.match.findMany({
-    where: { map, upload: { userId }, utility: { none: {} }, rounds: { some: { ticks: { isNot: null } } } },
+    where: { map, upload: { kind: "PLAYER", userId }, utility: { none: {} }, rounds: { some: { ticks: { isNot: null } } } },
     select: { id: true },
     orderBy: { date: "desc" },
     take: BACKFILL_PER_VIEW,
