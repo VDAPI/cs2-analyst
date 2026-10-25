@@ -29,6 +29,8 @@ import {
   type FormEntry,
   type HistoryRow,
 } from "./profile-sections";
+import { SpotsTable } from "./spots-table";
+import { playerSpotStats } from "@/lib/team/spot-stats";
 
 interface Props {
   params: Promise<{ steamId: string }>;
@@ -47,6 +49,8 @@ export default async function PlayerDetailPage({ params }: Props) {
   const { steamId } = await params;
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
+
+  const spots = userId ? await playerSpotStats(prisma, userId, steamId) : [];
 
   // Get all match entries for this player from user's demos
   const matchEntries = userId
@@ -1015,6 +1019,17 @@ export default async function PlayerDetailPage({ params }: Props) {
       {mapStats.length > 0 && (
         <Section id="mapy" title="Wyniki na mapach">
           <MapTable rows={mapStats} bestMap={bestMap} worstMap={worstMap} />
+        </Section>
+      )}
+
+      {/* Kills and deaths per position: which angles work */}
+      {spots.length > 0 && (
+        <Section
+          id="pozycje"
+          title="Pozycje: zabójstwa i śmierci"
+          description="Skąd gracz zabija i gdzie ginie, na mapę i stronę. Czerwone pozycje częściej kończą się śmiercią niż fragiem, zielone działają. Nazwy pozycji poprawisz na mapie pozycji."
+        >
+          <SpotsTable rows={spots} />
         </Section>
       )}
 
