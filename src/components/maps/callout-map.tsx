@@ -147,6 +147,21 @@ export function CalloutMap({
     }
   }, [radar, cells, places, zones, index, toCanvas, cellPx, cellSize, focusPlace, focusZone, draft, draftDone]);
 
+  // Drawing from the keyboard: Enter finishes, Backspace drops the last corner, Escape cancels.
+  useEffect(() => {
+    if (!draft || draftDone) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement) return;
+      if (e.key === "Enter" && draft.length >= 3) setDraftDone(true);
+      else if (e.key === "Backspace") setDraft(draft.slice(0, -1));
+      else if (e.key === "Escape") setDraft(null);
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [draft, draftDone]);
+
   const worldAt = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     return toWorld(((e.clientX - rect.left) / rect.width) * TOOL_CANVAS_SIZE, ((e.clientY - rect.top) / rect.height) * TOOL_CANVAS_SIZE);
@@ -211,7 +226,9 @@ export function CalloutMap({
             ) : (
               <>
                 <span className="text-[var(--text-secondary)]">
-                  {draftDone ? "Nazwij strefę pod mapą." : `Klikaj rogi strefy na mapie (${draft.length} pkt).`}
+                  {draftDone
+                    ? "Nazwij strefę w panelu obok."
+                    : `Klikaj rogi strefy (${draft.length} pkt). Enter kończy, Backspace cofa, Esc anuluje.`}
                 </span>
                 {!draftDone && (
                   <>
@@ -240,6 +257,9 @@ export function CalloutMap({
           className={cn("aspect-square w-full touch-none rounded-xl border border-[var(--border)]", draft && !draftDone && "cursor-crosshair")}
         />
         <p className="min-h-6 text-sm text-[var(--text-secondary)]">{hoverText || "Najedź na pole, żeby zobaczyć nazwę."}</p>
+      </div>
+      {/* Right column stays next to the map: the form first, then the lists, scrolling inside. */}
+      <div className="space-y-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto">
         {editable && draft && draftDone && (
           <ZoneEditor
             map={map}
@@ -261,8 +281,7 @@ export function CalloutMap({
             strefę albo nazwę, żeby ją poprawić.
           </p>
         )}
-      </div>
-      <div className="space-y-3">
+
         {zones.length > 0 && (
           <div className="overflow-hidden rounded-xl border border-[var(--border)]">
             <table className="data-table text-xs">

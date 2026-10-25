@@ -55,6 +55,10 @@ export interface Lineup {
   /** Callout of the landing / of the throw spot, when known. */
   landPlace: string | null;
   throwPlace: string | null;
+  /** SteamIDs that throw it most, most frequent first (at most 3). */
+  throwers: string[];
+  /** Display names of `throwers`, filled by the page that shows them. */
+  throwerNames?: string[];
 }
 
 const wrap = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
@@ -96,6 +100,12 @@ function recentre(c: Cluster) {
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
+function topThrowers(members: Array<{ steamId: string }>): string[] {
+  const n = new Map<string, number>();
+  for (const m of members) n.set(m.steamId, (n.get(m.steamId) ?? 0) + 1);
+  return [...n.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id]) => id);
+}
+
 export function buildLineups(
   throws: LineupThrow[],
   placeOf: (p: Point3) => string | null = () => null
@@ -134,6 +144,7 @@ export function buildLineups(
       players: new Set(c.members.map((m) => m.steamId)).size,
       landPlace: placeOf(land),
       throwPlace: placeOf({ x: c.x, y: c.y, z: c.z }),
+      throwers: topThrowers(c.members),
     });
   }
   return out.sort((a, b) => b.samples - a.samples || a.key.localeCompare(b.key));

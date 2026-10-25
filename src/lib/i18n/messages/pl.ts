@@ -722,6 +722,8 @@ export const pl = {
     failed: "Nie udało się zapisać notatki",
   },
   lineups: {
+    fromTo: "Skąd: {from} → dokąd: {to}",
+    throwers: "Rzucają: {names}",
     eyebrow: "Narzędzia",
     title: "Lineupy",
     description: "Baza lineupów per mapa: rzuty, które gracze powtarzają z tego samego miejsca i pod tym samym kątem. Rośnie z każdym przeanalizowanym meczem; komendą setpos/setang staniesz w miejscu rzutu na własnym serwerze.",

@@ -12,7 +12,10 @@ import { MAP_CONFIGS } from "@/lib/utils/maps";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { cn } from "@/lib/utils/cn";
 import { CANVAS_COLORS, grenadeStyle } from "@/lib/canvas/palette";
-import { computeAndPersistUtility, getMapLineups } from "@/lib/analysis/persist-utility";
+import { computeAndPersistUtility, getMapLineups, getPlaceLookup } from "@/lib/analysis/persist-utility";
+import { loadMapLanes } from "@/lib/team/map-lanes-load";
+import { shortPlace } from "@/lib/team/map-lanes";
+import { withZones } from "@/lib/team/zones";
 import { LINEUP_MIN_MATCHES, LINEUP_MIN_SAMPLES, type Lineup } from "@/lib/analysis/lineups";
 import type { GrenadeKind, Point3 } from "@/lib/analysis/utility";
 import { cfgFileName, execName } from "@/lib/training/cfg";
@@ -88,7 +91,26 @@ export default async function LineupsPage({ searchParams }: Props) {
     }
   }
 
-  const [all, mastered] = await Promise.all([getMapLineups(prisma, map), loadMastered(prisma, userId, map)]);
+  // Callouts as players say them: drawn zones first (/callouts), then the
+  // admin's names for the demo's callouts.
+  const [{ zones }, base] = await Promise.all([loadMapLanes(prisma, map), getPlaceLookup(prisma, map)]);
+  const zoned = withZones(zones, base);
+  const placeOf = (p: Point3) => {
+    const name = zoned(p);
+    return name ? shortPlace(map, name) : null;
+  };
+  const [lineupBase, mastered] = await Promise.all([getMapLineups(prisma, map, placeOf), loadMastered(prisma, userId, map)]);
+  const throwerIds = [...new Set(lineupBase.flatMap((l) => l.throwers))];
+  const throwerRows = throwerIds.length
+    ? await prisma.matchPlayer.findMany({
+        where: { steamId: { in: throwerIds } },
+        orderBy: { match: { date: "desc" } },
+        distinct: ["steamId"],
+        select: { steamId: true, name: true },
+      })
+    : [];
+  const nameOf = new Map(throwerRows.map((r) => [r.steamId, r.name]));
+  const all = lineupBase.map((l) => ({ ...l, throwerNames: l.throwers.map((id) => nameOf.get(id) ?? id) }));
   const ofType = type ? all.filter((l) => l.type === type) : all.filter((l) => l.type !== "DECOY");
   const lineups = ofType
     .filter((l) => show === "all" || (show === "mastered") === mastered.has(l.key))
