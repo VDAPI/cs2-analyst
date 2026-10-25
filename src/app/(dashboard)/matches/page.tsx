@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { Badge, Card, PageHeader, SectionTitle, StatCard, buttonVariants } from "@/components/ui";
+import { Badge, Card, PageHeader, Pager, SectionTitle, StatCard, buttonVariants, pageSlice } from "@/components/ui";
 import { MapThumb, ResultBadge, SourceBadge, resultColor, resultFor, type MatchResult } from "@/components/match";
 import { formatDate } from "@/lib/utils/formatters";
 import { Flame, Upload } from "lucide-react";
@@ -22,13 +22,16 @@ function playersLabel(n: number): string {
   return `${n} graczy`;
 }
 
+/** Analysed matches per page of the list (stats above still use all of them). */
+const MATCHES_PER_PAGE = 15;
+
 export default async function MatchesPage({
   searchParams,
 }: {
   /** `?select=<FaceitMatch id>`: pre-select a match in the FACEIT history (browser extension, S26). */
-  searchParams: Promise<{ select?: string | string[] }>;
+  searchParams: Promise<{ select?: string | string[]; page?: string }>;
 }) {
-  const { select } = await searchParams;
+  const { select, page } = await searchParams;
   const preselect = typeof select === "string" ? select : null;
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
@@ -112,6 +115,7 @@ export default async function MatchesPage({
     (fm) => !parsedFaceitIds.has(fm.faceitMatchId)
   );
 
+  const matchPage = pageSlice(parsedMatches, Number(page), MATCHES_PER_PAGE);
   const empty = parsedMatches.length === 0 && unlinkedFaceitMatches.length === 0;
 
   return (
@@ -156,7 +160,7 @@ export default async function MatchesPage({
           )}
 
           {/* Parsed matches — full analytics available */}
-          {parsedMatches.map((match) => {
+          {matchPage.items.map((match) => {
             const topPlayer = match.players.reduce((a, b) =>
               a.hltvRating > b.hltvRating ? a : b
             );
@@ -272,6 +276,7 @@ export default async function MatchesPage({
               </Link>
             );
           })}
+          <Pager page={matchPage.page} pages={matchPage.pages} href={(n) => `/matches?page=${n}`} />
 
           {/* FACEIT history — pick matches to analyze */}
           {unlinkedFaceitMatches.length > 0 && (

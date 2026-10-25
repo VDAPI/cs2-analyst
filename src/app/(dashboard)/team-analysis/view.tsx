@@ -12,7 +12,7 @@ import { defaultSpots, reportMap, summaryLines, tacticCounts, topUtility, utilNa
 import { ctSpotOf, shortPlace } from "@/lib/team/map-lanes";
 import { formatDate } from "@/lib/utils/formatters";
 import { mapDisplayName } from "@/lib/utils/mapNames";
-import { Card, PageHeader, SectionTitle, buttonVariants } from "@/components/ui";
+import { Card, PageHeader, Pager, SectionTitle, buttonVariants, pageSlice } from "@/components/ui";
 import { MapThumb } from "@/components/match";
 import { DemoFolderSelect, FolderActions, NewFolderButton, RosterPicker } from "@/components/team-analysis/folder-tools";
 
@@ -21,7 +21,10 @@ import { DemoFolderSelect, FolderActions, NewFolderButton, RosterPicker } from "
  * demos (scouting) in folders, and for a folder with a team roster the
  * summary of what that team plays over every demo in it and below.
  */
-export async function TeamAnalysisView({ folderId }: { folderId: string | null }) {
+/** Demos per page of a folder's list. */
+const DEMOS_PER_PAGE = 15;
+
+export async function TeamAnalysisView({ folderId, page = 1 }: { folderId: string | null; page?: number }) {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   if (!userId) redirect("/login?callbackUrl=/team-analysis");
@@ -46,6 +49,7 @@ export async function TeamAnalysisView({ folderId }: { folderId: string | null }
     },
   });
 
+  const demoPage = pageSlice(demos, page, DEMOS_PER_PAGE);
   const roster = folderId ? folderRoster(rows, folderId) : [];
   const reports = folderId && roster.length > 0 ? await getFolderReports(prisma, userId, subtreeIds(rows, folderId), roster) : [];
   await Promise.all(reports.map((r) => loadMapLanes(prisma, reportMap(r))));
@@ -215,7 +219,7 @@ export async function TeamAnalysisView({ folderId }: { folderId: string | null }
           <p className="text-sm text-[var(--text-tertiary)]">Brak dem. Wgraj demo jako „Analiza drużynowa”.</p>
         ) : (
           <ul className="grid gap-2">
-            {demos.map((d) => (
+            {demoPage.items.map((d) => (
               <li key={d.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3 text-sm">
                 {d.match && <MapThumb map={d.match.map} size="sm" />}
                 <div className="min-w-0 flex-1">
@@ -241,6 +245,11 @@ export async function TeamAnalysisView({ folderId }: { folderId: string | null }
             ))}
           </ul>
         )}
+        <Pager
+          page={demoPage.page}
+          pages={demoPage.pages}
+          href={(n) => `/team-analysis${folderId ? `/${folderId}` : ""}?page=${n}`}
+        />
       </section>
     </div>
   );

@@ -11,6 +11,7 @@ export { Progress } from "./progress";
 export { FindingTag, type FindingSeverity } from "./finding-tag";
 export { ToastProvider, useToast } from "./toast";
 export { PageHeader } from "./page-header";
+export { Pager, pageSlice } from "./pager";
 export { EmptyState } from "./empty-state";
 export { SectionTitle } from "./section-title";
 export { LazyDetails } from "./lazy-details";

@@ -51,6 +51,9 @@ const plural = (n: number, one: string, few: string, many: string) =>
 const selectClass =
   "h-10 min-w-0 rounded-lg border border-[var(--border)] bg-[var(--surface-4)] px-3 text-sm text-[var(--text-primary)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-glow)] focus:outline-none max-md:min-h-11";
 
+/** Analyses per page of the library list. */
+const PER_PAGE = 15;
+
 export function LibraryList({ entries }: { entries: LibraryEntry[] }) {
   const router = useRouter();
   const [map, setMap] = useState("all");
@@ -59,6 +62,10 @@ export function LibraryList({ entries }: { entries: LibraryEntry[] }) {
 
   const maps = useMemo(() => [...new Set(entries.map((e) => e.map))].sort(), [entries]);
   const shown = map === "all" ? entries : entries.filter((e) => e.map === map);
+  const [page, setPage] = useState(1);
+  const pages = Math.max(1, Math.ceil(shown.length / PER_PAGE));
+  const current = Math.min(page, pages);
+  const pageItems = shown.slice((current - 1) * PER_PAGE, current * PER_PAGE);
 
   const call = async (uploadId: string, init: RequestInit) => {
     setBusy(uploadId);
@@ -115,7 +122,10 @@ export function LibraryList({ entries }: { entries: LibraryEntry[] }) {
         <select
           aria-label="Mapa"
           value={map}
-          onChange={(e) => setMap(e.target.value)}
+          onChange={(e) => {
+            setMap(e.target.value);
+            setPage(1);
+          }}
           className={selectClass}
         >
           <option value="all">Wszystkie mapy</option>
@@ -137,7 +147,7 @@ export function LibraryList({ entries }: { entries: LibraryEntry[] }) {
         </p>
       )}
 
-      {shown.map((e) => {
+      {pageItems.map((e) => {
         const hasFile = e.demo === "kept" || e.demo === "stored" || e.demo === "pending_delete";
         const isBusy = busy === e.uploadId;
         return (
@@ -242,6 +252,19 @@ export function LibraryList({ entries }: { entries: LibraryEntry[] }) {
           </Card>
         );
       })}
+      {pages > 1 && (
+        <nav aria-label="Strony" className="flex items-center justify-center gap-2 pt-2 text-sm">
+          <Button variant="secondary" size="sm" disabled={current <= 1} onClick={() => setPage(current - 1)}>
+            Poprzednia
+          </Button>
+          <span className="font-mono text-xs tabular-nums text-[var(--text-tertiary)]">
+            {current} / {pages}
+          </span>
+          <Button variant="secondary" size="sm" disabled={current >= pages} onClick={() => setPage(current + 1)}>
+            Następna
+          </Button>
+        </nav>
+      )}
     </div>
   );
 }

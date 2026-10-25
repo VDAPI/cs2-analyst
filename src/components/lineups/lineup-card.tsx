@@ -60,6 +60,14 @@ export function LineupCard({
           )}
           {mastered && <Badge variant="success">{t("lineups.masteredBadge")}</Badge>}
         </div>
+        {(l.throwPlace || l.landPlace) && (
+          <p className="text-sm text-[var(--text-secondary)]">
+            {t("lineups.fromTo", { from: l.throwPlace ?? "?", to: l.landPlace ?? "?" })}
+          </p>
+        )}
+        {l.throwerNames && l.throwerNames.length > 0 && (
+          <p className="text-xs text-[var(--text-tertiary)]">{t("lineups.throwers", { names: l.throwerNames.join(", ") })}</p>
+        )}
         {note && <p className="text-sm text-[var(--text-secondary)]">{note}</p>}
         <code className="block break-all rounded-lg bg-[var(--surface-2)] px-3 py-2 font-mono text-xs text-[var(--text-secondary)]">
           {cmd}

@@ -719,6 +719,8 @@ export const en: Messages = {
     failed: "Couldn't save the note",
   },
   lineups: {
+    fromTo: "From: {from} → to: {to}",
+    throwers: "Thrown by: {names}",
     eyebrow: "Tools",
     title: "Lineups",
     description: "Lineup base per map: throws players repeat from the same spot at the same angle. It grows with every analysed match; the setpos/setang command puts you on the throw spot on your own server.",
