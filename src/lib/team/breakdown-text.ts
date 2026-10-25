@@ -80,6 +80,8 @@ interface TPlay {
   name: string;
   /** Players per lane into the site, then the rest by where they were. */
   groups: string[];
+  /** Lane composition, biggest first: [["Con", 3], ["Rampa", 2]] (empty without a hit). */
+  lanes: Array<[string, number]>;
 }
 
 /** What a T round was, from the routes: split, execute, rush or default. */
@@ -90,6 +92,7 @@ function tPlay(t: TFunction, map: string, r: RoundBreakdown, nameOf: NameOf): TP
     return {
       name: t("teamDemo.tacticNoHit"),
       groups: rest.map(([place, names]) => t("teamDemo.groupRest", { place, names: names.join(", ") })),
+      lanes: [],
     };
   }
   const lanes: Array<[string, string]> = [];
@@ -118,7 +121,60 @@ function tPlay(t: TFunction, map: string, r: RoundBreakdown, nameOf: NameOf): TP
       ...byLane.map(([lane, names]) => t("teamDemo.group", { n: names.length, lane, names: names.join(", ") })),
       ...grouped(rest).map(([place, names]) => t("teamDemo.groupRest", { place, names: names.join(", ") })),
     ],
+    lanes: byLane.map(([lane, names]) => [lane, names.length]),
   };
+}
+
+export interface RepeatedPlay {
+  /** "Split A · Con + Rampa" (the lanes, alphabetical). */
+  label: string;
+  rounds: number;
+  wins: number;
+  /** Grenades thrown in most of these rounds: "Smoke Window (3/4)". */
+  utility: string[];
+  examples: RoundBreakdown[];
+}
+
+/**
+ * The team's plays that came back: T rounds with the same tactic and the
+ * same lane split (e.g. "Split A · 3 Con + 2 Rampa"), at least twice, with
+ * the grenades they usually go with. Over every demo of the report.
+ */
+export function repeatedPlays(t: TFunction, report: AntiStratReport): RepeatedPlay[] {
+  const map = reportMap(report);
+  const nameOf = namesFromReport(report);
+  const groups = new Map<string, RoundBreakdown[]>();
+  for (const r of report.rounds) {
+    if (r.side !== "T") continue;
+    const play = tPlay(t, map, r, nameOf);
+    // Same tactic through the same lanes; how many go each way varies round to round.
+    const label = play.lanes.length
+      ? `${play.name} · ${play.lanes
+          .map(([l]) => l)
+          .sort()
+          .join(" + ")}`
+      : play.name;
+    groups.set(label, [...(groups.get(label) ?? []), r]);
+  }
+  return [...groups.entries()]
+    .filter(([, rounds]) => rounds.length >= 2)
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([label, rounds]) => {
+      const util = new Map<string, number>();
+      for (const r of rounds)
+        for (const k of new Set(r.thrown.map((g) => `${utilName(t, g.type)} ${shortPlace(map, g.place)}`))) util.set(k, (util.get(k) ?? 0) + 1);
+      return {
+        label,
+        rounds: rounds.length,
+        wins: rounds.filter((r) => r.won).length,
+        utility: [...util.entries()]
+          .filter(([, n]) => n * 2 >= rounds.length)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([k, n]) => `${k} (${n}/${rounds.length})`),
+        examples: rounds.slice(0, 4),
+      };
+    });
 }
 
 /** CT players per position, in the map's order; players off the usual spots as pushes. */
