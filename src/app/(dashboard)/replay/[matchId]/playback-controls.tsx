@@ -109,72 +109,140 @@ export function PlaybackControls({ matchId, rounds, findingMarks = [], onFinding
     if (idx >= 0) setFrameIndex(idx);
   };
 
+  const elapsed = clock((currentTick - firstTick) / TICK_RATE);
+  const total = clock(span / TICK_RATE);
+
+  const markRows = (
+    <>
+      {findingMarks.length > 0 && (
+        <div className="relative mb-1 h-4">
+          {findingMarks
+            .filter((f) => f.tick >= firstTick && f.tick <= lastTick)
+            .map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => onFinding?.(f)}
+                title={`${f.label}: ${f.detail}`}
+                aria-label={`Przejdź do błędu: ${f.label}, ${clock(f.roundTime)}`}
+                className="absolute top-0 flex h-4 w-4 -translate-x-1/2 items-center justify-center"
+                style={{ left: `${((f.tick - firstTick) / span) * 100}%` }}
+              >
+                <span
+                  className={cn(
+                    "block h-2.5 w-2.5 rotate-45 rounded-[2px]",
+                    SEVERITY_MARK[f.severity],
+                    f.id === activeFindingId && "ring-2 ring-[var(--text-primary)]"
+                  )}
+                />
+              </button>
+            ))}
+        </div>
+      )}
+      <div className="relative h-3" aria-hidden={marks.length === 0}>
+        {marks.map((m, i) => (
+          <button
+            key={`${m.kind}-${m.tick}-${i}`}
+            type="button"
+            onClick={() => jumpToTick(m.tick)}
+            title={m.kind === "kill" ? "Zabójstwo" : "Bomba podłożona"}
+            aria-label={m.kind === "kill" ? "Przejdź do zabójstwa" : "Przejdź do podłożenia bomby"}
+            className="absolute top-0 flex h-3 w-3 -translate-x-1/2 items-center justify-center"
+            style={{ left: `${((m.tick - firstTick) / span) * 100}%` }}
+          >
+            <span
+              className={cn(
+                "block rounded-full",
+                m.kind === "kill" ? "h-2.5 w-[3px] bg-[var(--mistake)]" : "h-2.5 w-2.5 bg-[var(--t-gold)]"
+              )}
+            />
+          </button>
+        ))}
+      </div>
+    </>
+  );
+
+  const scrubber = (
+    <input
+      type="range"
+      min={0}
+      max={Math.max(totalFrames - 1, 0)}
+      value={currentFrameIndex}
+      onChange={(e) => setFrameIndex(parseInt(e.target.value, 10))}
+      className="replay-scrubber w-full"
+      style={{ ["--progress" as string]: `${progress * 100}%` }}
+      disabled={totalFrames === 0}
+      aria-label="Pozycja w rundzie"
+      aria-valuetext={`${elapsed} z ${total}`}
+    />
+  );
+
+  // Big view: one slim bar (transport · timeline · speed · layers), so the map gets the height.
+  if (compact) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:flex-nowrap">
+        <div className="flex shrink-0 items-center">
+          <TransportButton small label="Poprzednia runda" onClick={() => goToRound(currentRound - 1)} disabled={currentRound <= 1 || isLoading}>
+            <ChevronLeft className="h-4 w-4" />
+          </TransportButton>
+          <TransportButton small label={`Cofnij ${SEEK_SECONDS} s`} onClick={() => seekSeconds(-SEEK_SECONDS)} disabled={totalFrames === 0}>
+            <RotateCcw className="h-4 w-4" />
+          </TransportButton>
+          <button
+            type="button"
+            onClick={togglePlay}
+            disabled={totalFrames === 0}
+            aria-label={isPlaying ? "Pauza" : "Odtwórz"}
+            className="mx-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--on-accent)] transition-colors duration-150 hover:bg-[var(--accent-hover)] focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--accent-glow)] disabled:opacity-40"
+          >
+            {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="ml-0.5 h-5 w-5" />}
+          </button>
+          <TransportButton small label={`Do przodu ${SEEK_SECONDS} s`} onClick={() => seekSeconds(SEEK_SECONDS)} disabled={totalFrames === 0}>
+            <RotateCw className="h-4 w-4" />
+          </TransportButton>
+          <TransportButton small label="Następna runda" onClick={() => goToRound(currentRound + 1)} disabled={currentRound >= rounds.length || isLoading}>
+            <ChevronRight className="h-4 w-4" />
+          </TransportButton>
+        </div>
+        <span className="font-mono text-xs tabular-nums text-[var(--text-secondary)]">{elapsed}</span>
+        <div className="order-first w-full min-w-0 sm:order-none sm:w-auto sm:flex-1">
+          {markRows}
+          {scrubber}
+        </div>
+        <span className="font-mono text-xs tabular-nums text-[var(--text-tertiary)]">{total}</span>
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:ml-0">
+          <Segmented<SpeedOption>
+            label="Prędkość odtwarzania"
+            size="sm"
+            value={String(playbackSpeed) as SpeedOption}
+            onChange={(v) => setSpeed(Number(v))}
+            options={SPEED_OPTIONS.map((s) => ({ value: s, label: <span className="font-mono">{s}×</span> }))}
+          />
+          <LayerToggle iconOnly label="Nicki" active={showPlayerNames} onClick={togglePlayerNames}>
+            <Tag className="h-4 w-4" />
+          </LayerToggle>
+          <LayerToggle iconOnly label="Utility i bomba" active={showGrenades} onClick={toggleGrenades}>
+            <Bomb className="h-4 w-4" />
+          </LayerToggle>
+          <LayerToggle iconOnly label="Pole widzenia" active={showFov} onClick={toggleFov}>
+            <Eye className="h-4 w-4" />
+          </LayerToggle>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={cn("rounded-xl border border-[var(--border)] bg-[var(--glass-bg)] backdrop-blur-xl", compact ? "space-y-2 p-2 sm:px-3" : "space-y-3 p-3 sm:p-4")}>
+    <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--glass-bg)] p-3 backdrop-blur-xl sm:p-4">
       {/* Round win probability (S14), aligned with the scrubber */}
-      {!compact && <WinProbStrip matchId={matchId} />}
+      <WinProbStrip matchId={matchId} />
 
       {/* Scrubber */}
       <div>
-        {findingMarks.length > 0 && (
-          <div className="relative mb-1 h-4">
-            {findingMarks
-              .filter((f) => f.tick >= firstTick && f.tick <= lastTick)
-              .map((f) => (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => onFinding?.(f)}
-                  title={`${f.label}: ${f.detail}`}
-                  aria-label={`Przejdź do błędu: ${f.label}, ${clock(f.roundTime)}`}
-                  className="absolute top-0 flex h-4 w-4 -translate-x-1/2 items-center justify-center"
-                  style={{ left: `${((f.tick - firstTick) / span) * 100}%` }}
-                >
-                  <span
-                    className={cn(
-                      "block h-2.5 w-2.5 rotate-45 rounded-[2px]",
-                      SEVERITY_MARK[f.severity],
-                      f.id === activeFindingId && "ring-2 ring-[var(--text-primary)]"
-                    )}
-                  />
-                </button>
-              ))}
-          </div>
-        )}
-        <div className="relative h-3" aria-hidden={marks.length === 0}>
-          {marks.map((m, i) => (
-            <button
-              key={`${m.kind}-${m.tick}-${i}`}
-              type="button"
-              onClick={() => jumpToTick(m.tick)}
-              title={m.kind === "kill" ? "Zabójstwo" : "Bomba podłożona"}
-              aria-label={m.kind === "kill" ? "Przejdź do zabójstwa" : "Przejdź do podłożenia bomby"}
-              className="absolute top-0 flex h-3 w-3 -translate-x-1/2 items-center justify-center"
-              style={{ left: `${((m.tick - firstTick) / span) * 100}%` }}
-            >
-              <span
-                className={cn(
-                  "block rounded-full",
-                  m.kind === "kill" ? "h-2.5 w-[3px] bg-[var(--mistake)]" : "h-2.5 w-2.5 bg-[var(--t-gold)]"
-                )}
-              />
-            </button>
-          ))}
-        </div>
-        <input
-          type="range"
-          min={0}
-          max={Math.max(totalFrames - 1, 0)}
-          value={currentFrameIndex}
-          onChange={(e) => setFrameIndex(parseInt(e.target.value, 10))}
-          className="replay-scrubber w-full"
-          style={{ ["--progress" as string]: `${progress * 100}%` }}
-          disabled={totalFrames === 0}
-          aria-label="Pozycja w rundzie"
-          aria-valuetext={`${clock((currentTick - firstTick) / TICK_RATE)} z ${clock(span / TICK_RATE)}`}
-        />
+        {markRows}
+        {scrubber}
         <div className="mt-1 flex justify-between font-mono text-xs tabular-nums text-[var(--text-tertiary)]">
-          <span>{clock((currentTick - firstTick) / TICK_RATE)}</span>
+          <span>{elapsed}</span>
           <span className="hidden items-center gap-3 sm:flex">
             <span className="flex items-center gap-1">
               <span className="h-2.5 w-[3px] rounded-full bg-[var(--mistake)]" /> zabójstwo
@@ -188,12 +256,10 @@ export function PlaybackControls({ matchId, rounds, findingMarks = [], onFinding
               </span>
             )}
           </span>
-          <span>{clock(span / TICK_RATE)}</span>
+          <span>{total}</span>
         </div>
       </div>
 
-      {/* Big view: transport and speed/layers share one row. */}
-      <div className={compact ? "flex flex-wrap items-center justify-center gap-x-4 gap-y-2" : "space-y-3"}>
       {/* Transport */}
       <div className="flex items-center justify-center gap-1 sm:gap-2">
         <TransportButton label="Poprzednia runda" onClick={() => goToRound(currentRound - 1)} disabled={currentRound <= 1 || isLoading}>
@@ -241,10 +307,9 @@ export function PlaybackControls({ matchId, rounds, findingMarks = [], onFinding
           </LayerToggle>
         </div>
       </div>
-      </div>
 
       {/* Round strip */}
-      <div className={compact ? "hidden" : undefined}>
+      <div>
         <p className="label-overline mb-1.5 text-[var(--text-tertiary)]">Rundy</p>
         <div ref={stripRef} className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
           {rounds.map((r) => {
@@ -285,11 +350,13 @@ function TransportButton({
   label,
   onClick,
   disabled,
+  small,
   children,
 }: {
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  small?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -299,7 +366,10 @@ function TransportButton({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[rgba(190,160,255,0.08)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--accent-glow)] disabled:opacity-30"
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-full text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[rgba(190,160,255,0.08)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--accent-glow)] disabled:opacity-30",
+        small ? "h-9 w-9" : "h-11 w-11"
+      )}
     >
       {children}
     </button>
@@ -310,11 +380,14 @@ function LayerToggle({
   label,
   active,
   onClick,
+  iconOnly,
   children,
 }: {
   label: string;
   active: boolean;
   onClick: () => void;
+  /** Big view: icon only, the label as tooltip. */
+  iconOnly?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -322,7 +395,10 @@ function LayerToggle({
       type="button"
       aria-pressed={active}
       onClick={onClick}
+      aria-label={iconOnly ? label : undefined}
+      title={iconOnly ? label : undefined}
       className={cn(
+        iconOnly && "!w-9 !flex-none !px-0",
         "flex h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border px-3 text-[13px] font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_var(--accent-glow)] max-md:h-10 sm:flex-none",
         active
           ? "border-[var(--border-active)] bg-[var(--accent-muted)] text-[var(--accent-hover)]"
@@ -330,7 +406,7 @@ function LayerToggle({
       )}
     >
       {children}
-      {label}
+      {!iconOnly && label}
     </button>
   );
 }
