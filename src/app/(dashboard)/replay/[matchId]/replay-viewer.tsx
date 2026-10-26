@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Bomb, ClipboardCheck, Maximize, Skull, Target } from "lucide-react";
 import { KinoLayout } from "./kino-layout";
+import { PlaylistBar, type ReplayPlaylist } from "./playlist-bar";
 import { useReplayStore, TICK_RATE } from "@/stores/replay-store";
 import type { PlayerSnapshot, TickFrame } from "@/stores/replay-store";
 import { PlaybackControls } from "./playback-controls";
@@ -53,6 +54,8 @@ interface PlayerInfo {
 
 interface ReplayViewerProps {
   matchId: string;
+  /** Rounds picked in the team analysis to step through. */
+  playlist?: ReplayPlaylist | null;
   mapName: string;
   mapConfig: RadarConfig | null;
   rounds: RoundInfo[];
@@ -131,6 +134,7 @@ function winReasonLabel(reason: string): string {
 }
 
 export function ReplayViewer({
+  playlist,
   matchId,
   mapName,
   mapConfig,
@@ -585,6 +589,7 @@ export function ReplayViewer({
           if (!useReplayStore.getState().isLoading) loadRound(matchId, n);
         }}
         onClose={() => setKino(false)}
+        extra={playlist ? <PlaylistBar playlist={playlist} /> : null}
         map={mapView}
         controls={<PlaybackControls matchId={matchId} rounds={rounds} findingMarks={roundFindings} onFinding={goToFinding} compact />}
         left={
@@ -616,6 +621,7 @@ export function ReplayViewer({
         loading={isLoading}
         loadingLabel="Ładowanie rundy…"
       />
+      {playlist && <PlaylistBar playlist={playlist} className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-2" />}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,760px)_minmax(260px,1fr)] lg:items-start">
         <div className="min-w-0 space-y-3">

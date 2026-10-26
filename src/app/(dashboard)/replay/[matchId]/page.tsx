@@ -6,10 +6,11 @@ import { notFound } from "next/navigation";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { getMapConfig } from "@/lib/utils/maps";
 import { ReplayViewer } from "./replay-viewer";
+import { decodePlaylist, playlistHref } from "@/lib/replay/playlist";
 
 interface Props {
   params: Promise<{ matchId: string }>;
-  searchParams: Promise<{ round?: string; tick?: string; player?: string; finding?: string }>;
+  searchParams: Promise<{ round?: string; tick?: string; player?: string; finding?: string; pl?: string; pi?: string; view?: string }>;
 }
 
 export default async function ReplayPage({ params, searchParams }: Props) {
@@ -59,8 +60,25 @@ export default async function ReplayPage({ params, searchParams }: Props) {
   const inMatch = (id: string | null | undefined) => !!id && match.players.some((p) => p.steamId === id);
   const initialPlayer = inMatch(query.player) ? query.player! : inMatch(session?.user?.steamId) ? session!.user.steamId : null;
 
+  // A playlist from the team analysis: the rounds to step through (?pl=&pi=).
+  const entries = decodePlaylist(query.pl);
+  const pi = Math.min(Math.max(0, Number(query.pi) || 0), Math.max(0, entries.length - 1));
+  const full = query.view === "full";
+  const playlist =
+    entries.length > 1
+      ? {
+          index: pi,
+          total: entries.length,
+          prevHref: pi > 0 ? playlistHref(entries, pi - 1, full) : null,
+          nextHref: pi < entries.length - 1 ? playlistHref(entries, pi + 1, full) : null,
+        }
+      : null;
+
   return (
     <ReplayViewer
+      // A new round of the playlist remounts the viewer on that round.
+      key={`${matchId}:${initialRound}:${initialTick ?? ""}`}
+      playlist={playlist}
       matchId={matchId}
       mapName={mapDisplayName(match.map)}
       mapConfig={mapConfig ? {
