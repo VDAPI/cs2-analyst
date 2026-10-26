@@ -131,7 +131,7 @@ export function KinoLayout({
         </button>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3 lg:flex-row lg:overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2 lg:flex-row lg:overflow-hidden">
         <aside className="order-2 space-y-3 lg:order-1 lg:w-72 lg:shrink-0 lg:overflow-y-auto">{left}</aside>
         <main className="order-1 flex min-h-0 min-w-0 flex-1 items-start justify-center lg:order-2 lg:h-full lg:items-center">
           {/* As big as the window allows, square: full width on phones, full height on desktop. */}
@@ -140,11 +140,12 @@ export function KinoLayout({
         <aside className="order-3 space-y-3 lg:w-72 lg:shrink-0 lg:overflow-y-auto">{right}</aside>
       </div>
 
-      <footer className="border-t border-[var(--border)] bg-[var(--surface-1)] px-3 py-2">
-        <div className="mx-auto max-w-5xl">{controls}</div>
-        <p className="mt-1 hidden text-center text-xs text-[var(--text-tertiary)] md:block">
-          Spacja: start/pauza · ←/→: 5 s · Shift+←/→: runda · F: duży podgląd · Esc: zamknij
-        </p>
+      {/* One slim bar, the map keeps the height. */}
+      <footer
+        className="border-t border-[var(--border)] bg-[var(--surface-1)] px-2 py-1.5 sm:px-3"
+        title="Spacja: start/pauza · ←/→: 5 s · Shift+←/→: runda · F: duży podgląd · Esc: zamknij"
+      >
+        {controls}
       </footer>
     </div>
   );
