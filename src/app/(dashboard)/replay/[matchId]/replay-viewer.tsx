@@ -30,6 +30,7 @@ import {
   drawSightLine,
   drawUtilityTimers,
   drawViewCone,
+  type LabelRect,
 } from "@/lib/canvas/replay-draw";
 import { FindingTag } from "@/components/ui";
 import { fmtRoundTime, type FindingView } from "@/lib/findings/view";
@@ -159,7 +160,7 @@ export function ReplayViewer({
   const [pendingNote, setPendingNote] = useState<{ x: number; y: number } | null>(null);
   const reducedMotion = usePrefersReducedMotion();
   const [zoom, setZoom] = useState(1);
-  const ui = useCanvasUiScale(canvasRef, zoom);
+  const ui = useCanvasUiScale(canvasRef, zoom, 980);
   const [kino, setKino] = useState(false);
   // ?view=full opens the big view; F toggles it, Escape leaves it.
   useEffect(() => {
@@ -258,7 +259,7 @@ export function ReplayViewer({
       const shown = frame && next && alpha > 0 ? interpolateFrame(frame, next, alpha) : frame;
       const tickNow = shown?.tick ?? currentTick;
 
-      drawRadarBackground(ctx, radar, 0.3, mapName);
+      drawRadarBackground(ctx, radar, 0.6, mapName);
       if (!shown) return;
 
       if (showGrenades) {
@@ -305,9 +306,11 @@ export function ReplayViewer({
       const ordered = [...shown.players].sort(
         (a, b) => Number(a.steamId === selectedSteamId) - Number(b.steamId === selectedSteamId)
       );
+      const slots = playerSlots(shown.players);
+      const labels: LabelRect[] = [];
       for (const p of ordered) {
         const pos = worldToCanvas(p.x, p.y);
-        drawPlayer(ctx, pos.x, pos.y, p, showPlayerNames, p.steamId === selectedSteamId, tickNow, ui);
+        drawPlayer(ctx, pos.x, pos.y, p, showPlayerNames, p.steamId === selectedSteamId, tickNow, ui, slots.get(p.steamId), labels);
         if (p.steamId === selectedSteamId) drawPlayerLoadout(ctx, pos.x, pos.y, p, ui);
       }
       for (const { f, strength } of live) {
@@ -684,6 +687,12 @@ export function ReplayViewer({
   );
 }
 
+/** 1–5 per team in the frame's order, the same order as the side lists. */
+function playerSlots(players: PlayerSnapshot[]): Map<string, number> {
+  const count = { CT: 0, T: 0 };
+  return new Map(players.map((p) => [p.steamId, ++count[p.team]]));
+}
+
 function SidePanel({
   side,
   players,
@@ -711,9 +720,9 @@ function SidePanel({
         <span className="label-overline">{isCT ? "Counter-Terrorists" : "Terrorists"}</span>
       </div>
       <ul className="space-y-0.5">
-        {players.map((p) => (
+        {players.map((p, i) => (
           <li key={p.steamId}>
-            <PlayerRow player={p} selected={p.steamId === selectedSteamId} onSelect={onSelect} large={large} />
+            <PlayerRow player={p} slot={i + 1} selected={p.steamId === selectedSteamId} onSelect={onSelect} large={large} />
           </li>
         ))}
       </ul>
@@ -723,11 +732,14 @@ function SidePanel({
 
 function PlayerRow({
   player,
+  slot,
   selected,
   onSelect,
   large,
 }: {
   player: PlayerSnapshot;
+  /** Number drawn on the player's token on the map. */
+  slot: number;
   selected: boolean;
   onSelect: (steamId: string) => void;
   large?: boolean;
@@ -746,7 +758,12 @@ function PlayerRow({
         dead && !selected && "opacity-45"
       )}
     >
-      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+      <span
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-bold text-[var(--on-accent)]"
+        style={{ backgroundColor: color }}
+      >
+        {slot}
+      </span>
       <span className="min-w-0 flex-1 truncate font-mono text-[var(--text-secondary)]">{player.name}</span>
       {player.weapon && !dead && (
         <span className={cn("hidden max-w-[80px] truncate text-xs text-[var(--text-tertiary)] sm:inline", large && "inline max-w-[110px] text-[13px]")}>
