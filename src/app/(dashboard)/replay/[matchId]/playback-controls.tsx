@@ -32,6 +32,8 @@ interface PlaybackControlsProps {
   /** Mistakes in the current round, marked on the timeline. */
   findingMarks?: FindingView[];
   onFinding?: (f: FindingView) => void;
+  /** Big view: no win-probability chart and no round strip (the big view has its own). */
+  compact?: boolean;
 }
 
 const SEVERITY_MARK: Record<FindingView["severity"], string> = {
@@ -50,7 +52,7 @@ function clock(seconds: number) {
 }
 
 /** Touch-first replay controls: scrubber with kill/bomb/mistake marks, transport, speed, layers and a round strip. */
-export function PlaybackControls({ matchId, rounds, findingMarks = [], onFinding }: PlaybackControlsProps) {
+export function PlaybackControls({ matchId, rounds, findingMarks = [], onFinding, compact }: PlaybackControlsProps) {
   const {
     frames,
     kills,
@@ -108,9 +110,9 @@ export function PlaybackControls({ matchId, rounds, findingMarks = [], onFinding
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--glass-bg)] p-3 backdrop-blur-xl sm:p-4">
+    <div className={cn("rounded-xl border border-[var(--border)] bg-[var(--glass-bg)] backdrop-blur-xl", compact ? "space-y-2 p-2 sm:px-3" : "space-y-3 p-3 sm:p-4")}>
       {/* Round win probability (S14), aligned with the scrubber */}
-      <WinProbStrip matchId={matchId} />
+      {!compact && <WinProbStrip matchId={matchId} />}
 
       {/* Scrubber */}
       <div>
@@ -190,6 +192,8 @@ export function PlaybackControls({ matchId, rounds, findingMarks = [], onFinding
         </div>
       </div>
 
+      {/* Big view: transport and speed/layers share one row. */}
+      <div className={compact ? "flex flex-wrap items-center justify-center gap-x-4 gap-y-2" : "space-y-3"}>
       {/* Transport */}
       <div className="flex items-center justify-center gap-1 sm:gap-2">
         <TransportButton label="Poprzednia runda" onClick={() => goToRound(currentRound - 1)} disabled={currentRound <= 1 || isLoading}>
@@ -237,9 +241,10 @@ export function PlaybackControls({ matchId, rounds, findingMarks = [], onFinding
           </LayerToggle>
         </div>
       </div>
+      </div>
 
       {/* Round strip */}
-      <div>
+      <div className={compact ? "hidden" : undefined}>
         <p className="label-overline mb-1.5 text-[var(--text-tertiary)]">Rundy</p>
         <div ref={stripRef} className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
           {rounds.map((r) => {
