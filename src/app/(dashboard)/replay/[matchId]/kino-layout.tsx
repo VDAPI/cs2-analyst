@@ -30,6 +30,7 @@ export function KinoLayout({
   controls,
   left,
   right,
+  extra,
 }: {
   mapName: string;
   scoreCT: number;
@@ -43,6 +44,8 @@ export function KinoLayout({
   controls: ReactNode;
   left: ReactNode;
   right: ReactNode;
+  /** Shown in the header, e.g. the playlist stepper. */
+  extra?: ReactNode;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
@@ -117,6 +120,7 @@ export function KinoLayout({
             </button>
           ))}
         </div>
+        {extra}
         <button
           type="button"
           onClick={toggleFullscreen}

@@ -2,6 +2,9 @@ import { Card, SectionTitle } from "@/components/ui";
 import type { TFunction } from "@/lib/i18n/translate";
 import type { AntiStratReport } from "@/lib/team/antistrat";
 import {
+  BUY_KEY,
+  roundText,
+  thrownText,
   afterPistol,
   awpSummary,
   defaultSpots,
@@ -16,7 +19,7 @@ import {
 import { ctSpotOf, shortPlace } from "@/lib/team/map-lanes";
 import { formatDate } from "@/lib/utils/formatters";
 import { RepeatedPlays } from "./repeated-plays";
-import { RoundCard } from "./round-card";
+import { RoundBrowser } from "./round-browser";
 
 function CountList({ rows, of }: { rows: Array<{ label: string; n: number }>; of: number }) {
   if (rows.length === 0) return <p className="text-sm text-[var(--text-tertiary)]">—</p>;
@@ -169,25 +172,30 @@ export function TeamMapAnalysis({
       </div>
 
       <section className="space-y-2">
-        <SectionTitle>Rundy z każdego dema</SectionTitle>
-        {report.matches.map((m) => (
-          <details key={m.matchId} className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)]">
-            <summary className="cursor-pointer p-3 text-sm">
-              <span className="font-semibold text-[var(--text-primary)]">
-                {m.rivalScore}:{m.oppScore}
-              </span>{" "}
-              {opponents?.get(m.matchId) && <span className="text-[var(--text-secondary)]">vs {opponents.get(m.matchId)} </span>}
-              <span className="text-xs text-[var(--text-tertiary)]">{formatDate(m.date)}</span>
-            </summary>
-            <ul className="grid gap-2 p-3 pt-0 md:grid-cols-2">
-              {report.rounds
-                .filter((r) => r.matchId === m.matchId)
-                .map((r) => (
-                  <RoundCard key={r.round} r={r} t={t} map={map} nameOf={nameOf} shared={shared} />
-                ))}
-            </ul>
-          </details>
-        ))}
+        <SectionTitle>Rundy</SectionTitle>
+        <RoundBrowser
+          shared={shared}
+          rounds={report.rounds.map((r) => {
+            const text = roundText(t, map, r, nameOf);
+            const m = report.matches.find((x) => x.matchId === r.matchId);
+            const vs = opponents?.get(r.matchId);
+            return {
+              key: `${r.matchId}:${r.round}`,
+              matchId: r.matchId,
+              matchLabel: `${m ? `${m.rivalScore}:${m.oppScore}` : ""}${vs ? ` vs ${vs}` : ""}${m ? ` · ${formatDate(m.date)}` : ""}`,
+              round: r.round,
+              side: r.side,
+              buyKind: r.buy,
+              buyLabel: t(BUY_KEY[r.buy]),
+              won: r.won,
+              name: text.name,
+              groups: text.groups,
+              outcome: text.outcome,
+              thrown: thrownText(t, map, r, nameOf),
+              tick: r.tick,
+            };
+          })}
+        />
       </section>
     </div>
   );
