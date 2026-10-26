@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Bomb, ClipboardCheck, Skull, Target } from "lucide-react";
+import { Bomb, ClipboardCheck, Maximize, Skull, Target } from "lucide-react";
+import { KinoLayout } from "./kino-layout";
 import { useReplayStore, TICK_RATE } from "@/stores/replay-store";
 import type { PlayerSnapshot, TickFrame } from "@/stores/replay-store";
 import { PlaybackControls } from "./playback-controls";
@@ -155,6 +156,19 @@ export function ReplayViewer({
   const reducedMotion = usePrefersReducedMotion();
   const [zoom, setZoom] = useState(1);
   const ui = useCanvasUiScale(canvasRef, zoom);
+  const [kino, setKino] = useState(false);
+  // ?view=full opens the big view; F toggles it, Escape leaves it.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("view") === "full") setKino(true);
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target;
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return;
+      if (e.key === "f" || e.key === "F") setKino((k) => !k);
+      else if (e.key === "Escape" && !document.fullscreenElement) setKino(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const {
     frames,
@@ -460,6 +474,136 @@ export function ReplayViewer({
       : players.filter((p) => p.team === side).map((p) => ({ ...p, health: 100, isAlive: true, weapon: "", x: 0, y: 0, z: 0, yaw: 0 }));
   const aliveCount = (side: "CT" | "T") => livePlayers.filter((p) => p.team === side && p.isAlive).length;
 
+  const mapView = (
+    <MapViewport
+      onZoomChange={setZoom}
+      canvasRef={canvasRef}
+      size={TOOL_CANVAS_SIZE}
+      onTap={onTap}
+      label={`Replay 2D, runda ${currentRound}, mapa ${mapName}`}
+    >
+      <div className="pointer-events-none absolute left-2 top-2 flex flex-col gap-1.5">
+        <div className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--glass-bg)] px-2.5 py-1.5 backdrop-blur-md">
+          <span className="font-display text-sm font-semibold text-[var(--text-primary)]">R{currentRound}</span>
+          <span className="font-mono text-sm tabular-nums text-[var(--text-secondary)]">
+            {Math.floor(elapsed / 60)}:{String(Math.floor(elapsed % 60)).padStart(2, "0")}
+          </span>
+        </div>
+        {livePlayers.length > 0 && (
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--glass-bg)] px-2.5 py-1 font-mono text-sm font-semibold tabular-nums backdrop-blur-md">
+            <span className="text-[var(--ct-blue)]">{aliveCount("CT")}</span>
+            <span className="text-[var(--text-disabled)]">vs</span>
+            <span className="text-[var(--t-gold)]">{aliveCount("T")}</span>
+          </div>
+        )}
+        {bomb && (
+          <div className="flex items-center gap-1.5 rounded-lg border border-[rgba(255,194,61,0.4)] bg-[var(--glass-bg)] px-2.5 py-1 backdrop-blur-md">
+            <Bomb className="h-3.5 w-3.5 text-[var(--t-gold)]" />
+            <span className="font-mono text-sm tabular-nums text-[var(--t-gold)]">{bomb.remaining.toFixed(1)} s</span>
+            {bomb.event.site && <span className="text-xs text-[var(--text-tertiary)]">{bomb.event.site}</span>}
+          </div>
+        )}
+      </div>
+      {nowFinding && (
+        <div className="pointer-events-none absolute inset-x-2 bottom-2 flex justify-center">
+          <div className="flex max-w-full items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--glass-bg)] px-2.5 py-1.5 backdrop-blur-md">
+            <FindingTag severity={nowFinding.severity} className="shrink-0 whitespace-nowrap">
+              {nowFinding.label}
+            </FindingTag>
+            <span className="hidden truncate text-xs text-[var(--text-secondary)] sm:inline">
+              {selectedSteamId ? nowFinding.detail : `${nameOf.get(nowFinding.steamId) ?? ""}: ${nowFinding.detail}`}
+            </span>
+          </div>
+        </div>
+      )}
+    </MapViewport>
+  );
+  const killFeed = (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3 sm:col-span-2 lg:col-span-1">
+      <p className="label-overline mb-2 text-[var(--text-tertiary)]">Killfeed</p>
+      {visibleKills.length === 0 ? (
+        <p className="text-[13px] text-[var(--text-tertiary)]">Jeszcze nikt nie zginął w tej rundzie.</p>
+      ) : (
+        <ul className="max-h-[200px] space-y-1 overflow-y-auto">
+          {visibleKills.map((k, i) => (
+            <li key={`${k.tick}-${i}`} className="flex min-w-0 items-center gap-1.5 text-[13px]">
+              <span className="truncate font-mono text-[var(--text-primary)]">{k.attackerName || "świat"}</span>
+              <span className="shrink-0 text-[var(--text-tertiary)]">{k.weapon}</span>
+              {k.headshot && (
+                <span className="shrink-0 rounded-full bg-[var(--accent-2-muted)] px-1.5 text-[11px] font-semibold text-[var(--accent-2)]">HS</span>
+              )}
+              <Skull className="h-3.5 w-3.5 shrink-0 text-[var(--mistake)]" aria-label="zabił" />
+              <span className="truncate font-mono text-[var(--text-tertiary)]">{k.victimName}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+  const findingsPanel = (
+    <FindingsPanel
+      matchId={matchId}
+      findings={roundFindings}
+      allCount={findings.filter((f) => !selectedSteamId || f.steamId === selectedSteamId).length}
+      activeId={nowFinding?.id ?? activeFindingId}
+      selectedName={selectedSteamId ? nameOf.get(selectedSteamId) ?? null : null}
+      selectedSteamId={selectedSteamId}
+      nameOf={nameOf}
+      onPick={goToFinding}
+    />
+  );
+  const roundInfoBox = (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3 sm:col-span-2 lg:col-span-1">
+      {roundInfo ? (
+        <p className="text-sm text-[var(--text-secondary)]">
+          Rundę {roundInfo.number} wygrali{" "}
+          <span className={cn("font-semibold", roundInfo.winner === "CT" ? "text-[var(--ct-blue)]" : "text-[var(--t-gold)]")}>
+            {roundInfo.winner}
+          </span>{" "}
+          · {winReasonLabel(roundInfo.winReason)} ·{" "}
+          <span className="font-mono tabular-nums">
+            {roundInfo.ctScore}:{roundInfo.tScore}
+          </span>
+        </p>
+      ) : (
+        <p className="text-sm text-[var(--text-tertiary)]">Wybierz rundę.</p>
+      )}
+    </div>
+  );
+  const controls = <PlaybackControls matchId={matchId} rounds={rounds} findingMarks={roundFindings} onFinding={goToFinding} />;
+
+  if (kino) {
+    return (
+      <KinoLayout
+        mapName={mapName}
+        scoreCT={scoreCT}
+        scoreT={scoreT}
+        rounds={rounds}
+        currentRound={currentRound}
+        loading={isLoading}
+        onRound={(n) => {
+          if (!useReplayStore.getState().isLoading) loadRound(matchId, n);
+        }}
+        onClose={() => setKino(false)}
+        map={mapView}
+        controls={<PlaybackControls matchId={matchId} rounds={rounds} findingMarks={roundFindings} onFinding={goToFinding} compact />}
+        left={
+          <>
+            <SidePanel side="CT" players={sideList("CT")} selectedSteamId={selectedSteamId} onSelect={selectPlayer} large />
+            {roundInfoBox}
+            {findingsPanel}
+          </>
+        }
+        right={
+          <>
+            <SidePanel side="T" players={sideList("T")} selectedSteamId={selectedSteamId} onSelect={selectPlayer} large />
+            {killFeed}
+          </>
+        }
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <ToolHeader
@@ -475,84 +619,27 @@ export function ReplayViewer({
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,760px)_minmax(260px,1fr)] lg:items-start">
         <div className="min-w-0 space-y-3">
-          <MapViewport
-            onZoomChange={setZoom}
-            canvasRef={canvasRef}
-            size={TOOL_CANVAS_SIZE}
-            onTap={onTap}
-            label={`Replay 2D, runda ${currentRound}, mapa ${mapName}`}
+          {mapView}
+
+          {controls}
+
+          <button
+            type="button"
+            onClick={() => setKino(true)}
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--border)] px-3 text-sm text-[var(--text-primary)] hover:border-[var(--border-hover)]"
           >
-            <div className="pointer-events-none absolute left-2 top-2 flex flex-col gap-1.5">
-              <div className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--glass-bg)] px-2.5 py-1.5 backdrop-blur-md">
-                <span className="font-display text-sm font-semibold text-[var(--text-primary)]">R{currentRound}</span>
-                <span className="font-mono text-sm tabular-nums text-[var(--text-secondary)]">
-                  {Math.floor(elapsed / 60)}:{String(Math.floor(elapsed % 60)).padStart(2, "0")}
-                </span>
-              </div>
-              {livePlayers.length > 0 && (
-                <div className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--glass-bg)] px-2.5 py-1 font-mono text-sm font-semibold tabular-nums backdrop-blur-md">
-                  <span className="text-[var(--ct-blue)]">{aliveCount("CT")}</span>
-                  <span className="text-[var(--text-disabled)]">vs</span>
-                  <span className="text-[var(--t-gold)]">{aliveCount("T")}</span>
-                </div>
-              )}
-              {bomb && (
-                <div className="flex items-center gap-1.5 rounded-lg border border-[rgba(255,194,61,0.4)] bg-[var(--glass-bg)] px-2.5 py-1 backdrop-blur-md">
-                  <Bomb className="h-3.5 w-3.5 text-[var(--t-gold)]" />
-                  <span className="font-mono text-sm tabular-nums text-[var(--t-gold)]">{bomb.remaining.toFixed(1)} s</span>
-                  {bomb.event.site && <span className="text-xs text-[var(--text-tertiary)]">{bomb.event.site}</span>}
-                </div>
-              )}
-            </div>
-            {nowFinding && (
-              <div className="pointer-events-none absolute inset-x-2 bottom-2 flex justify-center">
-                <div className="flex max-w-full items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--glass-bg)] px-2.5 py-1.5 backdrop-blur-md">
-                  <FindingTag severity={nowFinding.severity} className="shrink-0 whitespace-nowrap">
-                    {nowFinding.label}
-                  </FindingTag>
-                  <span className="hidden truncate text-xs text-[var(--text-secondary)] sm:inline">
-                    {selectedSteamId ? nowFinding.detail : `${nameOf.get(nowFinding.steamId) ?? ""}: ${nowFinding.detail}`}
-                  </span>
-                </div>
-              </div>
-            )}
-          </MapViewport>
-
-          <PlaybackControls matchId={matchId} rounds={rounds} findingMarks={roundFindings} onFinding={goToFinding} />
-
+            <Maximize className="h-4 w-4" aria-hidden />
+            Duży podgląd (F)
+          </button>
           <p className="hidden text-[13px] text-[var(--text-tertiary)] md:block">
             Spacja: start/pauza · ←/→: 5 s · Shift+←/→: runda · kliknij gracza, aby go wyróżnić · Ctrl+kółko: zoom
           </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3 sm:col-span-2 lg:col-span-1">
-            {roundInfo ? (
-              <p className="text-sm text-[var(--text-secondary)]">
-                Rundę {roundInfo.number} wygrali{" "}
-                <span className={cn("font-semibold", roundInfo.winner === "CT" ? "text-[var(--ct-blue)]" : "text-[var(--t-gold)]")}>
-                  {roundInfo.winner}
-                </span>{" "}
-                · {winReasonLabel(roundInfo.winReason)} ·{" "}
-                <span className="font-mono tabular-nums">
-                  {roundInfo.ctScore}:{roundInfo.tScore}
-                </span>
-              </p>
-            ) : (
-              <p className="text-sm text-[var(--text-tertiary)]">Wybierz rundę.</p>
-            )}
-          </div>
+          {roundInfoBox}
 
-          <FindingsPanel
-            matchId={matchId}
-            findings={roundFindings}
-            allCount={findings.filter((f) => !selectedSteamId || f.steamId === selectedSteamId).length}
-            activeId={nowFinding?.id ?? activeFindingId}
-            selectedName={selectedSteamId ? nameOf.get(selectedSteamId) ?? null : null}
-            selectedSteamId={selectedSteamId}
-            nameOf={nameOf}
-            onPick={goToFinding}
-          />
+          {findingsPanel}
 
           {!readOnly && (
             <MomentTools
@@ -584,26 +671,7 @@ export function ReplayViewer({
             onSelect={selectPlayer}
           />
 
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-3 sm:col-span-2 lg:col-span-1">
-            <p className="label-overline mb-2 text-[var(--text-tertiary)]">Killfeed</p>
-            {visibleKills.length === 0 ? (
-              <p className="text-[13px] text-[var(--text-tertiary)]">Jeszcze nikt nie zginął w tej rundzie.</p>
-            ) : (
-              <ul className="max-h-[200px] space-y-1 overflow-y-auto">
-                {visibleKills.map((k, i) => (
-                  <li key={`${k.tick}-${i}`} className="flex min-w-0 items-center gap-1.5 text-[13px]">
-                    <span className="truncate font-mono text-[var(--text-primary)]">{k.attackerName || "świat"}</span>
-                    <span className="shrink-0 text-[var(--text-tertiary)]">{k.weapon}</span>
-                    {k.headshot && (
-                      <span className="shrink-0 rounded-full bg-[var(--accent-2-muted)] px-1.5 text-[11px] font-semibold text-[var(--accent-2)]">HS</span>
-                    )}
-                    <Skull className="h-3.5 w-3.5 shrink-0 text-[var(--mistake)]" aria-label="zabił" />
-                    <span className="truncate font-mono text-[var(--text-tertiary)]">{k.victimName}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          {killFeed}
         </div>
       </div>
     </div>
@@ -615,11 +683,14 @@ function SidePanel({
   players,
   selectedSteamId,
   onSelect,
+  large,
 }: {
   side: "CT" | "T";
   players: PlayerSnapshot[];
   selectedSteamId: string | null;
   onSelect: (steamId: string) => void;
+  /** Big view: larger rows, weapon always shown. */
+  large?: boolean;
 }) {
   const isCT = side === "CT";
   return (
@@ -636,7 +707,7 @@ function SidePanel({
       <ul className="space-y-0.5">
         {players.map((p) => (
           <li key={p.steamId}>
-            <PlayerRow player={p} selected={p.steamId === selectedSteamId} onSelect={onSelect} />
+            <PlayerRow player={p} selected={p.steamId === selectedSteamId} onSelect={onSelect} large={large} />
           </li>
         ))}
       </ul>
@@ -648,10 +719,12 @@ function PlayerRow({
   player,
   selected,
   onSelect,
+  large,
 }: {
   player: PlayerSnapshot;
   selected: boolean;
   onSelect: (steamId: string) => void;
+  large?: boolean;
 }) {
   const dead = !player.isAlive;
   const color = player.team === "CT" ? "var(--ct-blue)" : "var(--t-gold)";
@@ -662,6 +735,7 @@ function PlayerRow({
       aria-pressed={selected}
       className={cn(
         "flex min-h-10 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] transition-colors duration-150 md:min-h-9",
+        large && "min-h-12 text-[15px] md:min-h-11",
         selected ? "bg-[var(--accent-muted)] ring-1 ring-[var(--accent)]" : "hover:bg-[var(--surface-2)]",
         dead && !selected && "opacity-45"
       )}
@@ -669,7 +743,7 @@ function PlayerRow({
       <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
       <span className="min-w-0 flex-1 truncate font-mono text-[var(--text-secondary)]">{player.name}</span>
       {player.weapon && !dead && (
-        <span className="hidden max-w-[80px] truncate text-xs text-[var(--text-tertiary)] sm:inline">
+        <span className={cn("hidden max-w-[80px] truncate text-xs text-[var(--text-tertiary)] sm:inline", large && "inline max-w-[110px] text-[13px]")}>
           {player.weapon.replace(/^weapon_/, "")}
         </span>
       )}
