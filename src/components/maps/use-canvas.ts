@@ -34,9 +34,14 @@ export function useCanvasUiScale(
   max = 2.4
 ): number {
   const [width, setWidth] = useState(0);
+  // The ref can point at a new canvas (the replay's big view mounts its own), so follow it.
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- runs after every render on purpose; sets state only when the element changed
+  useEffect(() => {
+    if (canvasRef.current !== canvas) setCanvas(canvasRef.current);
+  });
 
   useEffect(() => {
-    const canvas = canvasRef.current;
     if (!canvas) return;
     // clientWidth ignores the pan/zoom CSS transform; zoom is applied below
     const update = () => setWidth(canvas.clientWidth);
@@ -44,7 +49,7 @@ export function useCanvasUiScale(
     const ro = new ResizeObserver(update);
     ro.observe(canvas);
     return () => ro.disconnect();
-  }, [canvasRef]);
+  }, [canvas]);
 
   if (width <= 0) return 1;
   const base = Math.min(max, Math.max(1, reference / width));

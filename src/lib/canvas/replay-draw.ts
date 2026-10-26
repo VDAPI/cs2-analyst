@@ -13,6 +13,13 @@ const T_COLOR_DEAD = "rgba(255, 194, 61, 0.35)";
 
 // ─── Players ────────────────────────────────────────────
 
+export interface LabelRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export function drawPlayer(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -22,7 +29,11 @@ export function drawPlayer(
   selected: boolean,
   tick: number,
   /** Marker size factor from useCanvasUiScale. */
-  ui = 1
+  ui = 1,
+  /** 1–5 within the team, as in the side lists; drawn inside the token. */
+  slot?: number,
+  /** Name labels already drawn this frame; a label that would overlap one moves up. */
+  placed?: LabelRect[]
 ) {
   const isCT = player.team === "CT";
 
@@ -30,7 +41,8 @@ export function drawPlayer(
     ctx.save();
     ctx.strokeStyle = selected ? CANVAS_COLORS.accent : isCT ? CT_COLOR_DEAD : T_COLOR_DEAD;
     ctx.lineWidth = (selected ? 3 : 2) * ui;
-    const s = 8 * ui;
+    ctx.lineCap = "round";
+    const s = 6 * ui;
     ctx.beginPath();
     ctx.moveTo(x - s, y - s);
     ctx.lineTo(x + s, y + s);
@@ -43,6 +55,7 @@ export function drawPlayer(
 
   const color = isCT ? CANVAS_COLORS.ct : CANVAS_COLORS.t;
   const radius = (selected ? PLAYER_RADIUS + 2 : PLAYER_RADIUS) * ui;
+  const a = (-player.yaw * Math.PI) / 180; // canvas y grows down
 
   ctx.save();
 
@@ -50,7 +63,7 @@ export function drawPlayer(
   if (selected) {
     const pulse = 1 + Math.sin(tick * 0.12) * 0.15;
     ctx.beginPath();
-    ctx.arc(x, y, (radius + 7 * ui) * pulse, 0, Math.PI * 2);
+    ctx.arc(x, y, (radius + 8 * ui) * pulse, 0, Math.PI * 2);
     ctx.strokeStyle = CANVAS_COLORS.accent;
     ctx.lineWidth = 3 * ui;
     ctx.shadowColor = CANVAS_COLORS.accent;
@@ -59,49 +72,80 @@ export function drawPlayer(
     ctx.shadowBlur = 0;
   }
 
-  // View direction
-  const angleRad = (player.yaw * Math.PI) / 180;
-  const dirLen = radius * 2.1;
+  // View direction: a pointer on the token's edge (the FOV layer draws the cone).
+  const tip = radius + 8 * ui;
+  const wing = 0.55;
   ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + Math.cos(angleRad) * dirLen, y - Math.sin(angleRad) * dirLen);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 3 * ui;
-  ctx.lineCap = "round";
+  ctx.moveTo(x + Math.cos(a) * tip, y + Math.sin(a) * tip);
+  ctx.lineTo(x + Math.cos(a - wing) * (radius - 1 * ui), y + Math.sin(a - wing) * (radius - 1 * ui));
+  ctx.lineTo(x + Math.cos(a + wing) * (radius - 1 * ui), y + Math.sin(a + wing) * (radius - 1 * ui));
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = CANVAS_COLORS.canvas;
+  ctx.lineWidth = 1.5 * ui;
+  ctx.lineJoin = "round";
   ctx.stroke();
+  ctx.fill();
 
-  // Body: team fill + 1px light outline
+  // Body: team fill, dark outline and a soft shadow so it reads on any part of the radar.
+  ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
+  ctx.shadowBlur = 6 * ui;
   ctx.beginPath();
   ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.fillStyle = color;
   ctx.fill();
-  ctx.strokeStyle = CANVAS_COLORS.textPrimary;
-  ctx.lineWidth = (selected ? 2 : 1) * ui;
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = selected ? CANVAS_COLORS.textPrimary : CANVAS_COLORS.canvas;
+  ctx.lineWidth = (selected ? 2 : 1.5) * ui;
   ctx.stroke();
 
-  // Health bar
+  // HP as a ring around the token (only once hurt).
   if (player.health < 100) {
-    const barWidth = radius * 2.2;
-    const barY = y + radius + 5 * ui;
-    const barH = 4 * ui;
-    ctx.fillStyle = "rgba(8, 7, 13, 0.75)";
-    ctx.fillRect(x - barWidth / 2, barY, barWidth, barH);
-    ctx.fillStyle = healthColor(player.health);
-    ctx.fillRect(x - barWidth / 2, barY, barWidth * (player.health / 100), barH);
+    const ringR = radius + 3.5 * ui;
+    ctx.beginPath();
+    ctx.arc(x, y, ringR, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(8, 7, 13, 0.75)";
+    ctx.lineWidth = 3.5 * ui;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, ringR, -Math.PI / 2, -Math.PI / 2 + (Math.max(0, player.health) / 100) * Math.PI * 2);
+    ctx.strokeStyle = healthColor(player.health);
+    ctx.lineWidth = 2.5 * ui;
+    ctx.lineCap = "round";
+    ctx.stroke();
   }
 
-  // Name: Geist Mono, light with dark outline
-  if (showName || selected) {
-    const nameY = y - radius - 6 * ui;
-    ctx.font = `${selected ? "bold " : ""}${Math.round((selected ? 15 : 13) * ui)}px "Geist Mono", monospace`;
+  if (slot) {
+    ctx.font = `bold ${Math.round(radius * 1.15)}px "Geist Mono", monospace`;
     ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    ctx.strokeStyle = "rgba(8, 7, 13, 0.9)";
-    ctx.lineWidth = 4 * ui;
-    ctx.lineJoin = "round";
-    ctx.strokeText(player.name, x, nameY);
-    ctx.fillStyle = CANVAS_COLORS.textPrimary;
-    ctx.fillText(player.name, x, nameY);
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = CANVAS_COLORS.canvas;
+    ctx.fillText(String(slot), x, y + 0.5 * ui);
+  }
+
+  // Name: a dark pill above the token with a team-colored edge.
+  if (showName || selected) {
+    const name = player.name.length > 14 ? `${player.name.slice(0, 13)}…` : player.name;
+    const fs = Math.round((selected ? 13 : 12) * ui);
+    ctx.font = `${selected ? "bold" : "600"} ${fs}px "Geist", system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const w = ctx.measureText(name).width + 10 * ui;
+    const h = fs + 6 * ui;
+    let top = y - radius - (player.health < 100 ? 8 : 5) * ui - h;
+    if (placed) {
+      const hits = (t: number) => placed.some((r) => x - w / 2 < r.x + r.w && x + w / 2 > r.x && t < r.y + r.h && t + h > r.y);
+      for (let i = 0; i < 6 && hits(top); i++) top -= h + 2 * ui;
+      placed.push({ x: x - w / 2, y: top, w, h });
+    }
+    ctx.fillStyle = selected ? "rgba(155, 107, 255, 0.9)" : "rgba(8, 7, 13, 0.78)";
+    ctx.beginPath();
+    ctx.roundRect(x - w / 2, top, w, h, 4 * ui);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.fillRect(x - w / 2, top + 2 * ui, 2 * ui, h - 4 * ui);
+    ctx.fillStyle = selected ? CANVAS_COLORS.canvas : CANVAS_COLORS.textPrimary;
+    ctx.fillText(name, x + 1 * ui, top + h / 2 + 0.5 * ui);
   }
 
   ctx.restore();
@@ -499,7 +543,7 @@ export function drawViewCone(
   const half = (VIEW_HALF_ANGLE_DEG * Math.PI) / 180;
   ctx.save();
   const grad = ctx.createRadialGradient(x, y, 0, x, y, lengthPx);
-  grad.addColorStop(0, `rgba(${color}, ${strong ? 0.28 : 0.12})`);
+  grad.addColorStop(0, `rgba(${color}, ${strong ? 0.28 : 0.08})`);
   grad.addColorStop(1, `rgba(${color}, 0)`);
   ctx.fillStyle = grad;
   ctx.beginPath();
