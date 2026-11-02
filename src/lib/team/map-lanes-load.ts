@@ -14,7 +14,7 @@ export async function positionsTeamId(prisma: PrismaClient, userId: string): Pro
   return member?.teamId;
 }
 
-const ZONE_SELECT = { id: true, name: true, points: true, ctSpot: true, laneA: true, laneB: true } as const;
+const ZONE_SELECT = { id: true, name: true, points: true, ctSpot: true, laneA: true, laneB: true, level: true } as const;
 
 /** A team's rows on a map: own zones, versions of shared ones and hidden ones. */
 export async function loadTeamZones(prisma: PrismaClient, map: string, teamId: string) {

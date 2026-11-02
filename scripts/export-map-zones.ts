@@ -13,7 +13,7 @@ async function main() {
   const [zones, callouts] = await Promise.all([
     prisma.mapZone.findMany({
       orderBy: [{ map: "asc" }, { createdAt: "asc" }],
-      select: { map: true, name: true, points: true, ctSpot: true, laneA: true, laneB: true },
+      select: { map: true, name: true, points: true, ctSpot: true, laneA: true, laneB: true, level: true },
     }),
     prisma.mapCallout.findMany({
       orderBy: [{ map: "asc" }, { place: "asc" }],

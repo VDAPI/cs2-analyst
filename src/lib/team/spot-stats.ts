@@ -64,7 +64,7 @@ export async function playerSpotStats(prisma: PrismaClient, userId: string, stea
   const teamId = await positionsTeamId(prisma, userId);
   for (const map of new Set(matches.map((m) => m.map))) {
     const [{ zones }, base] = await Promise.all([loadMapLanes(prisma, map, teamId), getPlaceLookup(prisma, map)]);
-    const zoned = withZones(zones, base);
+    const zoned = withZones(zones, base, map);
     lookups.set(map, (p) => {
       const name = zoned(p);
       return name ? shortPlace(lanesKey(map, teamId), name) : "?";

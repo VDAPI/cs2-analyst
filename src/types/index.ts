@@ -154,6 +154,8 @@ export interface MapConfig {
   name: string;
   displayName: string;
   radarImage: string;
+  /** Second floor: its radar, and the height (world z) below which a position is on it. */
+  lower?: { radarImage: string; below: number };
   // Coordinate transformation: game coords → pixel coords
   posX: number; // top-left X in game units
   posY: number; // top-left Y in game units

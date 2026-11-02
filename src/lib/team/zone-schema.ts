@@ -10,4 +10,5 @@ export const zoneFields = {
   ctSpot: z.string().trim().max(40),
   laneA: z.string().trim().max(40),
   laneB: z.string().trim().max(40),
+  level: z.enum(["", "upper", "lower"]).optional(),
 };

@@ -61,7 +61,7 @@ import { interpolateItems, moveBoardItem, hitBoardItem } from "@/lib/canvas/boar
 import { makeWorldToCanvas } from "@/lib/canvas/radar";
 import { ACTIVE_DUTY_MAPS, getMapConfig } from "@/lib/utils/maps";
 import { lanesKey } from "@/lib/team/map-lanes";
-import { mergeTeamZones } from "@/lib/team/zones";
+import { mergeTeamZones, withZones } from "@/lib/team/zones";
 import { pl } from "@/lib/i18n/messages/pl";
 import { en } from "@/lib/i18n/messages/en";
 import { navGroups } from "@/components/layout/nav-items";
@@ -423,6 +423,15 @@ const lerp = (a: { x: number; y: number }, b: { x: number; y: number }, k: numbe
   check("team zones are marked, shared ones are not", merged[0].team === undefined && merged[1].team === true);
   check("no team rows: shared zones unchanged", mergeTeamZones(shared, []).length === 3);
   check("lanes key: scoped to a team, plain without one", lanesKey("de_mirage", "t") !== "de_mirage" && lanesKey("de_mirage") === "de_mirage");
+  const tri = [[0, 0], [100, 0], [0, 100]] as Array<[number, number]>;
+  const up = { ...zone("u", "Heaven"), points: tri, level: "upper" };
+  const down = { ...zone("d", "Ramp"), points: tri, level: "lower" };
+  const anyFloor = { ...zone("e", "Silo"), points: [[-50, -50], [200, -50], [-50, 200]] as Array<[number, number]>, level: "" };
+  const onNuke = withZones([up, down], () => null, "de_nuke");
+  check("floors: same spot, name by height", onNuke({ x: 10, y: 10, z: 0 }) === "Heaven" && onNuke({ x: 10, y: 10, z: -700 }) === "Ramp");
+  check("floors: the split is the game's", onNuke({ x: 10, y: 10, z: -495 }) === "Heaven" && onNuke({ x: 10, y: 10, z: -496 }) === "Ramp");
+  check("floors: a zone without a level covers both", withZones([anyFloor], () => null, "de_nuke")({ x: 10, y: 10, z: -700 }) === "Silo");
+  check("floors: a one-floor map ignores height", withZones([down], () => null, "de_mirage")({ x: 10, y: 10, z: 500 }) === "Ramp");
   check("every map of the pool has a radar", ACTIVE_DUTY_MAPS.every((m) => getMapConfig(m)?.name === m));
 }
 

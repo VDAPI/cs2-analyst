@@ -423,7 +423,7 @@ export async function getMatchTeamReport(
     loadZones(prisma, head.map, teamId),
   ]);
   // Zones the admin drew (/callouts) name positions before the demo's callouts.
-  const place = withZones(zones, base);
+  const place = withZones(zones, base, head.map);
   const report = analyzeRival({ rival: team, matches: [loaded], maps: { [head.map]: { sites, place, demoPlace: base } } });
   return { ...report, lanesKey: lanesKey(head.map, teamId) };
 }
@@ -528,7 +528,7 @@ export async function getTeamMapReport(
   const loaded = (await Promise.all(heads.map((h) => loadAntiStratMatch(prisma, h)))).filter((m): m is AntiStratMatch => m != null);
   if (loaded.length === 0) return null;
   const [sites, base, zones] = await Promise.all([bombsiteCentres(prisma, map), getPlaceLookup(prisma, map), loadZones(prisma, map, teamId)]);
-  const report = analyzeRival({ rival: roster, matches: loaded, maps: { [map]: { sites, place: withZones(zones, base), demoPlace: base } } });
+  const report = analyzeRival({ rival: roster, matches: loaded, maps: { [map]: { sites, place: withZones(zones, base, map), demoPlace: base } } });
   await prisma.analysisCache
     .upsert({ where: { key }, create: { key, value: report as unknown as Prisma.InputJsonValue }, update: {} })
     .catch((err) => console.error("[team] analysis cache write failed", err));

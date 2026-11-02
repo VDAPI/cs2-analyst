@@ -95,7 +95,7 @@ export default async function LineupsPage({ searchParams }: Props) {
   // admin's names for the demo's callouts.
   const teamId = await positionsTeamId(prisma, userId);
   const [{ zones }, base] = await Promise.all([loadMapLanes(prisma, map, teamId), getPlaceLookup(prisma, map)]);
-  const zoned = withZones(zones, base);
+  const zoned = withZones(zones, base, map);
   const placeOf = (p: Point3) => {
     const name = zoned(p);
     return name ? shortPlace(lanesKey(map, teamId), name) : null;

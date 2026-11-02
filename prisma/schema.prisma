@@ -850,6 +850,8 @@ model MapZone {
   ctSpot    String   @default("")
   laneA     String   @default("")
   laneB     String   @default("")
+  /// "" = every floor, "upper" / "lower" on a map with two (MapConfig.lower).
+  level     String   @default("")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -868,6 +870,8 @@ model TeamMapZone {
   ctSpot         String   @default("")
   laneA          String   @default("")
   laneB          String   @default("")
+  /// "" = every floor, "upper" / "lower" on a map with two (MapConfig.lower).
+  level     String   @default("")
   replacesZoneId String?
   hidden         Boolean  @default(false)
   createdAt      DateTime @default(now())
