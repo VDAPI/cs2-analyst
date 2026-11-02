@@ -101,7 +101,20 @@ export const MAP_CONFIGS: Record<string, MapConfig> = {
     width: 1024,
     height: 1024,
   },
+  de_cache: {
+    name: "de_cache",
+    displayName: "Cache",
+    radarImage: "/maps/de_cache_radar.webp",
+    posX: -2000,
+    posY: 3250,
+    scale: 5.5,
+    width: 1024,
+    height: 1024,
+  },
 };
+
+/** The tournament (Active Duty) pool. Cache replaced Overpass on 2026-07-08. */
+export const ACTIVE_DUTY_MAPS = ["de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno", "de_mirage", "de_nuke"];
 
 /**
  * Convert game-world coordinates to pixel coordinates on the radar image.

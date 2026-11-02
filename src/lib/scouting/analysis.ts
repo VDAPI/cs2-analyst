@@ -11,6 +11,7 @@ import type {
   FaceitPlayerStats,
   FaceitStatBag,
 } from "@/lib/faceit/types";
+import { ACTIVE_DUTY_MAPS } from "@/lib/utils/maps";
 
 export type Faction = "faction1" | "faction2";
 
@@ -18,15 +19,7 @@ export type Faction = "faction1" | "faction2";
  * Fallback when the room does not list its veto maps (FACEIT omits them
  * before the room is configured): the CS2 Active Duty pool.
  */
-export const DEFAULT_MAP_POOL = [
-  "de_ancient",
-  "de_anubis",
-  "de_dust2",
-  "de_inferno",
-  "de_mirage",
-  "de_nuke",
-  "de_train",
-];
+export const DEFAULT_MAP_POOL = ACTIVE_DUTY_MAPS;
 
 /** How many results the "forma" strip shows. */
 export const FORM_LENGTH = 10;

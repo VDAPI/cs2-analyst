@@ -164,6 +164,10 @@ Panel admina jest pod <http://localhost:3000/admin> (przegląd, analizy, użytko
 
 3. Odśwież stronę. Polecenie wypisze konto (id, data założenia), żebyś mógł sprawdzić, że to twoje.
 
+### Pozycje na mapach
+
+Pozycje przypisuje admin na stronie „Pozycje na mapach” (`/callouts`, wszystkie mapy z puli turniejowej). Działają w analizach wszystkich graczy, ale są zapisane w bazie, więc nie przechodzą same na inny komputer. Żeby je przenieść, w Git Bash wpisz `docker compose exec -T app npm run -s zones:export > prisma/map-zones.json` i zapisz ten plik w repozytorium. `setup` wczyta go na każdej mapie, która nie ma jeszcze własnych stref ani poprawek.
+
 ## 9. Połączenie konta FACEIT (HTTPS) i Steam
 
 ### FACEIT

@@ -308,7 +308,10 @@ export function CalloutMap({
             </table>
           </div>
         )}
-        <div className="overflow-hidden rounded-xl border border-[var(--border)]">
+        {places.length === 0 && (
+          <p className="text-xs text-[var(--text-tertiary)]">Na tej mapie nie ma jeszcze dem, więc nie ma nazw z gry. Strefy można rysować już teraz.</p>
+        )}
+        <div className={cn("overflow-hidden rounded-xl border border-[var(--border)]", places.length === 0 && "hidden")}>
           <table className="data-table text-xs">
             <thead>
               <tr>

@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { humanizePlace, PLACE_CELL } from "@/lib/analysis/places";
-import { MAP_CONFIGS } from "@/lib/utils/maps";
+import { ACTIVE_DUTY_MAPS, MAP_CONFIGS } from "@/lib/utils/maps";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { ctSpotOf, mapLanes, placeKey, shortPlace } from "@/lib/team/map-lanes";
 import { loadMapLanes } from "@/lib/team/map-lanes-load";
@@ -18,26 +18,27 @@ interface Props {
 }
 
 /**
- * /callouts — every position name the demos give on a map (the game's own
- * nav-mesh callouts, learned per 128-unit cell), drawn on the radar with the
- * names the team analysis uses, so a player can check them.
+ * /callouts — every map of the tournament pool (and any other map with data):
+ * the position names the demos give (the game's own nav-mesh callouts, learned
+ * per 128-unit cell) and the zones an admin drew, on the radar, with the names
+ * every player's analysis uses. A map without demos starts as an empty radar.
  */
 export default async function CalloutsPage({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login?callbackUrl=/callouts");
   const query = await searchParams;
 
-  const counts = await prisma.mapPlaceCell.groupBy({ by: ["map"], _sum: { count: true } });
-  const maps = counts
-    .filter((c) => MAP_CONFIGS[c.map])
-    .map((c) => c.map)
-    .sort();
-  const map = maps.includes(query.map ?? "") ? query.map! : maps.includes("de_mirage") ? "de_mirage" : maps[0];
-  const config = map ? MAP_CONFIGS[map] : undefined;
+  const [cellMaps, zoneMaps] = await Promise.all([
+    prisma.mapPlaceCell.groupBy({ by: ["map"] }),
+    prisma.mapZone.groupBy({ by: ["map"] }),
+  ]);
+  // The pool first, then maps out of it that already have data (Train, Overpass…).
+  const others = [...cellMaps, ...zoneMaps].map((c) => c.map).filter((m) => MAP_CONFIGS[m] && !ACTIVE_DUTY_MAPS.includes(m));
+  const maps = [...ACTIVE_DUTY_MAPS, ...[...new Set(others)].sort()];
+  const map = maps.includes(query.map ?? "") ? query.map! : "de_mirage";
+  const config = MAP_CONFIGS[map];
 
-  const rows = map
-    ? await prisma.mapPlaceCell.findMany({ where: { map }, select: { cx: true, cy: true, cz: true, place: true, count: true } })
-    : [];
+  const rows = await prisma.mapPlaceCell.findMany({ where: { map }, select: { cx: true, cy: true, cz: true, place: true, count: true } });
   // One name per 2D cell (the most sampled across heights) for the drawing;
   // places keep every cell for their label position and sample count.
   const best = new Map<string, { cx: number; cy: number; place: string; count: number }>();
@@ -53,12 +54,9 @@ export default async function CalloutsPage({ searchParams }: Props) {
     p.cells++;
     places.set(r.place, p);
   }
-  const [{ overrides, zones }, editable] = await Promise.all([
-    map ? loadMapLanes(prisma, map) : Promise.resolve({ overrides: [], zones: [] }),
-    currentUserIsAdmin(),
-  ]);
+  const [{ overrides, zones }, editable] = await Promise.all([loadMapLanes(prisma, map), currentUserIsAdmin()]);
   const edited = new Set(overrides.map((o) => o.place));
-  const lanes = map ? mapLanes(map) : null;
+  const lanes = mapLanes(map);
   const laneIn = (raw: string, site: "A" | "B") => lanes?.lanes[site].find((l) => l.places.includes(placeKey(raw)))?.name ?? "";
   const placeList: CalloutPlace[] = [...places.entries()]
     .sort((a, b) => b[1].n - a[1].n)
@@ -67,8 +65,8 @@ export default async function CalloutsPage({ searchParams }: Props) {
       return {
         raw,
         human,
-        short: map ? shortPlace(map, human) : human,
-        ctSpot: map ? ctSpotOf(map, human) ?? "" : "",
+        short: shortPlace(map, human),
+        ctSpot: ctSpotOf(map, human) ?? "",
         laneA: laneIn(human, "A"),
         laneB: laneIn(human, "B"),
         edited: edited.has(placeKey(raw)),
@@ -87,8 +85,8 @@ export default async function CalloutsPage({ searchParams }: Props) {
     <div className="min-w-0 space-y-6">
       <PageHeader
         eyebrow="Mapy"
-        title="Pozycje z dema"
-        description="Nazwy pozycji, które gra zapisuje w demie, na radarze mapy, i strefy narysowane przez admina (mają pierwszeństwo). Obok nazwa używana w analizie drużynowej, pozycja CT i wejście T. Najedź na mapę albo kliknij nazwę na liście."
+        title="Pozycje na mapach"
+        description="Strefy narysowane przez admina obowiązują w analizach wszystkich graczy i mają pierwszeństwo przed nazwami, które gra zapisuje w demie. Obok nazwa używana w analizie, pozycja CT i wejście T. Najedź na mapę albo kliknij nazwę na liście."
       />
       <nav aria-label="Mapy" className="flex flex-wrap gap-2">
         {maps.map((m) => (
@@ -107,24 +105,20 @@ export default async function CalloutsPage({ searchParams }: Props) {
           </Link>
         ))}
       </nav>
-      {config ? (
-        <CalloutMap
-          config={{ posX: config.posX, posY: config.posY, scale: config.scale, width: config.width, height: config.height, radarImage: config.radarImage }}
-          cellSize={PLACE_CELL}
-          cells={cells}
-          places={placeList}
-          map={map!}
-          zones={zones}
-          editable={editable}
-          options={{
-            ctSpots: lanes?.ctSpots.map((c) => c.name) ?? [],
-            laneA: lanes?.lanes.A.map((l) => l.name) ?? [],
-            laneB: lanes?.lanes.B.map((l) => l.name) ?? [],
-          }}
-        />
-      ) : (
-        <p className="text-sm text-[var(--text-tertiary)]">Brak dem z danymi pozycji.</p>
-      )}
+      <CalloutMap
+        config={{ posX: config.posX, posY: config.posY, scale: config.scale, width: config.width, height: config.height, radarImage: config.radarImage }}
+        cellSize={PLACE_CELL}
+        cells={cells}
+        places={placeList}
+        map={map}
+        zones={zones}
+        editable={editable}
+        options={{
+          ctSpots: lanes?.ctSpots.map((c) => c.name) ?? [],
+          laneA: lanes?.lanes.A.map((l) => l.name) ?? [],
+          laneB: lanes?.lanes.B.map((l) => l.name) ?? [],
+        }}
+      />
     </div>
   );
 }
