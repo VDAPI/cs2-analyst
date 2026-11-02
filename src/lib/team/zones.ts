@@ -14,6 +14,9 @@ export interface Zone {
   ctSpot: string;
   laneA: string;
   laneB: string;
+  /** A team's own zone (TeamMapZone), and the shared zone it stands in for. */
+  team?: boolean;
+  replacesZoneId?: string | null;
 }
 
 /** Ray casting: is (x, y) inside the polygon? */
@@ -53,4 +56,13 @@ export function parseZones(
       : [];
     return pts.length >= 3 ? [{ id: r.id, name: r.name, points: pts, ctSpot: r.ctSpot, laneA: r.laneA, laneB: r.laneB }] : [];
   });
+}
+
+/**
+ * The positions a team plays with: the shared zones, minus the ones it hid or
+ * replaced, plus its own.
+ */
+export function mergeTeamZones(shared: Zone[], own: Array<Zone & { hidden?: boolean }>): Zone[] {
+  const dropped = new Set(own.flatMap((z) => (z.replacesZoneId ? [z.replacesZoneId] : [])));
+  return [...shared.filter((z) => !dropped.has(z.id)), ...own.filter((z) => !z.hidden).map((z) => ({ ...z, team: true }))];
 }

@@ -55,6 +55,8 @@ export function CalloutMap({
   map,
   zones,
   editable,
+  teamId,
+  hiddenZones = [],
   options,
 }: {
   config: RadarConfig;
@@ -65,6 +67,10 @@ export function CalloutMap({
   zones: Zone[];
   /** Admins can correct names, CT positions and T lanes, and draw zones. */
   editable: boolean;
+  /** Editing a team's version: changes stay in the team, and demo callouts stay as they are. */
+  teamId?: string;
+  /** Shared zones the team removed, to bring back. */
+  hiddenZones?: Zone[];
   /** Existing CT positions and lanes, suggested in the edit forms. */
   options: Options;
 }) {
@@ -264,6 +270,7 @@ export function CalloutMap({
           <ZoneEditor
             map={map}
             options={allOptions}
+            teamId={teamId}
             create={{ points: draft }}
             onDone={() => {
               setDraft(null);
@@ -272,13 +279,14 @@ export function CalloutMap({
           />
         )}
         {editable && !draft && selectedZone && (
-          <ZoneEditor key={selectedZone.id} map={map} options={allOptions} zone={selectedZone} onDone={() => setSelected(null)} />
+          <ZoneEditor key={selectedZone.id} map={map} teamId={teamId} options={allOptions} zone={selectedZone} onDone={() => setSelected(null)} />
         )}
-        {editable && !draft && selectedPlace && <CalloutEditor key={selectedPlace.raw} map={map} place={selectedPlace} options={allOptions} />}
+        {editable && !teamId && !draft && selectedPlace && <CalloutEditor key={selectedPlace.raw} map={map} place={selectedPlace} options={allOptions} />}
         {editable && !draft && !selected && (
           <p className="text-xs text-[var(--text-tertiary)]">
-            Jako admin: „Narysuj strefę” dodaje własną pozycję (np. Ninja, Kitchen). Strefy mają pierwszeństwo przed nazwami z dema. Kliknij
-            strefę albo nazwę, żeby ją poprawić.
+            {teamId
+              ? "Zmiany obowiązują tylko w tej drużynie. „Narysuj strefę” dodaje jej własną pozycję, a kliknięcie strefy pozwala ją zmienić albo usunąć."
+              : "Jako admin: „Narysuj strefę” dodaje własną pozycję (np. Ninja, Kitchen). Strefy mają pierwszeństwo przed nazwami z dema. Kliknij strefę albo nazwę, żeby ją poprawić."}
           </p>
         )}
 
@@ -299,13 +307,28 @@ export function CalloutMap({
                     onClick={() => setSelected(selected?.kind === "zone" && selected.id === z.id ? null : { kind: "zone", id: z.id })}
                     className={cn("cursor-pointer", focusZone === z.id && "bg-[var(--accent-muted)]")}
                   >
-                    <td className="whitespace-nowrap font-medium text-[var(--accent-2)]">{z.name}</td>
+                    <td className="whitespace-nowrap font-medium text-[var(--accent-2)]">
+                      {z.name}
+                      {z.team && (
+                        <span className="ml-1" title="Zmienione przez drużynę">
+                          ✎
+                        </span>
+                      )}
+                    </td>
                     <td>{z.ctSpot || "—"}</td>
                     <td>{laneText(z) || "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {editable && teamId && hiddenZones.length > 0 && (
+          <div className="space-y-1 rounded-xl border border-[var(--border)] p-3 text-xs text-[var(--text-secondary)]">
+            <p>Usunięte w tej drużynie:</p>
+            {hiddenZones.map((z) => (
+              <RestoreZone key={z.id} teamId={teamId} zone={z} />
+            ))}
           </div>
         )}
         {places.length === 0 && (
@@ -458,15 +481,40 @@ function CalloutEditor({ map, place, options }: { map: string; place: CalloutPla
   );
 }
 
-/** Admin form for a drawn zone: a new one (with its points) or an existing one (rename, regroup, delete). */
+/** One shared zone a team removed, with the way back. */
+function RestoreZone({ teamId, zone }: { teamId: string; zone: Zone }) {
+  const router = useRouter();
+  const [failed, setFailed] = useState(false);
+  const restore = async () => {
+    const res = await fetch(`/api/teams/${teamId}/zones/${zone.id}`, { method: "DELETE" });
+    setFailed(!res.ok);
+    if (res.ok) router.refresh();
+  };
+  return (
+    <p className="flex items-center justify-between gap-2">
+      {zone.name}
+      <button type="button" onClick={restore} className="min-h-8 rounded-lg border border-[var(--border)] px-2">
+        {failed ? "Nie udało się, ponów" : "Przywróć"}
+      </button>
+    </p>
+  );
+}
+
+/**
+ * Form for a drawn zone: a new one (with its points) or an existing one
+ * (rename, regroup, delete). In a team a shared zone is never touched: saving
+ * adds the team's version of it, deleting hides it for the team.
+ */
 function ZoneEditor({
   map,
+  teamId,
   options,
   zone,
   create,
   onDone,
 }: {
   map: string;
+  teamId?: string;
   options: Options;
   zone?: Zone;
   create?: { points: Array<[number, number]> };
@@ -475,6 +523,9 @@ function ZoneEditor({
   const router = useRouter();
   const f = useFields({ name: zone?.name ?? "", ctSpot: zone?.ctSpot ?? "", laneA: zone?.laneA ?? "", laneB: zone?.laneB ?? "" });
   const [status, setStatus] = useState("");
+  const base = teamId ? `/api/teams/${teamId}/zones` : "/api/admin/zones";
+  /** Deleting a team's version of a shared zone brings the shared one back. */
+  const restores = !!zone?.replacesZoneId;
 
   const save = async () => {
     if (!f.name.trim()) {
@@ -482,17 +533,20 @@ function ZoneEditor({
       return;
     }
     setStatus("Zapisuję…");
-    const res = zone
-      ? await fetch(`/api/admin/zones/${zone.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(fieldsBody(f)),
-        })
-      : await fetch("/api/admin/zones", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ map, points: create!.points, ...fieldsBody(f) }),
-        });
+    const headers = { "Content-Type": "application/json" };
+    const res =
+      zone && (!teamId || zone.team)
+        ? await fetch(`${base}/${zone.id}`, { method: "PATCH", headers, body: JSON.stringify(fieldsBody(f)) })
+        : await fetch(base, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              map,
+              points: zone?.points ?? create!.points,
+              ...fieldsBody(f),
+              ...(zone && { replacesZoneId: zone.id }),
+            }),
+          });
     if (!res.ok) {
       setStatus("Nie udało się zapisać");
       return;
@@ -501,8 +555,15 @@ function ZoneEditor({
     onDone();
   };
   const remove = async () => {
-    if (!zone || !window.confirm(`Usunąć strefę ${zone.name}?`)) return;
-    const res = await fetch(`/api/admin/zones/${zone.id}`, { method: "DELETE" });
+    if (!zone || !window.confirm(restores ? `Wrócić do wspólnej wersji strefy ${zone.name}?` : `Usunąć strefę ${zone.name}?`)) return;
+    const res =
+      teamId && !zone.team
+        ? await fetch(base, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ map, ...fieldsBody(f), name: zone.name, points: zone.points, replacesZoneId: zone.id, hidden: true }),
+          })
+        : await fetch(`${base}/${zone.id}`, { method: "DELETE" });
     if (!res.ok) {
       setStatus("Nie udało się usunąć");
       return;
@@ -527,7 +588,7 @@ function ZoneEditor({
         </button>
         {zone && (
           <button type="button" onClick={remove} className="rounded-lg border border-[var(--mistake)] px-3 py-1.5 text-sm text-[var(--mistake)]">
-            Usuń strefę
+            {restores ? "Przywróć wspólną" : "Usuń strefę"}
           </button>
         )}
         <span className="text-xs text-[var(--text-tertiary)]">{status}</span>

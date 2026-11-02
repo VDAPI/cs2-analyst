@@ -10,6 +10,7 @@ import {
   defaultSpots,
   namesFromReport,
   repeatedPlays,
+  reportLanes,
   reportMap,
   summaryLines,
   tacticCounts,
@@ -59,7 +60,7 @@ export function TeamMapAnalysis({
   /** Opponent label per match id ("vs MOUZ" lineup names). */
   opponents?: Map<string, string>;
 }) {
-  const map = reportMap(report);
+  const map = reportLanes(report);
   const nameOf = namesFromReport(report);
   const tRounds = report.rounds.filter((r) => r.side === "T");
   const ctRounds = report.rounds.filter((r) => r.side === "CT");
@@ -100,7 +101,7 @@ export function TeamMapAnalysis({
 
       <section className="space-y-2">
         <SectionTitle>Powtarzane zagrywki T</SectionTitle>
-        <RepeatedPlays plays={repeatedPlays(t, report)} board={teams && !shared ? { map, teams, nameOf } : undefined} shared={shared} />
+        <RepeatedPlays plays={repeatedPlays(t, report)} board={teams && !shared ? { map: reportMap(report), teams, nameOf } : undefined} shared={shared} />
       </section>
 
       <div className="grid gap-4 lg:grid-cols-3">

@@ -22,6 +22,9 @@ export const TEAM_TAG_MAX = 6;
 export const TEAM_MATCH_LIMIT = 60;
 
 /** Owner manages the team; owner and coach manage rivals and every board. */
+/** A team's own zones per map on /callouts. */
+export const MAX_TEAM_ZONES = 100;
+
 export const canManageTeam = (role: TeamRoleName) => role === "OWNER";
 export const canManageContent = (role: TeamRoleName) =>
   role === "OWNER" || role === "COACH";

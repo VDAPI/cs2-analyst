@@ -65,6 +65,8 @@ const ctOrder = (map: string) => {
 };
 
 export const reportMap = (report: AntiStratReport) => report.matches[0]?.map ?? "";
+/** The key for the map-lanes lookups: the map, scoped to a team when it has its own positions. */
+export const reportLanes = (report: AntiStratReport) => report.lanesKey ?? reportMap(report);
 
 /** Groups of names under a label, biggest first: [["Con", ["a", "b"]], …]. */
 function grouped(entries: Array<[label: string, name: string]>, order?: string[]): Array<[string, string[]]> {
@@ -141,7 +143,7 @@ export interface RepeatedPlay {
  * the grenades they usually go with. Over every demo of the report.
  */
 export function repeatedPlays(t: TFunction, report: AntiStratReport): RepeatedPlay[] {
-  const map = reportMap(report);
+  const map = reportLanes(report);
   const nameOf = namesFromReport(report);
   const groups = new Map<string, RoundBreakdown[]>();
   for (const r of report.rounds) {
@@ -272,7 +274,7 @@ export function defaultSpots(map: string, rounds: RoundBreakdown[]): Array<{ pla
 
 /** Tactic names of the T rounds with counts: [["Split A", 3], …]. */
 export function tacticCounts(t: TFunction, report: AntiStratReport): Array<[string, number]> {
-  const map = reportMap(report);
+  const map = reportLanes(report);
   const nameOf = namesFromReport(report);
   const c = new Map<string, number>();
   for (const r of report.rounds) {
@@ -285,7 +287,7 @@ export function tacticCounts(t: TFunction, report: AntiStratReport): Array<[stri
 
 /** Pistol rounds over every demo: T tactics and CT setups with counts. */
 export function pistolLines(t: TFunction, report: AntiStratReport): string[] {
-  const map = reportMap(report);
+  const map = reportLanes(report);
   const nameOf = namesFromReport(report);
   const pistols = report.rounds.filter((r) => r.buy === "pistol");
   const count = (keys: string[]) => {
@@ -333,7 +335,7 @@ export const AWP_EARLY_S = 20;
 
 /** The team's AWP play per side: who has it, where it kills from and when. */
 export function awpSummary(report: AntiStratReport): AwpSide[] {
-  const map = reportMap(report);
+  const map = reportLanes(report);
   const nameOf = namesFromReport(report);
   const out: AwpSide[] = [];
   for (const side of ["T", "CT"] as const) {
@@ -375,7 +377,7 @@ export interface AfterPistol {
  * play of the next two rounds, counted over every demo ("Pełny zakup · Rush B ×2").
  */
 export function afterPistol(t: TFunction, report: AntiStratReport): AfterPistol[] {
-  const map = reportMap(report);
+  const map = reportLanes(report);
   const nameOf = namesFromReport(report);
   const byMatch = new Map<string, Map<number, RoundBreakdown>>();
   for (const r of report.rounds) {
@@ -440,7 +442,7 @@ function ctPlayerSpots(map: string, report: AntiStratReport): string[] {
 
 /** The "Key points" sentences: result, tactics, T default, CT setup and positions, utility. */
 export function summaryLines(t: TFunction, report: AntiStratReport): string[] {
-  const map = reportMap(report);
+  const map = reportLanes(report);
   const stats = report.maps[0];
   const match = report.matches[0];
   if (!stats || !match) return [];
@@ -512,7 +514,7 @@ const csvCell = (v: string | number) => {
 
 /** Round-by-round CSV (Excel opens it with the BOM; semicolons for Polish locales). */
 export function roundsCsv(t: TFunction, report: AntiStratReport): string {
-  const map = reportMap(report);
+  const map = reportLanes(report);
   const nameOf = namesFromReport(report);
   const head = [
     t("teamDemo.colRound"),

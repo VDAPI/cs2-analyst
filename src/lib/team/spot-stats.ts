@@ -6,8 +6,8 @@
  */
 import type { PrismaClient } from "@prisma/client";
 import { getPlaceLookup } from "@/lib/analysis/persist-utility";
-import { loadMapLanes } from "./map-lanes-load";
-import { shortPlace } from "./map-lanes";
+import { loadMapLanes, positionsTeamId } from "./map-lanes-load";
+import { lanesKey, shortPlace } from "./map-lanes";
 import { withZones } from "./zones";
 
 export interface SpotStat {
@@ -61,12 +61,13 @@ export async function playerSpotStats(prisma: PrismaClient, userId: string, stea
     },
   });
   const lookups = new Map<string, (p: { x: number; y: number; z: number }) => string>();
+  const teamId = await positionsTeamId(prisma, userId);
   for (const map of new Set(matches.map((m) => m.map))) {
-    const [{ zones }, base] = await Promise.all([loadMapLanes(prisma, map), getPlaceLookup(prisma, map)]);
+    const [{ zones }, base] = await Promise.all([loadMapLanes(prisma, map, teamId), getPlaceLookup(prisma, map)]);
     const zoned = withZones(zones, base);
     lookups.set(map, (p) => {
       const name = zoned(p);
-      return name ? shortPlace(map, name) : "?";
+      return name ? shortPlace(lanesKey(map, teamId), name) : "?";
     });
   }
   const acc = new Map<string, SpotStat>();

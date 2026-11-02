@@ -13,8 +13,8 @@ import { mapDisplayName } from "@/lib/utils/mapNames";
 import { cn } from "@/lib/utils/cn";
 import { CANVAS_COLORS, grenadeStyle } from "@/lib/canvas/palette";
 import { computeAndPersistUtility, getMapLineups, getPlaceLookup } from "@/lib/analysis/persist-utility";
-import { loadMapLanes } from "@/lib/team/map-lanes-load";
-import { shortPlace } from "@/lib/team/map-lanes";
+import { loadMapLanes, positionsTeamId } from "@/lib/team/map-lanes-load";
+import { lanesKey, shortPlace } from "@/lib/team/map-lanes";
 import { withZones } from "@/lib/team/zones";
 import { LINEUP_MIN_MATCHES, LINEUP_MIN_SAMPLES, type Lineup } from "@/lib/analysis/lineups";
 import type { GrenadeKind, Point3 } from "@/lib/analysis/utility";
@@ -93,11 +93,12 @@ export default async function LineupsPage({ searchParams }: Props) {
 
   // Callouts as players say them: drawn zones first (/callouts), then the
   // admin's names for the demo's callouts.
-  const [{ zones }, base] = await Promise.all([loadMapLanes(prisma, map), getPlaceLookup(prisma, map)]);
+  const teamId = await positionsTeamId(prisma, userId);
+  const [{ zones }, base] = await Promise.all([loadMapLanes(prisma, map, teamId), getPlaceLookup(prisma, map)]);
   const zoned = withZones(zones, base);
   const placeOf = (p: Point3) => {
     const name = zoned(p);
-    return name ? shortPlace(map, name) : null;
+    return name ? shortPlace(lanesKey(map, teamId), name) : null;
   };
   const [lineupBase, mastered] = await Promise.all([getMapLineups(prisma, map, placeOf), loadMastered(prisma, userId, map)]);
   const throwerIds = [...new Set(lineupBase.flatMap((l) => l.throwers ?? []))];

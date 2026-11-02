@@ -332,6 +332,8 @@ export interface AntiStratReport {
   players: RivalPlayer[];
   insights: Insight[];
   rounds: RoundBreakdown[];
+  /** Set per viewer, not stored: see reportLanes. */
+  lanesKey?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────

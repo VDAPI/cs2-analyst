@@ -13,7 +13,7 @@ import {
   BUY_KEY,
   defaultSpots,
   namesFromReport,
-  reportMap,
+  reportLanes,
   roundText,
   summaryLines,
   tacticCounts,
@@ -24,7 +24,7 @@ import {
 import { ctSpotOf, shortPlace } from "@/lib/team/map-lanes";
 import { repeatedPlays } from "@/lib/team/breakdown-text";
 import { RepeatedPlays } from "@/components/team-analysis/repeated-plays";
-import { loadMapLanes } from "@/lib/team/map-lanes-load";
+import { loadMapLanes, positionsTeamId } from "@/lib/team/map-lanes-load";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { cn } from "@/lib/utils/cn";
 import { Badge, Card, EmptyState, PageHeader, SectionTitle, buttonVariants } from "@/components/ui";
@@ -84,7 +84,8 @@ export default async function MatchTeamPage({ params, searchParams }: Props) {
       })
     : null;
   const folders = ownUpload && session?.user?.id ? folderOptions(await userFolders(prisma, session.user.id)) : [];
-  const [report] = await Promise.all([getMatchTeamReport(prisma, matchId, side), loadMapLanes(prisma, match.map)]);
+  const teamId = session?.user?.id ? await positionsTeamId(prisma, session.user.id) : undefined;
+  const [report] = await Promise.all([getMatchTeamReport(prisma, matchId, side, teamId), loadMapLanes(prisma, match.map, teamId)]);
   const header = (
     <PageHeader
       back={{ href: `/matches/${matchId}`, label: t("teamDemo.back") }}
@@ -146,7 +147,7 @@ export default async function MatchTeamPage({ params, searchParams }: Props) {
   }
 
   const nameOf = namesFromReport(report);
-  const mapName = reportMap(report);
+  const mapName = reportLanes(report);
   const tRounds = report.rounds.filter((r) => r.side === "T");
   const ctRounds = report.rounds.filter((r) => r.side === "CT");
   const pistols = report.rounds.filter((r) => r.buy === "pistol");

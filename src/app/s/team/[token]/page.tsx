@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getT } from "@/lib/i18n/server";
 import { isShareToken } from "@/lib/sharing/share";
 import { getTeamMapReport, teamMaps } from "@/lib/team/load";
-import { loadMapLanes } from "@/lib/team/map-lanes-load";
+import { loadMapLanes, positionsTeamId } from "@/lib/team/map-lanes-load";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { cn } from "@/lib/utils/cn";
 import { PageHeader } from "@/components/ui";
@@ -35,8 +35,9 @@ export default async function SharedTeamPage({ params, searchParams }: Props) {
 
   const maps = await teamMaps(prisma, share.userId, share.steamIds);
   const map = maps.find((m) => m.map === query.map)?.map ?? maps[0]?.map;
-  const report = map ? await getTeamMapReport(prisma, share.userId, share.steamIds, map) : null;
-  if (map) await loadMapLanes(prisma, map);
+  const teamId = await positionsTeamId(prisma, share.userId);
+  const report = map ? await getTeamMapReport(prisma, share.userId, share.steamIds, map, undefined, teamId) : null;
+  if (map) await loadMapLanes(prisma, map, teamId);
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
