@@ -23,6 +23,7 @@
     "setup:local": "npm run db:push && tsx --tsconfig tsconfig.json scripts/local-seed.ts",
     "test:clutches": "tsx --tsconfig tsconfig.json scripts/test-clutch-wins.ts",
     "test:sides": "tsx --tsconfig tsconfig.json scripts/test-sides.ts",
+    "zones:export": "tsx --tsconfig tsconfig.json scripts/export-map-zones.ts",
     "maps:webp": "tsx --tsconfig tsconfig.json scripts/build-map-images.ts",
     "bench:parse": "tsx --tsconfig tsconfig.json scripts/bench-parse.ts",
     "test:e2e-demo": "tsx --tsconfig tsconfig.json scripts/e2e-parse.ts",

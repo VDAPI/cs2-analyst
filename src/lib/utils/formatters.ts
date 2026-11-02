@@ -101,6 +101,7 @@ export function mapDisplayName(mapName: string): string {
     de_anubis: "Anubis",
     de_ancient: "Ancient",
     de_train: "Train",
+    de_cache: "Cache",
   };
   return names[mapName] ?? mapName;
 }

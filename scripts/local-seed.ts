@@ -17,14 +17,14 @@
  */
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { access, mkdir, rename, unlink, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import bcrypt from "bcryptjs";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Prisma } from "@prisma/client";
 import { parseAndPersistDemo } from "../src/lib/parsers/persist-demo";
 import { deleteUploadDemo } from "../src/lib/storage/demo-store";
 import { getR2Config, r2EnsureBucket } from "../src/lib/storage/r2";
@@ -210,8 +210,30 @@ async function ensureDemoMatch() {
   }
 }
 
+interface MapZonesFile {
+  zones: Prisma.MapZoneCreateManyInput[];
+  callouts: Prisma.MapCalloutCreateManyInput[];
+}
+
+/**
+ * Positions assigned on /callouts live in the database. prisma/map-zones.json
+ * (npm run zones:export) carries them to a fresh database; a map that already
+ * has its own zones or corrections is left alone.
+ */
+async function importMapZones() {
+  const seed = JSON.parse(await readFile(join(process.cwd(), "prisma", "map-zones.json"), "utf8")) as MapZonesFile;
+  const zoned = new Set((await prisma.mapZone.groupBy({ by: ["map"] })).map((r) => r.map));
+  const corrected = new Set((await prisma.mapCallout.groupBy({ by: ["map"] })).map((r) => r.map));
+  const zones = seed.zones.filter((z) => !zoned.has(z.map));
+  const callouts = seed.callouts.filter((c) => !corrected.has(c.map));
+  if (zones.length > 0) await prisma.mapZone.createMany({ data: zones });
+  if (callouts.length > 0) await prisma.mapCallout.createMany({ data: callouts });
+  if (zones.length + callouts.length > 0) console.log(`setup: pozycje na mapach: ${zones.length} stref, ${callouts.length} poprawek nazw`);
+}
+
 async function main() {
   await ensureBucket();
+  await importMapZones();
   await seedAccount();
   await ensureDemoMatch();
   await downloadSampleDemo();
