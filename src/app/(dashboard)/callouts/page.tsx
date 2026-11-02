@@ -8,6 +8,7 @@ import { ACTIVE_DUTY_MAPS, MAP_CONFIGS } from "@/lib/utils/maps";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { ctSpotOf, lanesKey, mapLanes, placeKey, shortPlace } from "@/lib/team/map-lanes";
 import { loadMapLanes, loadTeamZones } from "@/lib/team/map-lanes-load";
+import { onZoneLevel } from "@/lib/team/zones";
 import { canManageContent } from "@/lib/team/roster";
 import { currentUserIsAdmin } from "@/lib/admin/session";
 import { cn } from "@/lib/utils/cn";
@@ -15,7 +16,7 @@ import { PageHeader } from "@/components/ui";
 import { CalloutMap, type CalloutCell, type CalloutPlace } from "@/components/maps/callout-map";
 
 interface Props {
-  searchParams: Promise<{ map?: string; team?: string }>;
+  searchParams: Promise<{ map?: string; team?: string; level?: string }>;
 }
 
 /**
@@ -40,6 +41,8 @@ export default async function CalloutsPage({ searchParams }: Props) {
   const maps = [...ACTIVE_DUTY_MAPS, ...[...new Set(others)].sort()];
   const map = maps.includes(query.map ?? "") ? query.map! : "de_mirage";
   const config = MAP_CONFIGS[map];
+  // A map with two floors shows one at a time: its radar, callouts and zones.
+  const level = config.lower ? (query.level === "lower" ? "lower" : "upper") : "";
 
   const rows = await prisma.mapPlaceCell.findMany({ where: { map }, select: { cx: true, cy: true, cz: true, place: true, count: true } });
   // One name per 2D cell (the most sampled across heights) for the drawing;
@@ -47,6 +50,7 @@ export default async function CalloutsPage({ searchParams }: Props) {
   const best = new Map<string, { cx: number; cy: number; place: string; count: number }>();
   const places = new Map<string, { sx: number; sy: number; n: number; cells: number }>();
   for (const r of rows) {
+    if (level && !onZoneLevel(level, (r.cz + 0.5) * PLACE_CELL, config.lower?.below)) continue;
     const key = `${r.cx}|${r.cy}`;
     const b = best.get(key);
     if (!b || r.count > b.count) best.set(key, { cx: r.cx, cy: r.cy, place: r.place, count: r.count });
@@ -64,11 +68,12 @@ export default async function CalloutsPage({ searchParams }: Props) {
   });
   const member = memberships.find((m) => m.team.id === query.team);
   const teamId = member?.team.id;
-  const [{ overrides, zones }, isAdmin, teamRows] = await Promise.all([
+  const [{ overrides, zones: allZones }, isAdmin, teamRows] = await Promise.all([
     loadMapLanes(prisma, map, teamId),
     currentUserIsAdmin(),
     teamId ? loadTeamZones(prisma, map, teamId) : Promise.resolve([]),
   ]);
+  const zones = allZones.filter((z) => !z.level || !level || z.level === level);
   const editable = member ? canManageContent(member.role) : isAdmin;
   const edited = new Set(overrides.map((o) => o.place));
   const key = lanesKey(map, teamId);
@@ -121,13 +126,38 @@ export default async function CalloutsPage({ searchParams }: Props) {
           </Link>
         ))}
       </nav>
+      {config.lower && (
+        <nav aria-label="Poziom mapy" className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-[var(--text-tertiary)]">Poziom:</span>
+          {(
+            [
+              ["upper", "Góra"],
+              ["lower", "Dół"],
+            ] as const
+          ).map(([l, label]) => (
+            <Link
+              key={l}
+              href={`/callouts?map=${map}${teamId ? `&team=${teamId}` : ""}${l === "lower" ? "&level=lower" : ""}`}
+              aria-current={l === level ? "true" : undefined}
+              className={cn(
+                "flex min-h-10 items-center rounded-lg border px-3 transition-colors",
+                l === level
+                  ? "border-[var(--border-active)] bg-[var(--accent-muted)] text-[var(--text-primary)]"
+                  : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--border-hover)]"
+              )}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+      )}
       {memberships.length > 0 && (
         <nav aria-label="Czyje pozycje" className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-[var(--text-tertiary)]">Pozycje:</span>
           {[{ id: "", name: "Wspólne" }, ...memberships.map((m) => m.team)].map((tm) => (
             <Link
               key={tm.id}
-              href={`/callouts?map=${map}${tm.id ? `&team=${tm.id}` : ""}`}
+              href={`/callouts?map=${map}${tm.id ? `&team=${tm.id}` : ""}${level === "lower" ? "&level=lower" : ""}`}
               aria-current={tm.id === (teamId ?? "") ? "true" : undefined}
               className={cn(
                 "flex min-h-10 items-center rounded-lg border px-3 transition-colors",
@@ -143,7 +173,9 @@ export default async function CalloutsPage({ searchParams }: Props) {
         </nav>
       )}
       <CalloutMap
-        config={{ posX: config.posX, posY: config.posY, scale: config.scale, width: config.width, height: config.height, radarImage: config.radarImage }}
+        key={`${map}|${level}`}
+        level={level}
+        config={{ posX: config.posX, posY: config.posY, scale: config.scale, width: config.width, height: config.height, radarImage: level === "lower" ? config.lower!.radarImage : config.radarImage }}
         cellSize={PLACE_CELL}
         cells={cells}
         places={placeList}

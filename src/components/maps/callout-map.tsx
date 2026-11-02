@@ -57,6 +57,7 @@ export function CalloutMap({
   editable,
   teamId,
   hiddenZones = [],
+  level,
   options,
 }: {
   config: RadarConfig;
@@ -71,6 +72,8 @@ export function CalloutMap({
   teamId?: string;
   /** Shared zones the team removed, to bring back. */
   hiddenZones?: Zone[];
+  /** The floor shown ("" = the map has one): a new zone goes on it. */
+  level: string;
   /** Existing CT positions and lanes, suggested in the edit forms. */
   options: Options;
 }) {
@@ -271,7 +274,7 @@ export function CalloutMap({
             map={map}
             options={allOptions}
             teamId={teamId}
-            create={{ points: draft }}
+            create={{ points: draft, level }}
             onDone={() => {
               setDraft(null);
               setDraftDone(false);
@@ -517,7 +520,7 @@ function ZoneEditor({
   teamId?: string;
   options: Options;
   zone?: Zone;
-  create?: { points: Array<[number, number]> };
+  create?: { points: Array<[number, number]>; level: string };
   onDone: () => void;
 }) {
   const router = useRouter();
@@ -543,6 +546,7 @@ function ZoneEditor({
             body: JSON.stringify({
               map,
               points: zone?.points ?? create!.points,
+              level: zone?.level ?? create!.level,
               ...fieldsBody(f),
               ...(zone && { replacesZoneId: zone.id }),
             }),
@@ -561,7 +565,7 @@ function ZoneEditor({
         ? await fetch(base, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ map, ...fieldsBody(f), name: zone.name, points: zone.points, replacesZoneId: zone.id, hidden: true }),
+            body: JSON.stringify({ map, ...fieldsBody(f), name: zone.name, points: zone.points, level: zone.level, replacesZoneId: zone.id, hidden: true }),
           })
         : await fetch(`${base}/${zone.id}`, { method: "DELETE" });
     if (!res.ok) {
