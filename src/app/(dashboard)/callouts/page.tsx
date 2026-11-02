@@ -6,15 +6,16 @@ import { prisma } from "@/lib/db/prisma";
 import { humanizePlace, PLACE_CELL } from "@/lib/analysis/places";
 import { ACTIVE_DUTY_MAPS, MAP_CONFIGS } from "@/lib/utils/maps";
 import { mapDisplayName } from "@/lib/utils/mapNames";
-import { ctSpotOf, mapLanes, placeKey, shortPlace } from "@/lib/team/map-lanes";
-import { loadMapLanes } from "@/lib/team/map-lanes-load";
+import { ctSpotOf, lanesKey, mapLanes, placeKey, shortPlace } from "@/lib/team/map-lanes";
+import { loadMapLanes, loadTeamZones } from "@/lib/team/map-lanes-load";
+import { canManageContent } from "@/lib/team/roster";
 import { currentUserIsAdmin } from "@/lib/admin/session";
 import { cn } from "@/lib/utils/cn";
 import { PageHeader } from "@/components/ui";
 import { CalloutMap, type CalloutCell, type CalloutPlace } from "@/components/maps/callout-map";
 
 interface Props {
-  searchParams: Promise<{ map?: string }>;
+  searchParams: Promise<{ map?: string; team?: string }>;
 }
 
 /**
@@ -22,6 +23,8 @@ interface Props {
  * the position names the demos give (the game's own nav-mesh callouts, learned
  * per 128-unit cell) and the zones an admin drew, on the radar, with the names
  * every player's analysis uses. A map without demos starts as an empty radar.
+ * With ?team= a team member sees the team's version, and its owner or coach
+ * changes it for the team only.
  */
 export default async function CalloutsPage({ searchParams }: Props) {
   const session = await getServerSession(authOptions);
@@ -54,9 +57,22 @@ export default async function CalloutsPage({ searchParams }: Props) {
     p.cells++;
     places.set(r.place, p);
   }
-  const [{ overrides, zones }, editable] = await Promise.all([loadMapLanes(prisma, map), currentUserIsAdmin()]);
+  const memberships = await prisma.teamMember.findMany({
+    where: { userId: session.user.id },
+    orderBy: { joinedAt: "asc" },
+    select: { role: true, team: { select: { id: true, name: true } } },
+  });
+  const member = memberships.find((m) => m.team.id === query.team);
+  const teamId = member?.team.id;
+  const [{ overrides, zones }, isAdmin, teamRows] = await Promise.all([
+    loadMapLanes(prisma, map, teamId),
+    currentUserIsAdmin(),
+    teamId ? loadTeamZones(prisma, map, teamId) : Promise.resolve([]),
+  ]);
+  const editable = member ? canManageContent(member.role) : isAdmin;
   const edited = new Set(overrides.map((o) => o.place));
-  const lanes = mapLanes(map);
+  const key = lanesKey(map, teamId);
+  const lanes = mapLanes(key);
   const laneIn = (raw: string, site: "A" | "B") => lanes?.lanes[site].find((l) => l.places.includes(placeKey(raw)))?.name ?? "";
   const placeList: CalloutPlace[] = [...places.entries()]
     .sort((a, b) => b[1].n - a[1].n)
@@ -65,8 +81,8 @@ export default async function CalloutsPage({ searchParams }: Props) {
       return {
         raw,
         human,
-        short: shortPlace(map, human),
-        ctSpot: ctSpotOf(map, human) ?? "",
+        short: shortPlace(key, human),
+        ctSpot: ctSpotOf(key, human) ?? "",
         laneA: laneIn(human, "A"),
         laneB: laneIn(human, "B"),
         edited: edited.has(placeKey(raw)),
@@ -92,7 +108,7 @@ export default async function CalloutsPage({ searchParams }: Props) {
         {maps.map((m) => (
           <Link
             key={m}
-            href={`/callouts?map=${m}`}
+            href={`/callouts?map=${m}${teamId ? `&team=${teamId}` : ""}`}
             aria-current={m === map ? "true" : undefined}
             className={cn(
               "flex min-h-10 items-center rounded-lg border px-3 text-sm transition-colors",
@@ -105,6 +121,27 @@ export default async function CalloutsPage({ searchParams }: Props) {
           </Link>
         ))}
       </nav>
+      {memberships.length > 0 && (
+        <nav aria-label="Czyje pozycje" className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-[var(--text-tertiary)]">Pozycje:</span>
+          {[{ id: "", name: "Wspólne" }, ...memberships.map((m) => m.team)].map((tm) => (
+            <Link
+              key={tm.id}
+              href={`/callouts?map=${map}${tm.id ? `&team=${tm.id}` : ""}`}
+              aria-current={tm.id === (teamId ?? "") ? "true" : undefined}
+              className={cn(
+                "flex min-h-10 items-center rounded-lg border px-3 transition-colors",
+                tm.id === (teamId ?? "")
+                  ? "border-[var(--border-active)] bg-[var(--accent-muted)] text-[var(--text-primary)]"
+                  : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--border-hover)]"
+              )}
+            >
+              {tm.name}
+            </Link>
+          ))}
+          {memberships.length > 1 && <span className="text-xs text-[var(--text-tertiary)]">Twoje analizy używają pozycji drużyny {memberships[0].team.name}.</span>}
+        </nav>
+      )}
       <CalloutMap
         config={{ posX: config.posX, posY: config.posY, scale: config.scale, width: config.width, height: config.height, radarImage: config.radarImage }}
         cellSize={PLACE_CELL}
@@ -113,6 +150,8 @@ export default async function CalloutsPage({ searchParams }: Props) {
         map={map}
         zones={zones}
         editable={editable}
+        teamId={teamId}
+        hiddenZones={teamRows.filter((z) => z.hidden)}
         options={{
           ctSpots: lanes?.ctSpots.map((c) => c.name) ?? [],
           laneA: lanes?.lanes.A.map((l) => l.name) ?? [],

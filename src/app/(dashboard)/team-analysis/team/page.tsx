@@ -6,7 +6,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getT } from "@/lib/i18n/server";
 import { userFolders } from "@/lib/team/folders";
 import { getTeamMapReport, teamLineups, teamMaps } from "@/lib/team/load";
-import { loadMapLanes } from "@/lib/team/map-lanes-load";
+import { loadMapLanes, positionsTeamId } from "@/lib/team/map-lanes-load";
 import { detectTeams, rosterKey } from "@/lib/team/detect";
 import { mapDisplayName } from "@/lib/utils/mapNames";
 import { cn } from "@/lib/utils/cn";
@@ -47,8 +47,9 @@ export default async function TeamPage({ searchParams }: Props) {
   const folder = folderOfTeam(rows, roster);
   const title = folder?.name ?? `Drużyna ${team?.core[0]?.name ?? ""}`.trim();
   const map = maps.find((m) => m.map === query.map)?.map ?? maps[0]?.map;
-  const report = map ? await getTeamMapReport(prisma, userId, roster, map) : null;
-  if (map) await loadMapLanes(prisma, map);
+  const teamId = await positionsTeamId(prisma, userId);
+  const report = map ? await getTeamMapReport(prisma, userId, roster, map, undefined, teamId) : null;
+  if (map) await loadMapLanes(prisma, map, teamId);
   const myTeams = (
     await prisma.teamMember.findMany({ where: { userId }, select: { team: { select: { id: true, name: true } } } })
   ).map((m) => m.team);

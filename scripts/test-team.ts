@@ -59,7 +59,9 @@ import {
 } from "@/lib/team/board";
 import { interpolateItems, moveBoardItem, hitBoardItem } from "@/lib/canvas/board-draw";
 import { makeWorldToCanvas } from "@/lib/canvas/radar";
-import { getMapConfig } from "@/lib/utils/maps";
+import { ACTIVE_DUTY_MAPS, getMapConfig } from "@/lib/utils/maps";
+import { lanesKey } from "@/lib/team/map-lanes";
+import { mergeTeamZones } from "@/lib/team/zones";
 import { pl } from "@/lib/i18n/messages/pl";
 import { en } from "@/lib/i18n/messages/en";
 import { navGroups } from "@/components/layout/nav-items";
@@ -406,6 +408,22 @@ const lerp = (a: { x: number; y: number }, b: { x: number; y: number }, k: numbe
     1 / 5120
   );
   check("tap picks the player above the arrow", hit?.id === "p");
+}
+
+// ─── 4b. A team's own positions ────────────────────────
+{
+  const zone = (id: string, name: string) => ({ id, name, points: [[0, 0], [10, 0], [0, 10]] as Array<[number, number]>, ctSpot: "", laneA: "", laneB: "" });
+  const shared = [zone("a", "Window"), zone("b", "Short"), zone("c", "Con")];
+  const merged = mergeTeamZones(shared, [
+    { ...zone("t1", "Okno"), replacesZoneId: "a" },
+    { ...zone("t2", "Short"), replacesZoneId: "b", hidden: true },
+    { ...zone("t3", "Nasza"), replacesZoneId: null },
+  ]);
+  check("team zones: own version replaces, hidden removes, new adds", merged.map((z) => z.name).join() === "Con,Okno,Nasza");
+  check("team zones are marked, shared ones are not", merged[0].team === undefined && merged[1].team === true);
+  check("no team rows: shared zones unchanged", mergeTeamZones(shared, []).length === 3);
+  check("lanes key: scoped to a team, plain without one", lanesKey("de_mirage", "t") !== "de_mirage" && lanesKey("de_mirage") === "de_mirage");
+  check("every map of the pool has a radar", ACTIVE_DUTY_MAPS.every((m) => getMapConfig(m)?.name === m));
 }
 
 // ─── 5. Copy and navigation ──────────────────────────────

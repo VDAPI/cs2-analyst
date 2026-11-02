@@ -82,6 +82,12 @@ const MAPS: Record<string, MapLanes> = { ...BUILT_IN };
 
 export const mapLanes = (map: string): MapLanes | null => MAPS[map] ?? null;
 
+/**
+ * What the lookups below take as `map` when a team has its own positions: one
+ * team's table must not leak into another viewer's page.
+ */
+export const lanesKey = (map: string, teamId?: string) => (teamId ? `${map}@${teamId}` : map);
+
 /** An admin correction of one callout (MapCallout row): null = built-in, "" = none. */
 export interface CalloutOverride {
   place: string;

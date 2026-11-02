@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getT } from "@/lib/i18n/server";
 import { folderChain, folderOptions, folderRoster, subtreeIds, userFolders, type FolderRow } from "@/lib/team/folders";
 import { getTeamMapReport, teamLineups, teamMaps } from "@/lib/team/load";
-import { loadMapLanes } from "@/lib/team/map-lanes-load";
+import { loadMapLanes, positionsTeamId } from "@/lib/team/map-lanes-load";
 import { detectTeams, rosterKey, SAME_TEAM_PLAYERS, type DetectedTeam } from "@/lib/team/detect";
 import { formatDate } from "@/lib/utils/formatters";
 import { mapDisplayName } from "@/lib/utils/mapNames";
@@ -73,8 +73,9 @@ export async function TeamAnalysisView({ folderId, page = 1, map: mapParam }: { 
   // The folder's team analysis: one map at a time, cached.
   const maps = roster.length > 0 ? await teamMaps(prisma, userId, roster, scope) : [];
   const map = maps.find((m) => m.map === mapParam)?.map ?? maps[0]?.map;
-  const report = map ? await getTeamMapReport(prisma, userId, roster, map, scope) : null;
-  if (map) await loadMapLanes(prisma, map);
+  const teamId = await positionsTeamId(prisma, userId);
+  const report = map ? await getTeamMapReport(prisma, userId, roster, map, scope, teamId) : null;
+  if (map) await loadMapLanes(prisma, map, teamId);
   const myTeams = (
     await prisma.teamMember.findMany({ where: { userId }, select: { team: { select: { id: true, name: true } } } })
   ).map((m) => m.team);

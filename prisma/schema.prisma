@@ -856,6 +856,28 @@ model MapZone {
   @@index([map])
 }
 
+/// A team's own change to the positions on a map (/callouts?team=): a new zone,
+/// or with `replacesZoneId` its version of a shared MapZone. `hidden` removes
+/// that shared zone for the team. Merged by mergeTeamZones (src/lib/team/zones.ts).
+model TeamMapZone {
+  id             String   @id @default(cuid())
+  teamId         String
+  map            String
+  name           String
+  points         Json
+  ctSpot         String   @default("")
+  laneA          String   @default("")
+  laneB          String   @default("")
+  replacesZoneId String?
+  hidden         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, map])
+}
+
 // One detected mistake at one moment (src/lib/findings/). Built from the
 // stored analysis (MechanicsStats, AimStats — later utility, teamplay,
 // economy), so it can be rebuilt without the .dem. `type` is a key of
@@ -1029,6 +1051,7 @@ model Team {
   members TeamMember[]
   rivals  TeamRival[]
   boards  TacticBoard[]
+  zones   TeamMapZone[]
 }
 
 model TeamMember {
